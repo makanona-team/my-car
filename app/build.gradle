@@ -16,8 +16,8 @@ android {
         minSdk 16
         // 28 a propósito: mantiene el comportamiento probado en pantallas viejas y nuevas.
         targetSdk 28
-        versionCode 2
-        versionName '1.0.1'
+        versionCode 3
+        versionName '1.1'
         manifestPlaceholders = [appLabel: 'My Car']
     }
 

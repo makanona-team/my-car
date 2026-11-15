@@ -34,3 +34,15 @@
 ## البناء
 
 يُبنى تلقائياً عبر GitHub Actions. الإصدار الموقّع يحتاج سراً واحداً في المستودع: `SIGN_PASS`.
+
+### صور وخطوط من مصادر أخرى
+
+- صورة السيارة: نموذج **Car Concept** من Khronos Group، رخصة [CC-BY 4.0](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) (مبني على نموذج CC0 من Unity Fan)، مصيَّر بـ Blender بدون الشعارات.
+- الخلفيات من [Unsplash](https://unsplash.com/license): David Becker، NASA، TEDDY2 H، Andrew Svk، Darwin Vegher، Jakub Kriz، Patrick Schöpflin، Wietse Jongsma.
+- الخط: **Cairo** برخصة SIL Open Font License.
+
+### الثيمات من الإنترنت
+
+ملف `themes/index.json` في هذا المستودع هو قائمة «ثيمات جديدة» التي تظهر في البرنامج. أضف ثيماً بسطر واحد:
+`{"id":"x","ar":"اسم","en":"Name","layout":"garage","accent":"#E8B04B","mode":"calm","wall":"asset:palmyra"}`
+(`wall` يقبل `asset:<اسم>` أو رابط صورة JPG).
