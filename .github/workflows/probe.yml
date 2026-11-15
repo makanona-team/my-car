@@ -1,0 +1,25 @@
+name: فحص خادم الخرائط (Map server probe)
+
+# يدوي: يتأكد أن ملف خريطة سوريا موجود على خادم mapsforge ويحفظ النتيجة في الفرع «probe».
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out && cd out
+          curl -fsSL https://download.mapsforge.org/maps/v5/asia/ | grep -oiE 'href="[^"]*(syria|iraq|lebanon|jordan|turkey)[^"]*"[^<]*</a>[^<]*</td>[^<]*<td[^>]*>[^<]*</td>[^<]*<td[^>]*>[^<]*' > maps.txt || echo "fetch failed" > maps.txt
+          git init -q -b probe
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "probe"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" probe
