@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Blender + model + HDRI
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq blender >/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq blender python3-numpy >/dev/null
           blender --version | head -1
           mkdir -p work out
           curl -fsSL -o work/car.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb
