@@ -20,7 +20,7 @@ print("MATERIALS", mats)
 # إخفاء أي شعار (الرخصة تستثني الشعارات)
 for o in objs:
     names = [o.name.lower()] + [s.material.name.lower() for s in o.material_slots if s.material]
-    if any(k in n for n in names for k in ("logo", "khronos", "decal", "badge", "emblem")):
+    if any(k in n for n in names for k in ("logo", "khronos", "decal", "badge", "emblem", "license")):
         o.hide_render = True; print("HIDE", o.name)
 # أرضية لالتقاط الظل
 bpy.ops.mesh.primitive_plane_add(size=max(size.x, size.y) * 6, location=(center.x, center.y, mn.z))
@@ -46,13 +46,20 @@ def look(at):
     d = at - cam.location; cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
 # إيجاد المؤخرة: نفترض أن مقدمة glTF نحو +Z (بعد الاستيراد نحو -Y في Blender). نصيّر الجهتين ونحفظ الاسم بالزاوية.
 views = {
-  # name: (azimuth deg around car from +Y, elevation deg, distance factor, res)
-  "rear":   (0,   32, 1.55, (900, 760)),
-  "rear34": (35,  22, 1.75, (1100, 700)),
-  "front":  (180, 32, 1.55, (900, 760)),
+  # name: (azimuth deg, elevation deg, distance factor, res, sign)  — sign -1 = خلف السيارة
+  "rear":   (0,   30, 1.55, (900, 760), -1),
+  "side":   (35,  20, 1.75, (1200, 720), 1),
 }
 paint = [bpy.data.materials[m] for m in mats if any(k in m.lower() for k in ("paint", "body", "carpaint"))]
 print("PAINT", [m.name for m in paint])
+for m in paint:
+    if not m.use_nodes: continue
+    for n in m.node_tree.nodes:
+        if n.type == 'BSDF_PRINCIPLED':
+            for inp in ('Normal', 'Coat Normal'):
+                if inp in n.inputs and n.inputs[inp].is_linked:
+                    for l in list(n.inputs[inp].links): m.node_tree.links.remove(l)
+            if 'Roughness' in n.inputs and not n.inputs['Roughness'].is_linked: n.inputs['Roughness'].default_value = 0.25
 colors = {"white": (0.86, 0.87, 0.88), "silver": (0.55, 0.57, 0.6), "black": (0.02, 0.02, 0.025), "red": (0.45, 0.02, 0.02),
           "blue": (0.03, 0.09, 0.32), "gray": (0.16, 0.17, 0.19)}
 only = os.environ.get("COLORS", ",".join(colors)).split(",")
@@ -64,8 +71,8 @@ def set_color(rgb):
                 if n.inputs['Base Color'].is_linked:
                     for l in list(n.inputs['Base Color'].links): m.node_tree.links.remove(l)
                 n.inputs['Base Color'].default_value = (rgb[0], rgb[1], rgb[2], 1)
-for vname, (az, el, df, res) in views.items():
-    if vname not in os.environ.get("VIEWS", "rear,rear34,front").split(","): continue
+for vname, (az, el, df, res, only_sign) in views.items():
+    if vname not in os.environ.get("VIEWS", "rear,side").split(","): continue
     scene.render.resolution_x, scene.render.resolution_y = res
     r = L * df
     a, e = math.radians(az), math.radians(el)
@@ -73,13 +80,12 @@ for vname, (az, el, df, res) in views.items():
         off = mathutils.Vector((r * math.sin(a) * math.cos(e), r * math.cos(a) * math.cos(e), r * math.sin(e)))
     else:
         off = mathutils.Vector((r * math.cos(a) * math.cos(e), r * math.sin(a) * math.cos(e), r * math.sin(e)))
-    for sign, tag in ((1, "p"), (-1, "n")):
+    for sign, tag in ((only_sign, ""),):
         cam.location = center + mathutils.Vector((off.x * sign, off.y * sign, off.z))
         look(center + mathutils.Vector((0, 0, -size.z * 0.1)))
         cam_data.lens = 50
         for cname in only:
             set_color(colors[cname])
-            scene.render.filepath = os.path.join(out, f"car_{vname}_{tag}_{cname}.png")
+            scene.render.filepath = os.path.join(out, f"{vname}_{cname}.png")
             bpy.ops.render.render(write_still=True)
             print("WROTE", scene.render.filepath)
-        if os.environ.get("BOTH_SIDES", "1") != "1": break

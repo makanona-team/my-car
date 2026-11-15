@@ -7,7 +7,7 @@ on:
       samples:
         default: '96'
       views:
-        default: 'rear,rear34,front'
+        default: 'rear,side'
       colors:
         default: 'white,silver,black,red,blue,gray'
       both_sides:
