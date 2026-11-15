@@ -1,0 +1,51 @@
+name: تجهيز الصور (Assets)
+
+# يدوي: يصيّر صور السيارة بـ Blender وينزّل خلفيات Unsplash، ويحفظها في الفرع «assets-out» للمراجعة.
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        default: '96'
+      views:
+        default: 'rear,rear34,front'
+      colors:
+        default: 'white,silver,black,red,blue,gray'
+      both_sides:
+        default: '1'
+
+permissions:
+  contents: write
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Blender + model + HDRI
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq blender >/dev/null
+          blender --version | head -1
+          mkdir -p work out
+          curl -fsSL -o work/car.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb
+          curl -fsSL -o work/studio.hdr https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/studio_small_09_2k.hdr
+          ls -la work
+      - name: Wallpapers
+        run: python3 .github/scripts/fetch_walls.py out/walls || true
+      - name: Render
+        env:
+          SAMPLES: ${{ inputs.samples }}
+          VIEWS: ${{ inputs.views }}
+          COLORS: ${{ inputs.colors }}
+          BOTH_SIDES: ${{ inputs.both_sides }}
+        run: blender -b -noaudio --python .github/scripts/render_car.py -- work/car.glb work/studio.hdr out/car 2>&1 | grep -E "BBOX|MATERIALS|PAINT|HIDE|WROTE|Error|error" | head -80
+      - name: Push
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out
+          git init -q -b assets-out
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A; git commit -q --allow-empty -m "assets"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" assets-out
