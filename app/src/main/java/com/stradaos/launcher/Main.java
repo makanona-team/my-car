@@ -1,0 +1,7367 @@
+package com.stradaos.launcher;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.media.AudioManager;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.SystemClock;
+import android.provider.Settings;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.BaseAdapter;
+import android.widget.FrameLayout;
+import android.widget.GridView;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+
+public class Main extends Activity {
+
+    static int RED = 0xFFFE3211;   // color de acento (configurable)
+    static int BG = 0xFF15171C;
+    static int CARD = 0xFF1E2128;
+    static int INNER = 0xFF262A33;
+    static int BTN = 0xFF2A2E37;
+    static int DOCK = 0xFF0D0E11;
+    static int TEXT = 0xFFF2F3F5;
+    static int MUTED = 0xFF8B9099;
+    static int SOFT = 0xFFC5C8CE;
+    static int CIRCLE = 0xFF23262E;
+    static int ICON = 0xFFFFFFFF;
+    static boolean LIGHT;
+    static int RED_DARK = 0xFF2A1416;
+
+    static final String PKG_HUR = "com.andrerinas.headunitrevived";
+    static final String PKG_WEB = "org.bromite.bromite";
+    static final String ASSET_HUR = "apps/headunit-revived.apk";
+
+    static final Locale ES = new Locale("es", "CO");
+
+    // ranuras configurables: id, nombre, palabras clave en el nombre de la app, palabras clave en el paquete
+    static final String[][] SLOTS = {
+        {"radio", "Radio", "radio|fm|收音", "radio|fm"},
+        {"bt", "Bluetooth", "bluetooth|bt|teléfono|telefono|phone", "bluetooth|.bt|btphone|btmusic"},
+        {"cam", "Cámara", "cámara|camara|camera|avin|reversa|dvr", "avin|camera|dvr|backcar|reverse"},
+        {"files", "Archivos", "archivo|explorador|gestor|file|files", "filemanager|fileexplorer|documentsui|file"},
+        {"settings", "Ajustes", "", ""},
+    };
+    static final String[] SLOT_ICONS = {"radio", "bluetooth", "photo_camera", "folder", "settings"};
+
+    private SharedPreferences prefs;
+    private final Handler h = new Handler();
+    private final List<ResolveInfo> apps = new ArrayList<ResolveInfo>();
+    private final HashMap<String, Bitmap> iconCache = new HashMap<String, Bitmap>();
+
+    private FrameLayout root;
+    private FrameLayout board;
+    private FrameLayout drawer;
+    private float s = 1f;
+    private int builtW, builtH;
+    /** Ancho extra (en unidades de 1024x600) en pantallas más anchas. */
+    private float ex;
+    // ── diseño del inicio (Bloque 2) ──
+    /** Ancho de la barra lateral de botones (modo «Lateral»). */
+    static final float RAIL = 96;
+    private boolean sideDock, compactDock, playerLeft, showCar, railLeft, dockLabels, showPlayer, carSpeed, oilHome, noDock;
+    private int dockCount = 7;
+    /** Tamaño de la letra (2.19, Tinoyevski #18): multiplica todos los textos. 1 = el de siempre. */
+    static float FONT = 1f;
+    /** x donde empieza el área de tarjetas (con la barra lateral a la izquierda), alto de las tarjetas y arriba del dock. */
+    private float ox, cardH = 380, dockTop = 456, boardH = 600;
+    /**
+     * Diseño vertical (2.21, issue #17): pantallas en retrato tipo Tesla. El lienzo mide 720 de ancho y el alto que
+     * tenga la pantalla: arriba el mapa grande, debajo la tarjeta del vehículo y el reproductor, y abajo la barra.
+     * En horizontal mapY = rowY = 64 y mapH = cardH, o sea, todo queda como siempre.
+     */
+    private boolean vertical;
+    private float mapY = 64, mapH = 380, rowY = 64;
+    /** Vertical con solo la tarjeta del vehículo: flota sobre una esquina del mapa y los botones del mapa le dejan sitio. */
+    private float insL, insR;
+    private View carCard;
+    /** Columnas: x de la tarjeta del vehículo, del mapa y del reproductor, y anchos del mapa y del reproductor. */
+    private float carX = 16, mapX = 328, mapW = 420, audX = 760, audW = 248;
+    private TextView topSpeedTv, topOilTv;
+    private Gauge carGauge, mapGauge;
+    private View mapGaugeBox;   // velocímetro del mapa en una esquina de abajo: baja junto con el panel
+    private ImageView wifiIc, btIc;
+    /** Reproductor vertical (tarjeta alta, p. ej. con la barra lateral): carátula y botones más grandes. */
+    private boolean tallPlayer;
+    /** Escala de 1024x600 para Ajustes, el cajón y sus ventanas: con la barra lateral el inicio se agranda, pero
+     *  esas pantallas deben conservar su tamaño (en un S23 con barra lateral Ajustes quedaba cortado arriba). */
+    private float uiS = 1f;
+    static final int[] SIM_W = {0, 1024, 1280, 1920, 2000, 1280, 768, 1080};
+    static final int[] SIM_H = {0, 600, 720, 720, 1200, 480, 1024, 1920};
+
+    private TextView weatherTv, weatherCityTv;
+    private ImageView weatherIc;
+    private LinearLayout weatherBox;
+    private double wLat = Double.NaN, wLon = Double.NaN;
+    private long weatherAt;
+    private Weather.Now weatherNow;
+    private LinearLayout panelWx, panelWxHours;
+    private ImageView panelWxIc;
+    private TextView panelWxTemp, panelWxDesc, panelWxHiLo;
+    private FrameLayout settingsView;
+    private int settingsCat = -1;
+    private TextView timeTv, dateTv, greetTv, speedTv, gpsTv, aaBtnTv, aaSubTv, trackTv, artistTv, carTv, chipTv;
+    private NowPlaying nowPlaying;
+    private Boolean playingState;
+    private TextView sourceTv, timePosTv, mapTagTv, cpSubTv;
+    private LiveMapView liveMap;
+    private MediaWatcher mediaWatcher;
+    private boolean askedPerms;
+    static final int SDK = android.os.Build.VERSION.SDK_INT;
+    private PlayerArt playerArt;
+    // estado de la pista
+    private String curTitle, curArtist, curSource;
+    private Bitmap curArt;
+    private long durMs = -1, posBaseMs = 0, posBaseAt = 0;
+    private boolean posKnown;
+    private String curOrigin;
+    private BtBridge bt;
+    private View gpsDot;
+    private ImageView playIc;
+
+    private LocationManager lm;
+    private long lastFix, lastFixAny, gpsStartAt;
+    private boolean installing;
+
+    // ───────────────────────── ciclo de vida ─────────────────────────
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        Guard.install(this);
+        Guard.startWatchdog();
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setBackgroundDrawable(new ColorDrawable(BG));
+        prefs = getSharedPreferences("launcher", MODE_PRIVATE);
+        I18n.init(this, prefs);
+        LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
+        lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (getPackageName().endsWith(".debug") && getIntent() != null && "saltar".equals(getIntent().getStringExtra("prueba")))
+            prefs.edit().putBoolean("setup_done", true).apply();
+        migrateOrSetup();
+        testHook(getIntent());
+        applyTheme();
+        applyAccent();
+
+        root = new FrameLayout(this) {
+            @Override
+            protected void onSizeChanged(int w, int hh, int ow, int oh) {
+                super.onSizeChanged(w, hh, ow, oh);
+                if (w > 0 && hh > 0 && (w != builtW || hh != builtH)) {
+                    builtW = w;
+                    builtH = hh;
+                    sizeStorm(w, hh);
+                    final int fw = w, fh = hh;
+                    post(new Runnable() { public void run() { build(fw, fh); } });
+                }
+            }
+        };
+        root.setBackgroundColor(BG);
+        setContentView(root);
+        try {
+            Location ll = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            if (ll == null) ll = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            if (ll != null) { wLat = ll.getLatitude(); wLon = ll.getLongitude(); }
+        } catch (Throwable ignored) { }
+        loadApps();
+        startOdo();
+        // mapa sin conexión: aviso al terminar la descarga y, si quedó a medias (se apagó el carro), continuarla
+        MapDownload.onFinish = new Runnable() { public void run() { onMapDownloadFinished(); } };
+        if (MapDownload.paused(this) && !prefs.getBoolean("map_dl_user_paused", false)) {
+            h.postDelayed(new Runnable() { public void run() { if (!isFinishing()) MapDownload.resume(Main.this); } }, 20000);
+        }
+
+        IntentFilter f = new IntentFilter();
+        f.addAction(Intent.ACTION_PACKAGE_ADDED);
+        f.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        f.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        f.addDataScheme("package");
+        registerReceiver(pkgReceiver, f);
+        IntentFilter t = new IntentFilter(Intent.ACTION_TIME_TICK);
+        t.addAction(Intent.ACTION_TIME_CHANGED);
+        t.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        registerReceiver(timeReceiver, t);
+        try {
+            registerReceiver(usbReceiver, new IntentFilter("android.hardware.usb.action.USB_DEVICE_ATTACHED"));
+        } catch (Throwable ignored) { }
+        try {
+            registerReceiver(usbOffReceiver, new IntentFilter("android.hardware.usb.action.USB_DEVICE_DETACHED"));
+        } catch (Throwable ignored) { }
+        nowPlaying = new NowPlaying(this, new NowPlaying.Listener() {
+            public void onTrack(NowPlaying.Track t) { showTrack(t); }
+        });
+        try { nowPlaying.start(); } catch (Throwable ignored) { }
+        NotifArt.listener = new NotifArt.Listener() {
+            public void onAaNotification(final Bitmap art, final java.util.List<String> texts) {
+                h.post(new Runnable() { public void run() { applyAaNotif(art, texts); } });
+            }
+        };
+        if (SDK >= 21) {
+            try {
+                mediaWatcher = new MediaWatcher(this, new NowPlaying.Listener() {
+                    public void onTrack(final NowPlaying.Track t) {
+                        h.post(new Runnable() { public void run() { showTrack(t); } });
+                    }
+                });
+                mediaWatcher.start();
+            } catch (Throwable e) { mediaWatcher = null; }
+        }
+        bt = new BtBridge(this, new BtBridge.Listener() {
+            public void onBtState(NowPlaying.Track t) { showTrack(t); }
+        });
+        clwBt = BtBridge.available(this);
+        prefs.registerOnSharedPreferenceChangeListener(backupWatch);
+        try {
+            IntentFilter sf = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+            sf.addAction(Intent.ACTION_SCREEN_ON);
+            registerReceiver(screenReceiver, sf);
+        } catch (Throwable ignored) { }
+        maybeBootApp();
+        bt.onPhoneStarted = new Runnable() { public void run() { onPhoneStartedBt(); } };
+        bt.onLost = new Runnable() { public void run() { btRouted = false; } };
+        h.postDelayed(btTicker, 3000);
+        try {
+            IntentFilter bf = new IntentFilter("android.bluetooth.device.action.ACL_CONNECTED");
+            bf.addAction("android.bluetooth.a2dp-sink.profile.action.CONNECTION_STATE_CHANGED");
+            registerReceiver(btConnReceiver, bf);
+        } catch (Throwable ignored) { }
+        // My Car: منبّه الأذان ووصلة OBD (اتصال تلقائي بعد أول نجاح)
+        Prayer.schedule(this);
+        if (prefs.getBoolean("obd_auto", true) && prefs.getBoolean("obd_ok_once", false)) {
+            h.postDelayed(new Runnable() { public void run() { try { Obd.get(Main.this).connect(); } catch (Throwable ignored) { } } }, 8000);
+        }
+    }
+
+    // ───────────────────────── audio Bluetooth ─────────────────────────
+
+    private boolean clwBt;
+    /** true cuando «Audio Bluetooth» fue la última app de fuente al frente (el sistema le dio el sonido). */
+    private boolean btRouted;
+    private long lastBtConnect, lastBtOpen;
+    /** Apps de fuente de fábrica: si pasan al frente, el sonido deja de ser Bluetooth. */
+    static final String[] OTHER_SOURCES = {"com.clw.fmam", "com.clw.aux", "com.clw.dvd", "com.clw.video",
+        "com.autochips.dvdplayer", "com.autochips.ipodplayer", "com.android.music", "com.clw.music", "com.clw.media"};
+
+    /** Pantallas Clinkway: StradaOS pasa el sonido a Bluetooth cuando el celular empieza a sonar. */
+    private boolean btAutoOn() {
+        return clwBt && prefs.getBoolean("bt_auto3", false);
+    }
+
+    private final long startedAt = SystemClock.elapsedRealtime();
+
+    /** Paquete de la app que está al frente (Android 4.x; en versiones nuevas puede venir vacío). */
+    private String topPackage() {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
+            if (t != null && !t.isEmpty() && t.get(0).topActivity != null) return t.get(0).topActivity.getPackageName();
+        } catch (Throwable ignored) { }
+        return null;
+    }
+
+    /** Sigue qué app de fuente estuvo al frente por última vez. */
+    private void trackSource() {
+        String top = topPackage();
+        if (top == null) return;
+        if (top.equals(BtBridge.PKG)) btRouted = true;
+        else for (String p : OTHER_SOURCES) if (p.equals(top)) { if (btRouted) BtBridge.log("otra fuente al frente: " + top); btRouted = false; }
+    }
+
+    /** El celular empezó a sonar por Bluetooth. */
+    private void onPhoneStartedBt() {
+        if (!btAutoOn()) return;
+        if (SystemClock.elapsedRealtime() - startedAt < 60000) { BtBridge.log("no se cambió: StradaOS acaba de arrancar"); return; }
+        String top = topPackage();
+        if (top != null && (top.contains("btphone") || top.contains("dialer") || top.contains("incallui"))) { BtBridge.log("no se cambió: llamada en curso"); return; }
+        if ("Android Auto".equals(curSource) && aaRunning()) { BtBridge.log("no se cambió: Android Auto tiene el sonido"); return; }
+        trackSource();
+        if (btRouted) { BtBridge.log("el sonido ya es Bluetooth"); return; }
+        openBtAudioApp(false);
+    }
+
+    /** Otras pantallas: al conectar el celular, abre un momento la app de música Bluetooth y vuelve. */
+    private final BroadcastReceiver btConnReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            String a = i.getAction();
+            if (a != null && a.contains("CONNECTION_STATE_CHANGED")) {
+                int st = -1;
+                try { st = i.getIntExtra("android.bluetooth.profile.extra.STATE", -1); } catch (Throwable ignored) { }
+                if (st != 2) return; // 2 = conectado
+            }
+            BtBridge.log("celular conectado por Bluetooth");
+            if (clwBt) { if (bt != null && btAutoOn()) bt.connect(); return; }
+            if (!prefs.getBoolean("bt_open_connect", false)) return;
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastBtConnect < 20000) return;
+            lastBtConnect = now;
+            h.postDelayed(new Runnable() { public void run() { openBtAudioApp(false); } }, 4000);
+        }
+    };
+
+    /** App de música Bluetooth de esta pantalla (la elegida o la que se detecta por el nombre). */
+    private ComponentName btMusicApp() {
+        String c = prefs.getString("btaudio", null);
+        if (c != null) return ComponentName.unflattenFromString(c);
+        ResolveInfo r = find("audio bluetooth|música bluetooth|musica bluetooth|bt music|bluetooth music|música bt|musica bt|a2dp",
+                "btmusic|bt.music|bt_music|btaudio|a2dp|bluetoothmusic|music.bt");
+        return r == null ? null : new ComponentName(r.activityInfo.packageName, r.activityInfo.name);
+    }
+
+    /** Abre la app de música Bluetooth un instante (para que tome el sonido) y regresa a donde estaba el usuario. */
+    private void openBtAudioApp(boolean manual) {
+        final String top = topPackage();
+        if (!manual) {
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastBtOpen < 15000) return;
+            if (top != null && (top.contains("backcar") || top.contains("avin") || top.contains("camera") || top.contains("dvr"))) {
+                BtBridge.log("no se abrió la app BT: cámara de reversa al frente"); return;
+            }
+            if (top == null && !hasWindowFocus()) { BtBridge.log("no se abrió la app BT: no sé qué app está al frente"); return; }
+            if (settingsView != null && hasWindowFocus()) { BtBridge.log("no se abrió la app BT: ajustes abiertos"); return; }
+            lastBtOpen = now;
+        }
+        // tarea a la que se vuelve después (otra app, por ejemplo Waze), o StradaOS
+        int backTask = -1;
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
+            if (top != null && !top.equals(getPackageName()) && !top.equals(BtBridge.PKG) && t != null && !t.isEmpty()) backTask = t.get(0).id;
+        } catch (Throwable ignored) { }
+        final int back = backTask;
+        ComponentName cn = btMusicApp();
+        if (cn == null) {
+            if (manual) { toast("Elige primero la app de música Bluetooth"); pickFor("btaudio", "Música Bluetooth"); }
+            return;
+        }
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN);
+            i.addCategory(Intent.CATEGORY_LAUNCHER);
+            i.setComponent(cn);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            startActivity(i);
+            btRouted = true;
+            BtBridge.activations++;
+            BtBridge.log("abierta " + cn.getPackageName() + " para tomar el sonido" + (back >= 0 ? " (luego vuelve a " + top + ")" : ""));
+        } catch (Throwable e) {
+            if (manual) toast("No se pudo abrir la app");
+            return;
+        }
+        h.postDelayed(new Runnable() { public void run() {
+            // si el usuario ya cambió de app, no lo movemos
+            String now = topPackage();
+            if (now != null && !now.equals(BtBridge.PKG) && !now.equals(btMusicApp() != null ? btMusicApp().getPackageName() : "")) {
+                BtBridge.log("no se volvió: el usuario abrió " + now); return;
+            }
+            try {
+                if (back >= 0) {
+                    ((android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE)).moveTaskToFront(back, 0);
+                    return;
+                }
+            } catch (Throwable ignored) { }
+            try {
+                startActivity(new Intent(Main.this, Main.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            } catch (Throwable ignored) { }
+        }}, prefs.getInt("bt_return_ms", clwBt ? 2000 : 2500));
+    }
+
+    @Override
+    protected void onDestroy() {
+        try { unregisterReceiver(screenReceiver); } catch (Throwable ignored) { }
+        try { prefs.unregisterOnSharedPreferenceChangeListener(backupWatch); } catch (Throwable ignored) { }
+        try { unregisterReceiver(pkgReceiver); } catch (Exception ignored) { }
+        try { unregisterReceiver(timeReceiver); } catch (Exception ignored) { }
+        try { nowPlaying.stop(); } catch (Throwable ignored) { }
+        try { unregisterReceiver(usbReceiver); } catch (Throwable ignored) { }
+        try { unregisterReceiver(usbOffReceiver); } catch (Throwable ignored) { }
+        try { bt.disconnect(); } catch (Throwable ignored) { }
+        try { unregisterReceiver(btConnReceiver); } catch (Throwable ignored) { }
+        h.removeCallbacks(btTicker);
+        h.removeCallbacks(aaWait);
+        try { if (mediaWatcher != null) mediaWatcher.stop(); } catch (Throwable ignored) { }
+        try { lm.removeUpdates(odoListener); } catch (Throwable ignored) { }
+        odoRunning = false;
+        if (odoPending > 0) prefs.edit().putFloat("odo_gps_m", prefs.getFloat("odo_gps_m", 0) + odoPending).apply();
+        Guard.stopWatchdog();
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (homeFixing && SDK < 29) h.postDelayed(new Runnable() { public void run() { homeResult(); } }, 700);
+        immersive();
+        if (SDK >= 23 && !askedPerms) {
+            askedPerms = true;
+            try { Modern.ensurePermissions(this, 77); } catch (Throwable ignored) { }
+        }
+        if (mediaWatcher != null) mediaWatcher.start();
+        guardUsb();
+        maybeWeather();
+        h.postDelayed(new Runnable() { public void run() { autoChecks(); } }, 4000);
+        updateClock();
+        refreshStates();
+        startGps();
+        h.postDelayed(ticker, 1000);
+        h.removeCallbacks(progressTick);
+        h.post(progressTick);
+        applyAaNotif(NotifArt.lastArt, NotifArt.lastTexts);
+    }
+
+    /** Android 6+: respuesta a la solicitud de permisos. */
+    public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        if (req == REQ_STORAGE_W) {   // con o sin permiso se sigue (sin él, el mapa se guarda en la carpeta de la app)
+            h.post(new Runnable() { public void run() { chooseMapToDownload(""); } });
+            return;
+        }
+        if (req == REQ_STORAGE) {
+            if (res.length > 0 && res[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) pickMapFile();
+            else toast("Sin permiso de almacenamiento no se pueden buscar mapas");
+            return;
+        }
+        if (req == REQ_BACKUP_W) { h.post(new Runnable() { public void run() { backupSave0(); } }); return; }   // con o sin permiso se sigue
+        if (req == REQ_BACKUP_R) { h.post(new Runnable() { public void run() { backupRestore0(); } }); return; }
+        if (req != 77 && req != 78) return;
+        try { lm.removeUpdates(odoListener); } catch (Throwable ignored) { }
+        odoRunning = false;
+        startOdo();
+        stopGps();
+        startGps();
+        seedLastLocation();
+        updateMapTag();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopGps();
+        h.removeCallbacks(ticker);
+        h.removeCallbacks(progressTick);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) immersive();
+    }
+
+    /** Tema «Sistema»: la pantalla pasó a modo oscuro o claro (p. ej. al encender las luces): se cambia al instante. */
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        try {
+            if (prefs == null || !"system".equals(prefs.getString("theme", "dark")) || root == null) return;
+            boolean was = LIGHT;
+            applyTheme();
+            if (was != LIGHT) { applyAccent(); rebuild(); }
+        } catch (Throwable e) { Guard.log("Cambio de tema del sistema: " + e); }
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        closeDrawer();
+        testHook(i);
+    }
+
+    /**
+     * Solo en la versión de prueba (paquete .debug): permite que las pruebas automáticas abran cada pantalla
+     * sin tocar coordenadas. adb shell am start -n com.stradaos.launcher.debug/com.stradaos.launcher.Main --es prueba VALOR
+     * VALOR: saltar (omite el asistente), inicio, ajustes:N, boton:N (menú del botón N), elegir:N (lista de apps del botón N),
+     * cajon (todas las apps), musica (lista de música preferida), asistente, demo-barra (cambia los botones 3 y 4), idioma:es|en|pt|auto,
+     * ultimo-aceite / ultimo-alto / unidad-aceite (recordatorio de aceite), ocultas / ocultar-demo / ocultar-limpiar (apps ocultas),
+     * salir-fabrica (abre el launcher de fábrica), desactivar (apaga StradaOS; solo lo usa salida.yml),
+     * diseno:izq|der|sinauto|conauto|normal|compacta|lateral|plegar|base (diseño del inicio), sim:5 (1280x480).
+     */
+    private void testHook(Intent i) {
+        if (i == null || !getPackageName().endsWith(".debug")) return;
+        final String v = i.getStringExtra("prueba");
+        if (v == null) return;
+        if ("saltar".equals(v)) {
+            prefs.edit().putBoolean("setup_done", true).putBoolean("home_never", true).apply();
+            try { if (wizardDlg != null) wizardDlg.dismiss(); } catch (Throwable ignored) { }
+        }
+        h.postDelayed(new Runnable() { public void run() {
+            try {
+                if (settingsView != null) closeSettings();
+                closeDrawer();
+                if (v.startsWith("ajustes:")) showSettings(Integer.parseInt(v.substring(8)));
+                else if (v.startsWith("boton:")) dockMenu(Integer.parseInt(v.substring(6)), null);
+                else if (v.startsWith("elegir:")) pickDock(Integer.parseInt(v.substring(7)), null);
+                else if ("cajon".equals(v)) openDrawer();
+                else if ("ocultas".equals(v)) manageHidden(null);
+                else if ("salir-fabrica".equals(v)) openFactoryLauncher();
+                else if ("pista-demo".equals(v)) {
+                    // canción de ejemplo con duración y posición, para ver la línea de tiempo en las capturas
+                    curTitle = "Canción de prueba"; curArtist = "StradaOS"; curSource = "Bluetooth";
+                    durMs = 215000; posBaseMs = 68000; posBaseAt = SystemClock.elapsedRealtime(); posKnown = true; playingState = false;
+                    // carátula de ejemplo (degradado con una nota), sin portadas reales
+                    int az = 400;
+                    Bitmap art = Bitmap.createBitmap(az, az, Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas cv = new android.graphics.Canvas(art);
+                    android.graphics.Paint gp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                    gp.setShader(new android.graphics.LinearGradient(0, 0, az, az, 0xFFFF5A36, 0xFFB0124A, android.graphics.Shader.TileMode.CLAMP));
+                    cv.drawRect(0, 0, az, az, gp);
+                    Bitmap note = asset("ic/music_note.png");
+                    if (note != null) cv.drawBitmap(note, null, new android.graphics.RectF(az * 0.3f, az * 0.3f, az * 0.7f, az * 0.7f), null);
+                    curArt = art;
+                    renderTrack();
+                }
+                else if ("tema:claro".equals(v) || "tema:oscuro".equals(v) || "tema:sistema".equals(v)) {
+                    prefs.edit().putString("theme", "tema:claro".equals(v) ? "light" : "tema:sistema".equals(v) ? "system" : "dark").apply();
+                    applyTheme(); applyAccent(); rebuild();
+                }
+                else if (v.startsWith("diseno:")) {
+                    // diseno:izq|der|sinauto|conauto|normal|compacta|lateral|base  (base = como viene)
+                    String d = v.substring(7);
+                    SharedPreferences.Editor e = prefs.edit();
+                    if ("izq".equals(d)) e.putString("player_side", "left");
+                    else if ("der".equals(d)) e.putString("player_side", "right");
+                    else if ("sinauto".equals(d)) e.putBoolean("show_car", false);
+                    else if ("conauto".equals(d)) e.putBoolean("show_car", true);
+                    else if ("normal".equals(d) || "compacta".equals(d) || "lateral".equals(d))
+                        e.putString("dock_mode", "lateral".equals(d) ? "side" : "compacta".equals(d) ? "compact" : "normal");
+                    else if ("plegar".equals(d)) e.putBoolean("aa_panel_open", false);
+                    else if ("sinnombres".equals(d)) e.putBoolean("dock_labels", false);
+                    else if ("railizq".equals(d) || "railder".equals(d)) e.putString("rail_side", "railizq".equals(d) ? "left" : "right");
+                    else if ("siniconos".equals(d)) e.putBoolean("status_icons", false);
+                    else if ("sinvelocidad".equals(d)) e.putBoolean("car_speed", false);
+                    else if ("sinaceite".equals(d)) e.putBoolean("oil_home", false);
+                    else if ("sinreproductor".equals(d)) e.putBoolean("show_player", false);
+                    else if (d.startsWith("conexion-")) e.putString("conn_buttons", d.substring(9));
+                    else if (d.startsWith("nav-")) e.putInt("nav_btn_size", Integer.parseInt(d.substring(4)));
+                    else if ("navizq".equals(d)) e.putString("nav_btn_side", "left");
+                    else if ("sinbarra".equals(d)) e.putString("dock_mode", "none");
+                    else if (d.startsWith("velo-")) e.putInt("speedo", Integer.parseInt(d.substring(5)));
+                    else if ("velomapa".equals(d)) e.putBoolean("map_gauge", true);
+                    else if (d.startsWith("esquina-")) e.putString("map_gauge_corner", d.substring(8));
+                    else if (d.startsWith("velotam-")) e.putInt("map_gauge_size", Integer.parseInt(d.substring(8)));
+                    else if (d.startsWith("botones-")) e.putInt("dock_count", Integer.parseInt(d.substring(8)));
+                    else if (d.startsWith("iconos-")) e.putInt("dock_icon_size", Integer.parseInt(d.substring(7)));
+                    else if ("estiloapps".equals(d)) e.putString("dock_style", "apps");
+                    else if (d.startsWith("letra-")) e.putInt("font_size", Integer.parseInt(d.substring(6)));
+                    else if ("base".equals(d)) e.remove("player_side").remove("show_car").remove("dock_mode").remove("aa_panel_open")
+                            .remove("dock_labels").remove("rail_side").remove("status_icons").remove("car_speed").remove("oil_home")
+                            .remove("show_player").remove("conn_buttons").remove("nav_btn_size").remove("nav_btn_side")
+                            .remove("dock_count").remove("dock_icon_size").remove("dock_style").remove("font_size")
+                            .remove("speedo").remove("map_gauge").remove("map_gauge_corner").remove("map_gauge_size");
+                    e.apply();
+                    rebuild();
+                }
+                else if ("desactivar".equals(v) && !otherHomes().isEmpty()) disableSelf(otherHomes().get(0));   // solo instalador.yml
+                else if ("musica".equals(v)) pickFor("music_app", "Música", null);
+                else if ("asistente".equals(v)) wizard();
+                else if (v.startsWith("idioma:")) setLanguage(v.substring(7));
+                else if ("fijar-inicio".equals(v)) makeDefaultHome();
+                else if (v.startsWith("sim:")) { prefs.edit().putInt("sim_screen", Integer.parseInt(v.substring(4))).apply(); rebuild(); }
+                else if ("diag-mapa".equals(v)) showMapDiag();
+                else if ("clima".equals(v)) showWeatherDetail();
+                else if (v.startsWith("vel:")) { float kv = Float.parseFloat(v.substring(4)); setGps(true, kv); }
+                else if (v.startsWith("pack:")) { prefs.edit().putString("icon_pack", v.substring(5)).putString("dock_style", "apps").apply(); rebuild(); }
+                else if ("demo-aceite".equals(v)) {
+                    prefs.edit().putBoolean("oil_on", true).putFloat("odo_base_km", 44200).putFloat("odo_gps_m", 0)
+                        .putFloat("oil_last_km", 40000).putFloat("oil_interval_km", 5000).putFloat("oil_snooze_km", 0).apply();
+                    rebuild();
+                }
+                else if ("aviso-aceite".equals(v)) {
+                    prefs.edit().putFloat("odo_base_km", 45100).putFloat("odo_gps_m", 0).putFloat("oil_snooze_km", 0).apply();
+                    oilLater = false; rebuild(); oilAlert();
+                }
+                else if ("menu-aceite".equals(v)) oilMenu();
+                else if ("demo-mant".equals(v)) {
+                    long day = 86400000L, now2 = System.currentTimeMillis();
+                    prefs.edit().putString("maint", "[{\"t\":\"air\",\"km\":15000,\"mo\":12,\"lkm\":31000,\"ld\":" + (now2 - 200 * day)
+                        + "},{\"t\":\"insurance\",\"km\":0,\"mo\":12,\"ld\":" + (now2 - 350 * day) + "},{\"n\":\"Llantas nuevas\",\"km\":40000,\"mo\":0,\"lkm\":20000},{\"t\":\"wash\",\"km\":0,\"mo\":0,\"dd\":14,\"tu\":\"w\",\"ld\":"
+                        + (now2 - 9 * day) + "}]").apply();
+                    maintLater = false; rebuild();
+                }
+                else if ("aviso-mant".equals(v)) { maintLater = false; oilLater = false; maintAlert(); }
+                else if ("menu-mant".equals(v)) taskMenu(0);
+                else if ("tiempo-mant".equals(v)) askTime(I18n.t("¿Cada cuánto tiempo?"), 2, 'w', new TimeCb() { public void on(long n, char u) { } });
+                else if ("ultimo-aceite".equals(v)) askLast(null);
+                else if ("ultimo-alto".equals(v)) saveLast(odoKm() / 0.621371f, null);   // el caso del issue #7: el número en millas
+                else if ("unidad-aceite".equals(v)) { prefs.edit().putString("speed_unit", "auto").apply(); askOilUnit(new Runnable() { public void run() { } }); }
+                else if ("ocultar-demo".equals(v) && !apps.isEmpty()) {
+                    java.util.HashSet<String> hs = new java.util.HashSet<String>();
+                    hs.add(compKey(apps.get(0)));
+                    if (apps.size() > 1) hs.add(compKey(apps.get(1)));
+                    saveHidden(hs); closeDrawer(); openDrawer();
+                }
+                else if ("ocultar-limpiar".equals(v)) { prefs.edit().remove("hidden_apps").apply(); closeDrawer(); }
+                else if (v.startsWith("rumbo:")) {
+                    prefs.edit().putBoolean("map_heading", "1".equals(v.substring(6))).apply(); LiveMapView.headingUp = "1".equals(v.substring(6)); rebuild();
+                    h.postDelayed(new Runnable() { public void run() {
+                        if (liveMap == null) return;
+                        Location l = new Location(LocationManager.GPS_PROVIDER);
+                        l.setLatitude(4.6533); l.setLongitude(-74.0836); l.setBearing(45); l.setSpeed(12); l.setTime(System.currentTimeMillis());
+                        feedMap(l);
+                    }}, 1500);
+                }
+                else if (v.startsWith("mapa-archivo:")) {
+                    prefs.edit().putString("map_file", v.substring(13)).apply();
+                    LiveMapView.loadFile(Main.this); rebuild();
+                }
+                else if (v.startsWith("mapa-zoom:")) { if (liveMap != null) liveMap.setZoom(Integer.parseInt(v.substring(10))); }
+                else if ("mapa-buscar".equals(v)) pickMapFile();
+                else if ("mapa-diag".equals(v)) showMapDiag();
+                else if (v.startsWith("mapa-lista")) chooseMapToDownload(v.length() > 11 ? v.substring(11) : "");
+                else if (v.startsWith("mapa-descargar:")) { String pth = v.substring(15); MapDownload.start(Main.this, pth, pth.substring(pth.lastIndexOf('/') + 1)); }
+                else if ("mapa-pausar".equals(v)) MapDownload.stop(false);
+                else if ("mapa-continuar".equals(v)) MapDownload.resume(Main.this);
+                else if ("mapa-mover".equals(v)) {
+                    // 20 posiciones, una por segundo, a ~43 km/h hacia el noreste (para ver el movimiento suave)
+                    final double la0 = !Double.isNaN(wLat) ? wLat : 6.2442, lo0 = !Double.isNaN(wLon) ? wLon : -75.5680;
+                    for (int i = 0; i < 20; i++) {
+                        final int n = i;
+                        h.postDelayed(new Runnable() { public void run() {
+                            Location l = new Location(LocationManager.GPS_PROVIDER);
+                            l.setLatitude(la0 + n * 0.000085); l.setLongitude(lo0 + n * 0.000085);
+                            l.setBearing(45); l.setSpeed(12); l.setTime(System.currentTimeMillis());
+                            feedMap(l);
+                        }}, i * 1000L);
+                    }
+                }
+                else if (v.startsWith("unidad:")) { prefs.edit().putString("speed_unit", v.substring(7)).apply(); rebuild(); }
+                else if ("odo-sim".equals(v)) {
+                    // 300 posiciones a 25 m una de otra, una por segundo (90 km/h): deben sumar 7,5 km
+                    float before = odoKm();
+                    odoLast = null;
+                    long t0 = System.currentTimeMillis();
+                    float expect = 0;
+                    Location prev = null;
+                    for (int i = 0; i <= 300; i++) {
+                        Location l = new Location(LocationManager.GPS_PROVIDER);
+                        l.setLatitude(4.6 + i * 25 / 111320.0); l.setLongitude(-74.08); l.setTime(t0 + i * 1000L);
+                        odoStep(l);
+                        if (prev != null) expect += prev.distanceTo(l) / 1000f;
+                        prev = l;
+                    }
+                    // un salto imposible (50 km en 1 s) no debe sumarse
+                    Location j = new Location(LocationManager.GPS_PROVIDER);
+                    j.setLatitude(5.05); j.setLongitude(-74.08); j.setTime(t0 + 301000L);
+                    odoStep(j);
+                    prefs.edit().putFloat("odo_gps_m", prefs.getFloat("odo_gps_m", 0) + odoPending).apply();
+                    odoPending = 0;
+                    updateOilBadge();
+                    float got = odoKm() - before;
+                    Guard.log("PRUEBA odo-sim: ok=" + (Math.abs(got - expect) < 0.05f && expect > 7) + " sumo=" + got + " esperado=" + expect);
+                }
+                else if ("verificar-apk".equals(v)) {
+                    boolean own = verifyApk(new File(getPackageCodePath()));
+                    boolean other = false;
+                    try { other = verifyApk(new File(getPackageManager().getApplicationInfo("com.android.settings", 0).sourceDir)); } catch (Throwable ignored) { }
+                    Guard.log("PRUEBA verificar-apk: propio=" + own + " otro=" + other);
+                }
+                else if ("aviso-inicio".equals(v)) askDefaultHome(null);
+                // 2.21: ventanas propias, copia de seguridad
+                else if ("diag-reproductor".equals(v)) showPlayerDiag();
+                else if ("compat".equals(v)) showCompat();
+                else if ("ayuda-bt".equals(v)) btHelp();
+                else if ("fecha".equals(v)) pickDate("¿Cuándo fue la última vez?", 0, new LongCb() { public void on(long w) { } });
+                else if ("hora".equals(v)) askDarkTime("dark_start", 18 * 60, "Oscuro desde");
+                else if ("copia-guardar".equals(v)) backupSave0();
+                else if ("copia-restaurar".equals(v)) backupRestore0();
+                else if ("copia-prueba".equals(v)) {
+                    // ida y vuelta: se guarda una copia, se cambian datos, se restaura y deben volver los de antes
+                    prefs.edit().putString("car_name", "Carro de prueba").putFloat("odo_base_km", 12345.5f).putInt("accent", 0xFF2D7FF9).apply();
+                    String json = Backup.build(Main.this);
+                    File f = Backup.save(Main.this, Backup.primary(), "MyCar-backup-prueba.json", json);
+                    prefs.edit().putString("car_name", "Otro").putFloat("odo_base_km", 1f).remove("accent").putString("maint", "[]").apply();
+                    String err = Backup.apply(Main.this, new String(Backup.readAll(new java.io.FileInputStream(f)), "UTF-8"));
+                    boolean ok = err == null && "Carro de prueba".equals(prefs.getString("car_name", "")) && prefs.getFloat("odo_base_km", 0) == 12345.5f
+                        && prefs.getInt("accent", 0) == 0xFF2D7FF9 && Backup.apply(Main.this, "{\"app\":\"otra\"}") != null;
+                    int found = Backup.find(Main.this).size();
+                    Guard.log("PRUEBA copia: ok=" + ok + " error=" + err + " archivo=" + f + " encontradas=" + found + " usb=" + Backup.removable(Main.this));
+                    reloadAll();
+                }
+                else if ("demo-barra".equals(v) && !apps.isEmpty()) {
+                    ResolveInfo r = apps.get(0);
+                    prefs.edit().putString("dock_2", "fn:music")
+                        .putString("dock_3", "app:" + new ComponentName(r.activityInfo.packageName, r.activityInfo.name).flattenToString())
+                        .putString("dock_3_name", "Mi app").apply();
+                    rebuild();
+                }
+            } catch (Throwable e) {
+                Guard.log("Prueba «" + v + "» falló: " + e);
+            }
+        }}, 1500);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (settingsView != null) { closeSettings(); return; }
+        closeDrawer(); // es la pantalla de inicio: atrás no la cierra
+    }
+
+    /**
+     * Protección: si el tamaño de la ventana cambia una y otra vez (barras del sistema que aparecen y desaparecen
+     * al pedir pantalla completa), StradaOS se reconstruiría sin parar. Tras 5 cambios en 6 s deja de pedir
+     * pantalla completa y lo anota en el registro de fallos.
+     */
+    private void sizeStorm(int w, int hh) {
+        long now = SystemClock.uptimeMillis();
+        if (now - stormStart > 6000) { stormStart = now; stormCount = 0; }
+        if (++stormCount >= 5 && !noImmersive) {
+            noImmersive = true;
+            Guard.log("La ventana cambió de tamaño " + stormCount + " veces en 6 s (último " + w + "x" + hh + "): se desactiva la pantalla completa.");
+            try { getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE); } catch (Throwable ignored) { }
+            try { getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN); } catch (Throwable ignored) { }
+        }
+    }
+    private long stormStart;
+    private int stormCount;
+    private boolean noImmersive;
+
+    private void immersive() {
+        if (noImmersive) return;
+        // 2.21.1 (PR #26 de wsx79): «Ocultar la barra del sistema» esconde también la barra de navegación (abajo o
+        // al costado, como la del Ottocast P3), igual que Waze a pantalla completa; deslizando desde el borde vuelve
+        // un momento. Solo desde Android 4.4: antes no existe el modo inmersivo y la barra volvería encima al tocar.
+        int nav = SDK >= 19 && prefs != null && prefs.getBoolean("hide_navbar", false)
+                ? View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION : 0;
+        try {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_FULLSCREEN | nav | 0x00001000 /* IMMERSIVE_STICKY, API 19 */);
+        } catch (Exception ignored) { }
+        // Android 11+: la barra de navegación y la barra de tareas se esconden (o vuelven) con el método nuevo
+        if (SDK >= 30) try { Bars.navigation(getWindow(), nav != 0); } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Corrección del velocímetro (2.21.1, PR #26 de wsx79): «+3» o «-2» en la unidad que se muestra, «+5%» en
+     * porcentaje, para que coincida con el tablero (que casi siempre marca un poco más que el GPS). Solo cambia el
+     * número que se ve: el kilometraje y los mantenimientos siguen con la distancia real del GPS.
+     */
+    private float speedFix(float v) {
+        if (v < 1) return v;
+        String o = prefs.getString("speed_offset", "0").trim();
+        try {
+            if (o.endsWith("%")) v *= 1f + Float.parseFloat(o.substring(0, o.length() - 1).replace("+", "")) / 100f;
+            else v += Float.parseFloat(o.replace("+", ""));
+        } catch (NumberFormatException ignored) { }
+        return Math.max(0, v);
+    }
+
+    static final String[] SPEED_OFFSETS = {"0", "+1", "+2", "+3", "+4", "+5", "+7", "+10", "-1", "-2", "-3",
+        "+3%", "+5%", "+7%", "+10%", "-5%"};
+
+    /** Al conectar algo por USB: si aún no se eligió cómo conectar el celular y hay varias opciones, se pregunta. */
+    private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            if (prefs.getString("conn_app", null) == null && prefs.getString("aa", null) == null && connCandidates().size() > 1 && hasWindowFocus())
+                chooseConnection(null);
+            else guardUsb();
+        }
+    };
+
+    private int btPoll, usbTick, themeTick;
+    private boolean usbWarned;
+
+    /** Apps de espejo de fábrica que se adelantan a Open Headunit al conectar el celular por USB. */
+    static final String[] USB_HOGS = {"net.easyconn", "com.carbit", "net.easyconn.carman"};
+    static final java.util.HashSet<String> USB_HOG_SET = new java.util.HashSet<String>(java.util.Arrays.asList(USB_HOGS));
+
+    private boolean processRunning(String pkg) {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            List<android.app.ActivityManager.RunningAppProcessInfo> ps = am.getRunningAppProcesses();
+            if (ps == null) return false;
+            for (android.app.ActivityManager.RunningAppProcessInfo p : ps)
+                if (p.processName != null && (p.processName.equals(pkg) || p.processName.startsWith(pkg + ":"))) return true;
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    /** Si EasyConnection quedó corriendo, la cierra; si vuelve, pide al usuario «Forzar detención». */
+    private void guardUsb() {
+        // Solo se vigila cuando el usuario eligió OTRA app para conectar el celular.
+        String chosen = prefs.getString("conn_app", null);
+        if (chosen == null && prefs.getString("aa", null) != null) {
+            try { chosen = ComponentName.unflattenFromString(prefs.getString("aa", "")).getPackageName(); } catch (Throwable ignored) { }
+        }
+        if (chosen == null || USB_HOG_SET.contains(chosen) || prefs.getBoolean("allow_easyconn", false)) return;
+        final android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        for (final String pkg : USB_HOGS) {
+            if (!installed(pkg) || !processRunning(pkg)) continue;
+            // Silencioso: con los datos de EasyConnection borrados, Android Auto funciona aunque siga corriendo.
+            try { am.killBackgroundProcesses(pkg); } catch (Throwable ignored) { }
+        }
+    }
+
+    /** Bluetooth: sigue revisando aunque StradaOS esté detrás de otra app (Waze, Maps…). */
+    private final Runnable btTicker = new Runnable() {
+        public void run() {
+            if (bt != null) {
+                bt.setAutoCreate(btAutoOn());
+                bt.connect();
+                if (btAutoOn()) trackSource();
+                if (bt.isConnected()) bt.poll(btAutoOn());
+            }
+            checkAaGone(false);
+            h.postDelayed(this, 2000);
+        }
+    };
+
+    private final Runnable ticker = new Runnable() {
+        public void run() {
+            if (lastFix > 0 && SystemClock.elapsedRealtime() - lastFix > 6000) setGps(false, 0);
+            else if (lastFix == 0) setGps(false, 0);
+            if (++usbTick % 5 == 0) guardUsb();
+            if (bt != null && bt.isConnected() && (++btPoll % 3 == 0 || curTitle == null)) bt.refresh();
+            updatePlayIcon();
+            updateStatusIcons();
+            if (++themeTick % 30 == 0) {
+                boolean was = LIGHT;
+                applyTheme();
+                if (was != LIGHT) { applyAccent(); rebuild(); }
+                maybeWeather();
+            }
+            h.postDelayed(this, 2000);
+        }
+    };
+
+    private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) { updateClock(); }
+    };
+
+    private final BroadcastReceiver pkgReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            loadApps();
+            refreshStates();
+        }
+    };
+
+    // ───────────────────────── construcción de la UI ─────────────────────────
+
+    private Bitmap wallBmp;
+
+    private void build(int W, int H) {
+        root.removeAllViews();
+        // versión de prueba: simular otra pantalla (p. ej. una ancha de 1920x720 en una tablet)
+        int sim = getPackageName().endsWith(".debug") ? prefs.getInt("sim_screen", 0) : 0;
+        if (sim > 0) {
+            float r = SIM_W[sim] / (float) SIM_H[sim];
+            int pw = 0, ph = 0;
+            if (W / (float) H > r) { pw = (int) ((W - H * r) / 2); W = (int) (H * r); }
+            else { ph = (int) ((H - W / r) / 2); H = (int) (W / r); }
+            root.setPadding(pw, ph, pw, ph);
+            root.setBackgroundColor(Color.BLACK);
+            View bg = new View(this);
+            bg.setBackgroundColor(BG);
+            root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
+        } else {
+            root.setPadding(0, 0, 0, 0);
+            root.setBackgroundColor(BG);
+        }
+        // My Car: خلفية الثيم (بطاقات شبه شفافة فوقها)
+        applyTheme();
+        wallBmp = null;
+        String wall = prefs.getString("wallpaper", "none");
+        if (sim == 0 && !"none".equals(wall)) {
+            try {
+                if ("black".equals(wall)) {
+                    BG = 0xFF000000; CARD = 0xFF101113; INNER = 0xFF1A1C20; DOCK = 0xFF000000; CIRCLE = 0xFF16181B;
+                    root.setBackgroundColor(BG);
+                } else {
+                    wallBmp = Themes.render(wall, W, H);
+                    if (wallBmp != null) {
+                        android.graphics.drawable.BitmapDrawable bd = new android.graphics.drawable.BitmapDrawable(getResources(), wallBmp);
+                        root.setBackground(bd);
+                        CARD = (CARD & 0x00FFFFFF) | 0xB8000000;
+                        INNER = (INNER & 0x00FFFFFF) | 0xA0000000;
+                        DOCK = (DOCK & 0x00FFFFFF) | 0x99000000;
+                        CIRCLE = (CIRCLE & 0x00FFFFFF) | 0xC0000000;
+                    }
+                }
+            } catch (Throwable e) { Guard.log("wallpaper: " + e); }
+        }
+        // Diseño del inicio (Ajustes → Apariencia → Diseño del inicio)
+        String dm = prefs.getString("dock_mode", "normal");
+        sideDock = "side".equals(dm);
+        compactDock = "compact".equals(dm);
+        noDock = "none".equals(dm);   // 2.19 (MIGSGx #12): sin barra; el botón Apps va arriba junto al engranaje
+        dockCount = Math.max(4, Math.min(10, prefs.getInt("dock_count", 9)));
+        int fs = prefs.getInt("font_size", 1);
+        FONT = fs == 0 ? 0.9f : fs == 2 ? 1.12f : fs == 3 ? 1.25f : 1f;
+        playerLeft = "left".equals(prefs.getString("player_side", "right"));
+        showCar = prefs.getBoolean("show_car", true);
+        // 2.18: ocultar el reproductor (el mapa gana espacio), la velocidad y el servicio (carros sin GPS) y el aceite
+        showPlayer = prefs.getBoolean("show_player", true);
+        carSpeed = prefs.getBoolean("car_speed", true);
+        oilHome = carSpeed && prefs.getBoolean("oil_home", true);
+        // barra lateral: del lado del reproductor (como siempre) o fija a la izquierda / derecha (2.17, Druids07)
+        String rs = prefs.getString("rail_side", "auto");
+        railLeft = "left".equals(rs) || (!"right".equals(rs) && playerLeft);
+        dockLabels = prefs.getBoolean("dock_labels", true);
+        // Lienzo virtual: 1024x600. Con la barra lateral los botones salen de abajo y el lienzo queda más bajo
+        // (1128x460): en pantallas bajas y anchas como 1280x480 todo se ve ~30 % más grande.
+        vertical = H >= W * 1.2f;
+        if (vertical) sideDock = false;   // en vertical la barra va abajo (la lateral le quitaría ancho al mapa)
+        float dw = 1024 + (sideDock ? RAIL + 8 : 0), dh = sideDock ? 460 : 600;
+        s = Math.min(W / dw, H / dh);
+        if (vertical) buildVerticalMetrics(W, H);
+        else {
+        // pantallas más anchas que el lienzo (p. ej. 12,3" 1920x720): el mapa del centro se queda con el espacio extra
+        ex = Math.max(0f, W / s - dw);
+        if (ex < 24) ex = 0;
+        // con la barra lateral en pantallas que no son tan bajas (p. ej. 1024x600) las tarjetas crecen hasta llenar
+        // el alto, en vez de dejar franjas vacías arriba y abajo
+        if (sideDock && H / s > dh + 1) dh = H / s;
+        uiS = Math.min(W / 1024f, H / 600f);
+        boardH = dh;
+        ox = sideDock && railLeft ? RAIL + 8 : 0;   // la barra lateral, por defecto del lado del reproductor (el del conductor)
+        // compacta (2.17, Druids07): más baja que antes (500), con menos espacio arriba y abajo
+        dockTop = sideDock ? dh : noDock ? 600 : compactDock ? 512 : 456;
+        cardH = sideDock ? dh - 80 : dockTop - 76;
+        mapY = rowY = 64;
+        mapH = cardH;
+        insL = insR = 0;
+        }
+        if (vertical) dh = boardH;
+        layoutColumns();
+        getWindow().setBackgroundDrawable(new ColorDrawable(sim > 0 ? Color.BLACK : BG | 0xFF000000));
+        board = new FrameLayout(this);
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams((int) ((dw + ex) * s), (int) (dh * s));
+        blp.gravity = Gravity.CENTER;
+        root.addView(board, blp);
+
+        if (!sideDock && !noDock) {
+            // franja del dock a todo el ancho (aunque la pantalla no sea 1024x600)
+            View dockBg = new View(this);
+            dockBg.setBackgroundColor(DOCK);
+            FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    (int) (H - ((H - dh * s) / 2 + dockTop * s)) + 1);
+            dlp.gravity = Gravity.BOTTOM;
+            root.addView(dockBg, 0, dlp);
+        }
+
+        buildTop();
+        buildCarCard();
+        buildAaCard();
+        buildAudioCard();
+        if (!noDock) buildDock();
+        // vertical con solo la tarjeta del vehículo: flota encima del mapa
+        if (vertical && showCar && !showPlayer && carCard != null) carCard.bringToFront();
+
+        drawer = null;
+        settingsView = null;
+        updateClock();
+        refreshStates();
+        updateStatusIcons();
+        showWeather();
+        if (settingsCat >= 0) showSettings(settingsCat);
+    }
+
+    /**
+     * Columnas del inicio: tarjeta del vehículo (300), mapa (lo que sobra) y reproductor (248; 300 si no hay tarjeta
+     * del vehículo). «Reproductor a la izquierda» las intercambia para dejarlo del lado del conductor.
+     */
+    /**
+     * Medidas del diseño vertical. Lienzo de 720 de ancho (los textos quedan del mismo tamaño físico que en una
+     * pantalla horizontal de 9") y tan alto como la pantalla. Se reparten así, de arriba abajo: barra de arriba (64),
+     * mapa (lo que sobra), fila de tarjetas y barra de botones.
+     */
+    private void buildVerticalMetrics(int W, int H) {
+        s = W / 720f;
+        float dh = H / s;
+        ex = 720 - 1024;   // negativo: lo que va pegado a la derecha se corre hacia adentro
+        uiS = s;
+        boardH = dh;
+        ox = 0;
+        float dockH = noDock ? 0 : compactDock ? 88 : 144;
+        dockTop = dh - dockH;
+        float avail = dockTop - 12 - 64;   // del borde de arriba del mapa al borde de abajo de las tarjetas
+        mapY = 64;
+        insL = insR = 0;
+        if (showCar && showPlayer) {
+            // mapa arriba, y debajo el vehículo y el reproductor lado a lado
+            cardH = Math.max(380, Math.min(470, avail * 0.38f));
+            if (avail - cardH - 12 < 170) cardH = Math.max(300, avail - 12 - 170);
+            mapH = avail - cardH - 12;
+            rowY = mapY + mapH + 12;
+        } else if (showPlayer) {
+            // solo el reproductor: una franja ancha debajo del mapa
+            cardH = 156;
+            mapH = avail - cardH - 12;
+            rowY = mapY + mapH + 12;
+        } else if (showCar) {
+            // solo el vehículo: el mapa ocupa todo y la tarjeta flota en una esquina de abajo
+            mapH = avail;
+            cardH = Math.min(380, avail - 24);
+            rowY = mapY + mapH - 12 - cardH;
+            if (playerLeft) insR = 312; else insL = 312;
+        } else {
+            mapH = avail;
+            cardH = 380;
+            rowY = mapY;
+        }
+    }
+
+    private void layoutColumns() {
+        if (vertical) {
+            mapX = 16;
+            mapW = 688;
+            if (showCar && showPlayer) {
+                audW = 688 - 300 - 12;
+                carX = playerLeft ? 16 + audW + 12 : 16;
+                audX = playerLeft ? 16 : 16 + 300 + 12;
+            } else {
+                audW = 688;
+                audX = 16;
+                carX = playerLeft ? 16 + 688 - 12 - 300 : 16 + 12;
+            }
+            return;
+        }
+        float content = 1024 + ex;
+        audW = showCar ? 248 : 300;
+        float carW = showCar ? 300 : 0;
+        float audSlot = showPlayer ? audW : 0;
+        float leftW = playerLeft ? audSlot : carW, rightW = playerLeft ? carW : audSlot;
+        float x0 = ox + 16;
+        mapX = x0 + (leftW > 0 ? leftW + 12 : 0);
+        mapW = content - 32 - leftW - rightW - (leftW > 0 ? 12 : 0) - (rightW > 0 ? 12 : 0);
+        float rightX = mapX + mapW + 12;
+        carX = playerLeft ? rightX : x0;
+        audX = playerLeft ? x0 : rightX;
+    }
+
+    private void buildTop() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBaselineAligned(true);
+        timeTv = tv("", 30, TEXT, true);
+        dateTv = tv("", 14, MUTED, false);
+        dateTv.setPadding((int) (12 * s), 0, 0, 0);
+        row.addView(timeTv);
+        row.addView(dateTv);
+        topSpeedTv = null;
+        if (!showCar && carSpeed && !prefs.getBoolean("map_gauge", false)) {
+            // sin tarjeta del vehículo, la velocidad se muestra aquí
+            topSpeedTv = tv("", 15, TEXT, true);
+            topSpeedTv.setPadding((int) (16 * s), 0, 0, 0);
+            row.addView(topSpeedTv);
+        }
+        topOilTv = null;
+        topIconName = null;
+        if (!showCar && oilHome) {
+            // …y también el aceite (toca para abrir su menú), para que no se pierda al ocultar la tarjeta
+            topOilTv = tv("", 13, TEXT, true);
+            topOilTv.setBackground(round(CIRCLE, 12));
+            topOilTv.setPadding((int) (10 * s), (int) (4 * s), (int) (12 * s), (int) (4 * s));
+            setTopIcon("water_drop");
+            topOilTv.setCompoundDrawablePadding((int) (6 * s));
+            LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(-2, -2);
+            olp.leftMargin = (int) (14 * s);
+            row.addView(topOilTv, olp);
+            topOilTv.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { badgeMenu(); } });
+        }
+        // My Car: الصلاة القادمة (اضغط لفتح المواقيت)
+        prayerTv = null;
+        if (prefs.getBoolean("pr_chip", true)) {
+            prayerTv = tv("", 13, TEXT, true);
+            prayerTv.setBackground(round(CIRCLE, 12));
+            prayerTv.setPadding((int) (10 * s), (int) (4 * s), (int) (12 * s), (int) (4 * s));
+            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2);
+            plp.leftMargin = (int) (14 * s);
+            row.addView(prayerTv, plp);
+            prayerTv.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { openScreen(PrayerActivity.class); } });
+        }
+        placeWrap(board, row, ox + 24, 10);
+
+        LinearLayout right = new LinearLayout(this);
+        right.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        weatherBox = new LinearLayout(this);
+        weatherBox.setGravity(Gravity.CENTER_VERTICAL);
+        weatherIc = icon("cloud", 20);
+        weatherBox.addView(weatherIc, new LinearLayout.LayoutParams((int) (20 * s), (int) (20 * s)));
+        weatherTv = tv("", 15, TEXT, true);
+        weatherTv.setPadding((int) (6 * s), 0, 0, 0);
+        weatherBox.addView(weatherTv);
+        weatherCityTv = tv("", 13, MUTED, false);
+        weatherCityTv.setPadding((int) (6 * s), 0, (int) (14 * s), 0);
+        weatherBox.addView(weatherCityTv);
+        View sep = new View(this);
+        sep.setBackgroundColor(BTN);
+        weatherBox.addView(sep, new LinearLayout.LayoutParams(Math.max(1, (int) s), (int) (18 * s)));
+        if (!showCar || vertical) sep.setVisibility(View.GONE);   // sin saludo, sin separador
+        if (vertical) {
+            // en vertical no caben la ciudad ni el saludo: quedan la hora, la fecha corta, el clima y los íconos
+            weatherCityTv.setVisibility(View.GONE);
+            if (!showCar) dateTv.setVisibility(View.GONE);
+        }
+        weatherBox.setVisibility(View.GONE);
+        weatherBox.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { showWeatherDetail(); } });
+        // Íconos de Wi-Fi y Bluetooth (2.17, Reinaldo y Daniel): ver si están activos sin abrir los ajustes
+        wifiIc = null;
+        btIc = null;
+        if (prefs.getBoolean("status_icons", true)) {
+            LinearLayout st = new LinearLayout(this);
+            st.setGravity(Gravity.CENTER_VERTICAL);
+            st.setPadding(0, 0, (int) (8 * s), 0);
+            wifiIc = statusIcon(st, "wifi", new Runnable() { public void run() { toggleWifi(); } },
+                new Runnable() { public void run() { openSettingsPage(Settings.ACTION_WIFI_SETTINGS, new Runnable() { public void run() { openSystemSettings(); } }); } });
+            btIc = statusIcon(st, "bluetooth", new Runnable() { public void run() { toggleBt(); } },
+                new Runnable() { public void run() {
+                    if (clwBt) openSlot(1);
+                    else openSettingsPage(Settings.ACTION_BLUETOOTH_SETTINGS, new Runnable() { public void run() { openSlot(1); } });
+                } });
+            right.addView(st);
+        }
+        right.addView(weatherBox);
+        greetTv = tv("", 15, SOFT, false);
+        greetTv.setPadding((int) (14 * s), 0, 0, 0);
+        right.addView(greetTv);
+        // sin la tarjeta del vehículo, la velocidad y el aceite ocupan la barra de arriba: el saludo se oculta
+        if (!showCar || vertical) greetTv.setVisibility(View.GONE);
+        place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 552, 32);
+        if (noDock) {
+            View appsBtn = circleIcon("apps", 40, 22, CIRCLE);
+            place(board, appsBtn, ox + 914 + ex, 12, 40, 40);
+            appsBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { openDrawer(); } });
+        }
+        View gear = circleIcon("settings", 40, 22, CIRCLE);
+        place(board, gear, ox + 964 + ex, 12, 40, 40);
+        gear.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { openSettings(); }
+        });
+        greetTv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { openSettings(); }
+        });
+    }
+
+    private ImageView statusIcon(LinearLayout parent, String name, final Runnable tap, final Runnable hold) {
+        FrameLayout f = new FrameLayout(this);
+        ImageView iv = icon(name, 20);
+        iv.setTag(name);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (20 * s), (int) (20 * s));
+        lp.gravity = Gravity.CENTER;
+        f.addView(iv, lp);
+        parent.addView(f, new LinearLayout.LayoutParams((int) (36 * s), (int) (32 * s)));
+        f.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { tap.run(); } });
+        f.setOnLongClickListener(new View.OnLongClickListener() { public boolean onLongClick(View v) { hold.run(); return true; } });
+        return iv;
+    }
+
+    private void setStatusIcon(ImageView iv, int state, String on, String off, String connected) {
+        View box = (View) iv.getParent();
+        if (state < 0) { box.setVisibility(View.GONE); return; }
+        box.setVisibility(View.VISIBLE);
+        String name = state == 0 ? off : state == 2 ? connected : on;
+        if (!name.equals(iv.getTag())) {
+            iv.setImageBitmap(asset("ic/" + name + ".png"));
+            iv.setTag(name);
+        }
+        iv.setAlpha(state == 2 ? 1f : 0.45f);
+    }
+
+    /** Arriba: Wi-Fi y Bluetooth (atenuado = encendido sin conexión; tachado = apagado). */
+    private void updateStatusIcons() {
+        if (wifiIc != null) setStatusIcon(wifiIc, wifiState(), "wifi", "wifi_off", "wifi");
+        if (btIc != null) setStatusIcon(btIc, btState(), "bluetooth", "bluetooth_disabled", "bluetooth_connected");
+    }
+
+    private final Runnable statusRefresh = new Runnable() { public void run() { updateStatusIcons(); } };
+
+    private android.net.wifi.WifiManager wifiMgr() {
+        try { return (android.net.wifi.WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE); }
+        catch (Throwable e) { return null; }
+    }
+
+    /** -1 sin Wi-Fi, 0 apagado, 1 encendido sin conexión, 2 conectado. */
+    private int wifiState() {
+        try {
+            android.net.wifi.WifiManager wm = wifiMgr();
+            if (wm == null) return -1;
+            if (!wm.isWifiEnabled()) return 0;
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            android.net.NetworkInfo ni = cm != null ? cm.getNetworkInfo(android.net.ConnectivityManager.TYPE_WIFI) : null;
+            return ni != null && ni.isConnected() ? 2 : 1;
+        } catch (Throwable e) { return -1; }
+    }
+
+    /**
+     * -1 sin Bluetooth, 0 apagado, 1 encendido sin celular, 2 celular conectado. En pantallas Clinkway el Bluetooth es
+     * un módulo aparte de Android: el estado sale de su servicio (nunca «apagado»).
+     */
+    private int btState() {
+        try {
+            if (clwBt) {
+                Boolean a = bt != null ? bt.a2dp() : null;
+                return a != null && a ? 2 : 1;
+            }
+            android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+            if (ad == null) return -1;
+            if (!ad.isEnabled()) return 0;
+            for (int p : new int[]{2 /* A2DP */, 1 /* HEADSET */, 11 /* A2DP_SINK */, 16 /* HEADSET_CLIENT */}) {
+                try { if (ad.getProfileConnectionState(p) == android.bluetooth.BluetoothProfile.STATE_CONNECTED) return 2; }
+                catch (Throwable ignored) { }
+            }
+            return 1;
+        } catch (Throwable e) { return -1; }
+    }
+
+    private void toggleWifi() {
+        final android.net.wifi.WifiManager wm = wifiMgr();
+        if (wm == null) return;
+        final boolean on = wm.isWifiEnabled();
+        if (on && wifiState() == 2) {
+            new TB(this, dlg()).setTitle("¿Apagar el Wi-Fi?")
+                .setMessage("La pantalla se queda sin internet (mapa en vivo, clima y actualizaciones).")
+                .setPositiveButton("Apagar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { setWifi(wm, false); } })
+                .setNegativeButton("Cancelar", null).show();
+        } else setWifi(wm, !on);
+    }
+
+    private void setWifi(android.net.wifi.WifiManager wm, boolean v) {
+        boolean ok = false;
+        try { ok = wm.setWifiEnabled(v); } catch (Throwable ignored) { }
+        if (!ok) {
+            toast("Esta pantalla no deja cambiar el Wi-Fi desde otra app: abre sus ajustes");
+            openSettingsPage(Settings.ACTION_WIFI_SETTINGS, new Runnable() { public void run() { openSystemSettings(); } });
+        } else toast(v ? "Encendiendo el Wi-Fi…" : "Wi-Fi apagado");
+        h.postDelayed(statusRefresh, 800);
+        h.postDelayed(statusRefresh, 3000);
+    }
+
+    private void toggleBt() {
+        if (clwBt) { openSlot(1); return; }
+        final android.bluetooth.BluetoothAdapter ad;
+        try { ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter(); } catch (Throwable e) { return; }
+        if (ad == null) return;
+        final boolean on = ad.isEnabled();
+        if (on && btState() == 2) {
+            new TB(this, dlg()).setTitle("¿Apagar el Bluetooth?")
+                .setMessage("Se desconecta el celular (música y llamadas).")
+                .setPositiveButton("Apagar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { setBt(ad, false); } })
+                .setNegativeButton("Cancelar", null).show();
+        } else setBt(ad, !on);
+    }
+
+    private void setBt(android.bluetooth.BluetoothAdapter ad, boolean v) {
+        boolean ok = false;
+        try { ok = v ? ad.enable() : ad.disable(); } catch (Throwable ignored) { }
+        if (!ok) {
+            toast("Esta pantalla no deja cambiar el Bluetooth desde otra app: abre sus ajustes");
+            openSettingsPage(Settings.ACTION_BLUETOOTH_SETTINGS, new Runnable() { public void run() { openSlot(1); } });
+        } else toast(v ? "Encendiendo el Bluetooth…" : "Bluetooth apagado");
+        h.postDelayed(statusRefresh, 800);
+        h.postDelayed(statusRefresh, 3000);
+    }
+
+    /**
+     * Abre una pantalla de los Ajustes de Android (Wi-Fi, Bluetooth). En Android 10+, si el launcher de fábrica no
+     * muestra los Ajustes de Android, no se abren (lección de la TS10: quedaba todo en negro) y se usa la alternativa.
+     */
+    private void openSettingsPage(String action, Runnable fallback) {
+        if (SDK >= 29) {
+            boolean aospVisible = false;
+            for (ResolveInfo r : apps) if ("com.android.settings".equals(r.activityInfo.packageName)) { aospVisible = true; break; }
+            if (!aospVisible) { fallback.run(); return; }
+        }
+        try { startActivity(new Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+        catch (Throwable e) { fallback.run(); }
+    }
+
+    private void buildCarCard() {
+        final FrameLayout card = card(carX, rowY, 300, cardH, CARD);
+        carCard = card;
+        // barra de abajo compacta: la foto crece y la velocidad baja; sin velocidad (carros sin GPS) la foto llena el resto
+        // 2.20: velocímetro analógico o mixto: el recuadro de la velocidad crece 70 y la foto se achica lo mismo
+        final int speedo = carSpeed ? prefs.getInt("speedo", 0) : 0;
+        // 2.20.1: el velocímetro analógico ocupa todo el ancho y el mantenimiento va debajo, dentro del arco
+        // el recuadro y la foto quedan del tamaño de la 2.20; adentro, velocímetro centrado y barrita de mantenimiento abajo
+        final float gx = speedo > 0 ? 70 : 0;
+        final float dy = cardH - 380 + (carSpeed ? 0 : 130) - gx;
+        carTv = tv(prefs.getString("car_name", "Mi vehículo"), 20, TEXT, true);
+        Bitmap brandLogo = loadBrandLogo();
+        place(card, carTv, 20, 16, brandLogo != null ? 200 : 260, 26);
+        if (brandLogo != null) {
+            ImageView bl = new ImageView(this);
+            bl.setImageBitmap(brandLogo);
+            bl.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            place(card, bl, 228, 12, 56, 56);
+            bl.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { carLookMenu(); } });
+        }
+        TextView chip = tv(prefs.getString("car_tag", ""), 11, Color.WHITE, true);
+        chipTv = chip;
+        chip.setPadding((int) (8 * s), (int) (3 * s), (int) (8 * s), (int) (3 * s));
+        chip.setBackground(round(RED, 8));
+        chip.setVisibility(prefs.getString("car_tag", "").trim().length() == 0 ? View.GONE : View.VISIBLE);
+        placeWrap(card, chip, 20, 46);
+
+        Bitmap photo = CarPhoto.load(this);
+        if (photo != null) {
+            ImageView car = new ImageView(this);
+            // 2.18: una foto con fondo (sin recortar) llena el recuadro con esquinas redondas; la recortada, como siempre
+            boolean cutout = false;
+            try { cutout = CarPhoto.hasTransparency(photo); } catch (Throwable ignored) { }
+            if (cutout) car.setImageBitmap(photo);
+            else car.setImageBitmap(CarPhoto.cardCrop(photo, (int) (264 * s), (int) ((160 + dy) * s), 16 * s));
+            car.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            place(card, car, 18, 78, 264, 160 + dy);
+            car.setOnLongClickListener(new View.OnLongClickListener() {
+                public boolean onLongClick(View v) { carLookMenu(); return true; }
+            });
+        } else if (!"none".equals(prefs.getString("car_art", "suv"))) {
+            // My Car: رسم السيارة بالنوع واللون المختارين
+            ImageView car = new ImageView(this);
+            int cw = (int) (264 * s), chh = (int) ((160 + dy) * s);
+            car.setImageBitmap(CarArt.render(prefs.getString("car_art", "suv"), prefs.getInt("car_art_color", CarArt.COLORS[0]), Math.max(1, cw), Math.max(1, chh)));
+            car.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            place(card, car, 18, 78, 264, 160 + dy);
+            car.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { carLookMenu(); } });
+        } else {
+            LinearLayout ph = new LinearLayout(this);
+            ph.setOrientation(LinearLayout.VERTICAL);
+            ph.setGravity(Gravity.CENTER);
+            ph.setBackground(round(INNER, 16));
+            ImageView ic = icon("directions_car", 72);
+            ic.setAlpha(0.35f);
+            ph.addView(ic, new LinearLayout.LayoutParams((int) (72 * s), (int) (72 * s)));
+            TextView t = tv("Toca para poner la foto de tu vehículo", 12, MUTED, false);
+            t.setSingleLine(false);   // con fuentes anchas (Samsung) se salía por la izquierda
+            t.setMaxLines(2);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding((int) (12 * s), (int) (6 * s), (int) (12 * s), 0);
+            ph.addView(t, new LinearLayout.LayoutParams(-1, -2));
+            if (152 + dy < 110) t.setVisibility(View.GONE);   // con el velocímetro analógico el recuadro es bajo
+            place(card, ph, 18, 82, 264, 152 + dy);
+            ph.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { pickPhoto(); }
+            });
+        }
+
+        FrameLayout box = new FrameLayout(this);
+        box.setBackground(round(INNER, 16));
+        place(card, box, 12, 250 + dy, 276, 118 + gx);
+        if (!carSpeed) box.setVisibility(View.GONE);   // se arma igual: setGps y el kilometraje siguen funcionando
+
+        LinearLayout lbl = new LinearLayout(this);
+        lbl.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView sp = icon("speed", 16);
+        sp.setAlpha(0.6f);
+        lbl.addView(sp, new LinearLayout.LayoutParams((int) (16 * s), (int) (16 * s)));
+        TextView vl = tv("Velocidad", 13, MUTED, false);
+        vl.setPadding((int) (6 * s), 0, 0, 0);
+        lbl.addView(vl);
+        placeWrap(box, lbl, 16, 12);
+
+        LinearLayout g = new LinearLayout(this);
+        g.setGravity(Gravity.CENTER_VERTICAL);
+        gpsDot = new View(this);
+        gpsDot.setBackground(round(MUTED, 4));
+        g.addView(gpsDot, new LinearLayout.LayoutParams((int) (8 * s), (int) (8 * s)));
+        gpsTv = tv("GPS", 11, MUTED, false);
+        gpsTv.setPadding((int) (6 * s), 0, 0, 0);
+        g.addView(gpsTv);
+        g.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        place(box, g, 120, 12, 140, 18);
+
+        LinearLayout sv = new LinearLayout(this);
+        sv.setBaselineAligned(true);
+        speedTv = tv("0", 56, TEXT, true);
+        TextView kmh = tv(useMph() ? "mph" : "km/h", 15, MUTED, false);
+        kmh.setPadding((int) (8 * s), 0, 0, 0);
+        sv.addView(speedTv);
+        sv.addView(kmh);
+        placeWrap(box, sv, 16, 34);
+        carGauge = null;
+        if (speedo > 0) {
+            lbl.setVisibility(View.GONE);
+            sv.setVisibility(View.GONE);
+            carGauge = new Gauge(this, s);
+            carGauge.setColors(RED, TEXT, SOFT);
+            carGauge.setUnit(useMph());
+            carGauge.setNumber(speedo == 2);
+            // Velocímetro centrado, lo más grande que quepa; debajo (afuera del velocímetro) la barrita del mantenimiento
+            float bh = 118 + gx, barH = 32, gaugeH = oilHome ? bh - barH - 8 : bh - 6;
+            carGauge.setCompact(true);
+            place(box, carGauge, 4, 3, 268, gaugeH);
+            g.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            gpsTv.setTextSize(TypedValue.COMPLEX_UNIT_PX, gpsTv.getTextSize() * 10f / 11f);
+            box.removeView(g);   // ya estaba puesto: se vuelve a poner en la esquina de arriba a la derecha, fuera del aro
+            place(box, g, 178, 4, 90, 16);
+            if (oilHome) buildOilStrip(box, 10, bh - barH - 6, 256, barH);
+        }
+        if (oilHome && speedo == 0) buildOilBadge(box, 0, 0);
+        if (!oilHome) { oilValTv = null; oilBar = null; oilBarBg = null; oilLblTv = null; oilIc = null; }
+        // Oculta: se arma igual (la velocidad y el aceite siguen actualizándose sin fallar) pero no se muestra.
+        if (!showCar) board.removeView(card);
+        setGps(false, 0);
+    }
+
+    // ───────────────────────── recordatorio de cambio de aceite ─────────────────────────
+    // StradaOS no puede leer el odómetro del tablero, así que lo estima: el usuario escribe el kilometraje una vez
+    // y StradaOS le suma la distancia recorrida que mide el GPS. Todo se guarda en km; se muestra en km o millas.
+
+    private TextView oilValTv, oilLblTv;
+    private ImageView oilIc;
+    private View oilBar, oilBarBg;
+    private Location odoLast;
+    private float odoPending;
+    private long odoSavedAt;
+
+    private float odoKm() { return prefs.getFloat("odo_base_km", 0) + prefs.getFloat("odo_gps_m", 0) / 1000f; }
+    private boolean oilOn() { return prefs.getBoolean("oil_on", false); }
+    private float oilNextKm() { return prefs.getFloat("oil_last_km", 0) + prefs.getFloat("oil_interval_km", 5000); }
+    private float toUnit(float km) { return useMph() ? km * 0.621371f : km; }
+    private float fromUnit(float v) { return useMph() ? v / 0.621371f : v; }
+    private String unit() { return useMph() ? "mi" : "km"; }
+    private String fmtDist(float km) {
+        return I18n.integer(Math.round(toUnit(km))) + " " + unit();
+    }
+
+    /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
+    private final LocationListener odoListener = new LocationListener() {
+        public void onLocationChanged(Location l) {
+            try { odoStep(l); } catch (Throwable ignored) { }
+        }
+        public void onStatusChanged(String p, int st, Bundle e) { }
+        public void onProviderEnabled(String p) { }
+        public void onProviderDisabled(String p) { }
+    };
+
+    private void odoStep(Location l) {
+        if (!odoNeeded() || l == null) return;
+        if (l.hasAccuracy() && l.getAccuracy() > 40) return;
+        if (odoLast == null) { odoLast = l; return; }
+        float d = odoLast.distanceTo(l);
+        float dt = Math.max(1, (l.getTime() - odoLast.getTime()) / 1000f);
+        if (d < 20) return;                                 // ruido del GPS con el carro quieto
+        if (d / dt > 70) { odoLast = l; return; }           // salto imposible (> 250 km/h): se descarta
+        odoLast = l;
+        odoPending += d;
+        long now = SystemClock.elapsedRealtime();
+        if (odoPending >= 200 || now - odoSavedAt > 60000) {
+            prefs.edit().putFloat("odo_gps_m", prefs.getFloat("odo_gps_m", 0) + odoPending).apply();
+            odoPending = 0;
+            odoSavedAt = now;
+            updateOilBadge();
+        }
+    }
+
+    private boolean odoRunning;
+
+    /** Solo escucha el GPS en segundo plano si el recordatorio está activo. */
+    private void startOdo() {
+        boolean want = odoNeeded();
+        if (want == odoRunning) return;
+        try {
+            if (want) lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 10, odoListener);
+            else lm.removeUpdates(odoListener);
+            odoRunning = want;
+        } catch (Throwable ignored) { }
+        odoLast = null;
+    }
+
+    private void buildOilBadge(FrameLayout box, float oy, float ox) {
+        View sep = new View(this);
+        sep.setBackgroundColor(BTN);
+        place(box, sep, 166 + ox, 40 + oy, 1, 62);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView ic = icon("water_drop", 13);
+        ic.setAlpha(0.6f);
+        top.addView(ic, new LinearLayout.LayoutParams((int) (13 * s), (int) (13 * s)));
+        TextView t = tv("Aceite", 11, MUTED, false);
+        t.setPadding((int) (4 * s), 0, 0, 0);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        oilLblTv = t;
+        oilIc = ic;
+        col.addView(top);
+        oilValTv = tv("", 14, TEXT, true);
+        oilValTv.setPadding(0, (int) (5 * s), 0, (int) (6 * s));
+        col.addView(oilValTv);
+        FrameLayout bar = new FrameLayout(this);
+        oilBarBg = bar;
+        bar.setBackground(round(BTN, 2));
+        oilBar = new View(this);
+        bar.addView(oilBar, new FrameLayout.LayoutParams(0, -1));
+        col.addView(bar, new LinearLayout.LayoutParams(-1, (int) (4 * s)));
+        place(box, col, 176 + ox, 44 + oy, 88 - ox, 58);
+        col.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { badgeMenu(); } });
+        updateOilBadge();
+    }
+
+    /** Barrita del mantenimiento debajo del velocímetro analógico o mixto (2.20.1): ícono, nombre, lo que falta y la barra. */
+    private void buildOilStrip(FrameLayout box, float x, float y, float w, float h) {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setBackground(round(BTN, 9));
+        col.setPadding((int) (10 * s), (int) (4 * s), (int) (10 * s), (int) (5 * s));
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView ic = icon("water_drop", 14);
+        ic.setAlpha(0.7f);
+        row.addView(ic, new LinearLayout.LayoutParams((int) (14 * s), (int) (14 * s)));
+        TextView t = tv("Aceite", 12, MUTED, false);
+        t.setPadding((int) (6 * s), 0, (int) (6 * s), 0);
+        t.setSingleLine(true);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        row.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        oilLblTv = t;
+        oilIc = ic;
+        oilValTv = tv("", 13, TEXT, true);
+        oilValTv.setSingleLine(true);
+        row.addView(oilValTv, new LinearLayout.LayoutParams(-2, -2));
+        col.addView(row, new LinearLayout.LayoutParams(-1, 0, 1));
+        FrameLayout bar = new FrameLayout(this);
+        oilBarBg = bar;
+        bar.setBackground(round(CARD, 2));
+        oilBar = new View(this);
+        bar.addView(oilBar, new FrameLayout.LayoutParams(0, -1));
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, (int) (3 * s));
+        blp.topMargin = (int) (2 * s);
+        col.addView(bar, blp);
+        place(box, col, x, y, w, h);
+        col.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { badgeMenu(); } });
+        updateOilBadge();
+    }
+
+    private void updateOilBadge() {
+        startOdo();
+        // 2.20: con mantenimientos propios, el recuadro y la barra de arriba muestran el más próximo
+        int ni = nearestMaint();
+        badgeTask = ni;
+        if (ni >= 0) { showTaskBadge(ni); return; }
+        if (oilLblTv != null) { oilLblTv.setText(I18n.t("Aceite")); oilIc.setImageBitmap(asset("ic/water_drop.png")); }
+        setTopIcon("water_drop");
+        if (topOilTv != null) {
+            float l = oilNextKm() - odoKm();
+            float iv = Math.max(1, prefs.getFloat("oil_interval_km", 5000));
+            if (!oilOn()) { topOilTv.setText(I18n.t("Aceite: configurar")); topOilTv.setTextColor(MUTED); }
+            else if (Math.round(toUnit(l)) <= 0) { topOilTv.setText(I18n.t("¡Cambiar aceite!")); topOilTv.setTextColor(RED); }
+            else { topOilTv.setText(I18n.t("Aceite: " + fmtDist(l))); topOilTv.setTextColor(l < iv * 0.1f ? RED : TEXT); }
+        }
+        if (oilValTv == null) return;
+        if (!oilOn()) {
+            oilValTv.setText(I18n.t("Configurar"));
+            oilValTv.setTextColor(MUTED);
+            oilBarBg.setVisibility(View.INVISIBLE);
+            return;
+        }
+        float left = oilNextKm() - odoKm();
+        float interval = Math.max(1, prefs.getFloat("oil_interval_km", 5000));
+        oilBarBg.setVisibility(View.VISIBLE);
+        if (Math.round(toUnit(left)) <= 0) {          // también si falta menos de medio km (no mostrar «0 km»)
+            oilValTv.setText(I18n.t("¡Cambiar!"));
+            oilValTv.setTextColor(RED);
+        } else {
+            oilValTv.setText(fmtDist(left));
+            oilValTv.setTextColor(left < interval * 0.1f ? RED : TEXT);
+        }
+        final float used = Math.max(0, Math.min(1, 1 - left / interval));
+        oilBarBg.post(new Runnable() { public void run() {
+            ViewGroup.LayoutParams lp = oilBar.getLayoutParams();
+            lp.width = Math.max((int) (2 * s), (int) (oilBarBg.getWidth() * used));
+            oilBar.setLayoutParams(lp);
+            oilBar.setBackground(round(used >= 0.9f ? RED : 0xFF2DBE6C, 2));
+        }});
+    }
+
+    /** Toca el recuadro de aceite (o Ajustes → Tu vehículo). */
+    private void oilMenu() {
+        if (!oilOn()) { oilSetup(); return; }
+        float left = oilNextKm() - odoKm();
+        String head = I18n.t("Kilometraje estimado") + ": ≈ " + fmtDist(odoKm()) + "\n"
+            + I18n.t("Último cambio") + ": " + fmtDist(prefs.getFloat("oil_last_km", 0)) + "\n"
+            + I18n.t("Próximo cambio") + ": " + fmtDist(oilNextKm())
+            + "\n" + (Math.round(toUnit(left)) > 0 ? I18n.t("Faltan " + fmtDist(left)) : I18n.t("¡Ya toca!"));
+        LinearLayout ht = new LinearLayout(this);
+        ht.setOrientation(LinearLayout.VERTICAL);
+        int hp = (int) (22 * s);
+        ht.setPadding(hp, hp, hp, (int) (6 * s));
+        ht.addView(tv("Cambio de aceite", 19, TEXT, true));
+        TextView hs = tv(head, 14, MUTED, false);
+        hs.setSingleLine(false);
+        hs.setMaxLines(5);
+        hs.setLineSpacing(3 * s, 1f);
+        hs.setPadding(0, (int) (6 * s), 0, 0);
+        ht.addView(hs);
+        new TB(this, dlg())
+            .setCustomTitle(ht)
+            .setItems(new String[]{"Ya hice el cambio de aceite", "Corregir el kilometraje actual", "Corregir el último cambio", "Cambiar cada cuánto se hace", "Desactivar el recordatorio"},
+                new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    if (w == 0) oilDone();
+                    else if (w == 1) askOdo(null);
+                    else if (w == 2) askLast(null);
+                    else if (w == 3) askInterval(null);
+                    else { prefs.edit().putBoolean("oil_on", false).apply(); updateOilBadge(); if (settingsView != null) showSettings(settingsCat); }
+                }})
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    /** Primera vez: kilometraje actual, cada cuánto y cuándo fue el último cambio. */
+    private void oilSetup() {
+        new TB(this, dlg())
+            .setTitle("Recordatorio de cambio de aceite")
+            .setMessage("StradaOS no puede leer el kilometraje del tablero del carro. Escríbelo una vez y StradaOS le irá sumando lo que recorras con el GPS, para avisarte cuando toque el cambio.\n\nDe vez en cuando puedes corregirlo con el valor real del tablero.")
+            .setPositiveButton("Empezar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                askOilUnit(new Runnable() { public void run() {
+                    askOdo(new Runnable() { public void run() {
+                        askInterval(new Runnable() { public void run() {
+                            askLast(new Runnable() { public void run() {
+                                prefs.edit().putBoolean("oil_on", true).apply();
+                                updateOilBadge();
+                                toast(I18n.t("Próximo cambio") + ": " + fmtDist(oilNextKm()));
+                                if (settingsView != null) showSettings(settingsCat);
+                            }});
+                        }});
+                    }});
+                }});
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    /**
+     * Unidad del tablero. En automático se decide por el idioma del sistema y casi todas las pantallas chinas vienen en
+     * inglés de EE. UU. (= millas): por eso, antes de pedir números, se pregunta una vez y queda fija (issue #7).
+     */
+    private void askOilUnit(final Runnable next) {
+        if (!"auto".equals(prefs.getString("speed_unit", "auto"))) { next.run(); return; }
+        new TB(this, dlg())
+            .setTitle("¿Tu tablero marca kilómetros o millas?")
+            .setItems(new String[]{"Kilómetros (km)", "Millas (mi)"}, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                prefs.edit().putString("speed_unit", w == 1 ? "mph" : "kmh").apply();
+                next.run();
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    /** Kilometraje del último cambio de aceite, sin tocar el kilometraje actual. Avisa si queda por encima del actual. */
+    private void askLast(final Runnable next) {
+        float def = prefs.contains("oil_last_km") ? toUnit(prefs.getFloat("oil_last_km", 0)) : toUnit(odoKm());
+        askNumber(I18n.t("¿A cuántos " + unit() + " fue el último cambio de aceite?"), def, new NumCb() { public void on(float v) {
+            saveLast(fromUnit(v), next);
+        }});
+    }
+
+    private void saveLast(final float km, final Runnable next) {
+        final Runnable save = new Runnable() { public void run() {
+            prefs.edit().putFloat("oil_last_km", km).putFloat("oil_snooze_km", 0).apply();
+            updateOilBadge();
+            if (next != null) next.run();
+            else {
+                toast(I18n.t("Próximo cambio") + ": " + fmtDist(oilNextKm()));
+                if (settingsView != null) showSettings(settingsCat);
+            }
+        }};
+        // Más de 100 km por encima del kilometraje actual: casi seguro es un error de unidad o de dígitos.
+        if (prefs.contains("odo_base_km") && km > odoKm() + 100) {
+            new TB(Main.this, dlg())
+                .setTitle("Revisa el último cambio")
+                .setMessage(I18n.t("El último cambio (" + fmtDist(km) + ") queda por encima del kilometraje actual (" + fmtDist(odoKm()) + "). ¿Lo escribiste en otra unidad?"))
+                .setPositiveButton("Corregir", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { askLast(next); } })
+                .setNegativeButton("Guardar igual", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { save.run(); } })
+                .show();
+        } else save.run();
+    }
+
+    private void askOdo(final Runnable next) {
+        askNumber(I18n.t("Kilometraje actual del tablero") + " (" + unit() + ")", prefs.contains("odo_base_km") ? toUnit(odoKm()) : -1, new NumCb() { public void on(float v) {
+            prefs.edit().putFloat("odo_base_km", fromUnit(v)).putFloat("odo_gps_m", 0).apply();
+            odoPending = 0;
+            updateOilBadge();
+            if (next != null) next.run(); else if (settingsView != null) showSettings(settingsCat);
+        }});
+    }
+
+    private void askInterval(final Runnable next) {
+        float def = prefs.contains("oil_interval_km") ? toUnit(prefs.getFloat("oil_interval_km", 5000)) : (useMph() ? 3000 : 5000);
+        askNumber(I18n.t("¿Cada cuántos " + unit() + " cambias el aceite?"), def, new NumCb() { public void on(float v) {
+            if (v < 100) { toast("Escribe un número válido"); return; }
+            prefs.edit().putFloat("oil_interval_km", fromUnit(v)).putFloat("oil_snooze_km", 0).apply();
+            updateOilBadge();
+            if (next != null) next.run(); else if (settingsView != null) showSettings(settingsCat);
+        }});
+    }
+
+    /** «Ya lo hice»: confirma el kilometraje real y reinicia el conteo. */
+    private void oilDone() {
+        askNumber(I18n.t("Kilometraje del tablero al hacer el cambio") + " (" + unit() + ")", toUnit(odoKm()), new NumCb() { public void on(float v) {
+            float km = fromUnit(v);
+            prefs.edit().putFloat("odo_base_km", km).putFloat("odo_gps_m", 0).putFloat("oil_last_km", km).putFloat("oil_snooze_km", 0).apply();
+            odoPending = 0;
+            updateOilBadge();
+            toast(I18n.t("Próximo cambio") + ": " + fmtDist(oilNextKm()));
+            if (settingsView != null) showSettings(settingsCat);
+        }});
+    }
+
+    /** Aviso en el inicio cuando toca el cambio. «Aún no» lo vuelve a mostrar tras 100 km (60 mi). */
+    private android.app.Dialog oilDlg;
+    private static boolean oilLater;   // cerró el aviso sin elegir: se vuelve a mostrar la próxima vez que abra StradaOS
+
+    private boolean oilAlert() {
+        if (oilLater || (oilDlg != null && oilDlg.isShowing())) return false;
+        if (!oilOn() || !prefs.contains("odo_base_km")) return false;
+        float now = odoKm();
+        if (now < oilNextKm() || now < prefs.getFloat("oil_snooze_km", 0)) return false;
+        oilDlg = new TB(this, dlg())
+            .setTitle("Es hora del cambio de aceite")
+            .setMessage(I18n.t("El kilometraje estimado es ≈ " + fmtDist(now) + " y ya toca el cambio de aceite (cada " + fmtDist(prefs.getFloat("oil_interval_km", 5000)) + ").")
+                + "\n\n" + I18n.t("¿Ya lo hiciste?"))
+            .setPositiveButton("Ya lo hice", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { oilDone(); } })
+            .setNegativeButton("Aún no", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                prefs.edit().putFloat("oil_snooze_km", odoKm() + (useMph() ? 60 / 0.621371f : 100)).apply();
+            }})
+            .setOnCancelListener(new DialogInterface.OnCancelListener() { public void onCancel(DialogInterface d) { oilLater = true; } })
+            .show();
+        return true;
+    }
+
+    // ───────────────────────── mantenimientos a medida (2.20) ─────────────────────────
+    // Tareas propias además del aceite: cada X km, cada N meses o lo que llegue primero. Se guardan como JSON en
+    // «maint»: t (plantilla) o n (nombre propio), km (intervalo, 0 = no), mo (meses, 0 = no), lkm (km de la última
+    // vez), ld (fecha de la última vez, ms), sz / sd (aviso pospuesto hasta ese km / esa fecha).
+    // 2.20.1: también cada N días o semanas: dd (intervalo en días) y tu ("d" o "w"); en ese caso mo = 0.
+    // Por meses se sigue guardando en «mo» como antes, así que lo ya configurado no cambia.
+    // En las plantillas, la columna de tiempo es meses ("12") o lleva unidad ("2w" = cada 2 semanas, "10d").
+
+    static final String[][] MAINT_TEMPLATES = {
+        {"air", "Filtro de aire", "15000", "12", "air"},
+        {"fuelfilter", "Filtro de combustible", "40000", "0", "filter_alt"},
+        {"plugs", "Bujías", "30000", "0", "electric_bolt"},
+        {"brakes", "Pastillas de freno", "25000", "0", "album"},
+        {"brakefluid", "Líquido de frenos", "0", "24", "opacity"},
+        {"coolant", "Refrigerante", "40000", "24", "severe_cold"},
+        {"belt", "Correa de distribución", "60000", "60", "settings"},
+        {"rotation", "Rotación de llantas", "10000", "0", "autorenew"},
+        {"align", "Alineación y balanceo", "10000", "6", "tire_repair"},
+        {"battery", "Revisión de la batería", "0", "12", "battery_charging_full"},
+        {"ac", "Aire acondicionado", "0", "12", "ac_unit"},
+        {"insurance", "Seguro obligatorio (SOAT)", "0", "12", "verified_user"},
+        {"inspection", "Revisión técnico-mecánica", "0", "12", "fact_check"},
+        {"wash", "Lavado", "0", "2w", "local_car_wash"},
+    };
+    /** Íconos para elegir al crear un mantenimiento. */
+    static final String[] MAINT_ICONS = {"build", "car_repair", "oil_barrel", "air", "filter_alt", "electric_bolt", "album", "opacity",
+        "severe_cold", "thermostat", "settings", "autorenew", "tire_repair", "battery_charging_full", "ac_unit", "lightbulb",
+        "local_gas_station", "local_car_wash", "cleaning_services", "handyman", "verified_user", "fact_check", "water_drop", "speed"};
+    private static final double MONTH_MS = 30.44 * 86400000d;
+    private int badgeTask = -1;
+    private static boolean maintLater;
+
+    private List<org.json.JSONObject> maint() {
+        List<org.json.JSONObject> out = new ArrayList<org.json.JSONObject>();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("maint", "[]"));
+            for (int i = 0; i < a.length(); i++) out.add(a.getJSONObject(i));
+        } catch (Throwable ignored) { }
+        return out;
+    }
+
+    private void saveMaint(List<org.json.JSONObject> l) {
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (org.json.JSONObject o : l) a.put(o);
+        prefs.edit().putString("maint", a.toString()).apply();
+        updateOilBadge();
+    }
+
+    private String taskIcon(org.json.JSONObject o) {
+        String ic = o.optString("ic", "");
+        if (ic.length() > 0) return ic;
+        String t = o.optString("t", "");
+        for (String[] tp : MAINT_TEMPLATES) if (tp[0].equals(t)) return tp[4];
+        return "build";
+    }
+
+    interface StrCb { void on(String v); }
+
+    /** Cuadrícula de íconos de mantenimiento (2.20, Andrés): para reconocer cada uno sin leer. */
+    private void pickIcon(String cur, final StrCb cb) {
+        final android.app.AlertDialog[] dref = new android.app.AlertDialog[1];
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * s);
+        grid.setPadding(pad, pad / 2, pad, pad / 2);
+        LinearLayout rowL = null;
+        for (int i = 0; i < MAINT_ICONS.length; i++) {
+            if (i % 6 == 0) { rowL = new LinearLayout(this); rowL.setGravity(Gravity.CENTER); grid.addView(rowL); }
+            final String ic = MAINT_ICONS[i];
+            FrameLayout cell = new FrameLayout(this);
+            cell.setBackground(round(ic.equals(cur) ? RED : BTN, 14));
+            ImageView iv = icon(ic, 26);
+            if (ic.equals(cur)) iv.setColorFilter(Color.WHITE);
+            FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams((int) (26 * s), (int) (26 * s));
+            ilp.gravity = Gravity.CENTER;
+            cell.addView(iv, ilp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (52 * s), (int) (52 * s));
+            lp.setMargins((int) (5 * s), (int) (5 * s), (int) (5 * s), (int) (5 * s));
+            rowL.addView(cell, lp);
+            cell.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                if (dref[0] != null) try { dref[0].dismiss(); } catch (Throwable ignored) { }
+                cb.on(ic);
+            }});
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(grid);
+        dref[0] = new TB(this, dlg()).setTitle("Elige un ícono").setView(sv).setNegativeButton("Cancelar", null).show();
+    }
+
+    private String taskName(org.json.JSONObject o) {
+        String n = o.optString("n", "");
+        if (n.length() > 0) return n;
+        String t = o.optString("t", "");
+        for (String[] tp : MAINT_TEMPLATES) if (tp[0].equals(t)) return I18n.t(tp[1]);
+        return I18n.t("Mantenimiento");
+    }
+
+    /** El odómetro estimado se necesita para el aceite o para alguna tarea por kilómetros. */
+    private boolean odoNeeded() {
+        if (oilOn()) return true;
+        for (org.json.JSONObject o : maint()) if (o.optDouble("km", 0) > 0) return true;
+        return false;
+    }
+
+    private double taskKmLeft(org.json.JSONObject o) { return o.optDouble("lkm", 0) + o.optDouble("km", 0) - odoKm(); }
+    private double taskDaysLeft(org.json.JSONObject o) {
+        return (o.optLong("ld", 0) + taskDays(o) * 86400000d - System.currentTimeMillis()) / 86400000d;
+    }
+
+    /** Intervalo de tiempo en días (0 = no va por tiempo). */
+    private double taskDays(org.json.JSONObject o) {
+        double dd = o.optDouble("dd", 0);
+        return dd > 0 ? dd : o.optDouble("mo", 0) * MONTH_MS / 86400000d;
+    }
+    /** Unidad con la que se configuró: 'd' días, 'w' semanas, 'm' meses. */
+    private char taskUnit(org.json.JSONObject o) {
+        if (o.optDouble("dd", 0) <= 0) return 'm';
+        return "w".equals(o.optString("tu", "")) ? 'w' : 'd';
+    }
+    /** El número que escribió el usuario (en su unidad). */
+    private long taskTimeN(org.json.JSONObject o) {
+        char u = taskUnit(o);
+        return Math.round(u == 'm' ? o.optDouble("mo", 0) : u == 'w' ? o.optDouble("dd", 0) / 7 : o.optDouble("dd", 0));
+    }
+    private void setTaskTime(org.json.JSONObject o, double n, char u) {
+        try {
+            o.remove("dd"); o.remove("tu");
+            if (n <= 0) { o.put("mo", 0); return; }
+            if (u == 'm') { o.put("mo", n); return; }
+            o.put("mo", 0).put("dd", u == 'w' ? n * 7 : n).put("tu", String.valueOf(u));
+        } catch (Throwable ignored) { }
+    }
+    /** Tiempo de una plantilla: "12" (meses), "2w" (semanas) o "10d" (días). */
+    private void setTaskTime(org.json.JSONObject o, String tp) {
+        char u = 'm';
+        if (tp.endsWith("w") || tp.endsWith("d")) { u = tp.charAt(tp.length() - 1); tp = tp.substring(0, tp.length() - 1); }
+        setTaskTime(o, Double.parseDouble(tp), u);
+    }
+    private static String timeText(long n, char u) {
+        if (u == 'd') return n == 1 ? "cada día" : "cada " + n + " días";
+        if (u == 'w') return n == 1 ? "cada semana" : "cada " + n + " semanas";
+        return n == 1 ? "cada mes" : "cada " + n + " meses";
+    }
+
+    /** Qué tan cerca está (1 = recién hecho, 0 o menos = ya toca), por km o por fecha, lo que llegue primero. */
+    private double taskFrac(org.json.JSONObject o) {
+        double f = 9;
+        double km = o.optDouble("km", 0), days = taskDays(o);
+        if (km > 0 && prefs.contains("odo_base_km")) f = Math.min(f, taskKmLeft(o) / km);
+        if (days > 0) f = Math.min(f, taskDaysLeft(o) / days);
+        return f;
+    }
+
+    private String taskLeftText(org.json.JSONObject o) {
+        double km = o.optDouble("km", 0), days = taskDays(o);
+        boolean byKm = km > 0 && prefs.contains("odo_base_km");
+        boolean useKm = byKm && (days <= 0 || taskKmLeft(o) / km <= taskDaysLeft(o) / days);
+        if (taskFrac(o) <= 0) return I18n.t("¡Ya toca!");
+        if (useKm) return fmtDist((float) taskKmLeft(o));
+        long d = Math.round(Math.ceil(taskDaysLeft(o)));
+        if (d >= 60) return I18n.t(I18n.integer(Math.round(d / 30.44)) + " meses");
+        return I18n.t(I18n.integer(d) + (d == 1 ? " día" : " días"));
+    }
+
+    private String taskEvery(org.json.JSONObject o) {
+        double km = o.optDouble("km", 0);
+        String a = km > 0 ? I18n.t("Cada " + fmtDist((float) km)) : "";
+        long tn = taskTimeN(o);
+        String b = taskDays(o) > 0 ? I18n.t(timeText(tn, taskUnit(o)).replace(String.valueOf(tn), I18n.integer(tn))) : "";
+        if (a.length() > 0 && b.length() > 0) return a + " · " + b + " " + I18n.t("(lo primero)");
+        return a.length() > 0 ? a : b.length() > 0 ? Character.toUpperCase(b.charAt(0)) + b.substring(1) : "";
+    }
+
+    /**
+     * El mantenimiento que más se acerca (índice), o -1 si es el aceite o no hay tareas. El aceite compite con la
+     * misma medida (fracción que falta), así que sin tareas propias todo se ve exactamente como antes.
+     */
+    private int nearestMaint() {
+        List<org.json.JSONObject> l = maint();
+        if (l.isEmpty()) return -1;
+        double best = oilOn() ? (oilNextKm() - odoKm()) / Math.max(1, prefs.getFloat("oil_interval_km", 5000)) : 99;
+        int bi = -1;
+        for (int i = 0; i < l.size(); i++) {
+            double f = taskFrac(l.get(i));
+            if (f < best) { best = f; bi = i; }
+        }
+        return bi;
+    }
+
+    /** Ícono de la píldora de arriba (aceite o el mantenimiento que se esté mostrando). */
+    private String topIconName;
+    private void setTopIcon(String name) {
+        if (topOilTv == null || name.equals(topIconName) && topOilTv.getCompoundDrawables()[0] != null) return;
+        topIconName = name;
+        android.graphics.drawable.BitmapDrawable di = new android.graphics.drawable.BitmapDrawable(getResources(), asset("ic/" + name + ".png"));
+        di.setBounds(0, 0, (int) (14 * s), (int) (14 * s));
+        if (ICON != 0xFFFFFFFF) di.setColorFilter(ICON, android.graphics.PorterDuff.Mode.SRC_IN);
+        topOilTv.setCompoundDrawables(di, null, null, null);
+    }
+
+    private void showTaskBadge(int i) {
+        org.json.JSONObject o = maint().get(i);
+        double f = taskFrac(o);
+        String left = taskLeftText(o);
+        boolean due = f <= 0, warn = f < 0.1;
+        if (topOilTv != null) {
+            setTopIcon(taskIcon(o));
+            topOilTv.setText(due ? I18n.t("¡Toca: " + taskName(o) + "!") : taskName(o) + ": " + left);
+            topOilTv.setTextColor(warn ? RED : TEXT);
+        }
+        if (oilValTv == null) return;
+        oilLblTv.setText(taskName(o));
+        oilIc.setImageBitmap(asset("ic/" + taskIcon(o) + ".png"));
+        oilValTv.setText(left);
+        oilValTv.setTextColor(warn ? RED : TEXT);
+        oilBarBg.setVisibility(View.VISIBLE);
+        final float used = (float) Math.max(0, Math.min(1, 1 - f));
+        oilBarBg.post(new Runnable() { public void run() {
+            ViewGroup.LayoutParams lp = oilBar.getLayoutParams();
+            lp.width = Math.max((int) (2 * s), (int) (oilBarBg.getWidth() * used));
+            oilBar.setLayoutParams(lp);
+            oilBar.setBackground(round(used >= 0.9f ? RED : 0xFF2DBE6C, 2));
+        }});
+    }
+
+    /** Toque en el recuadro del inicio: el aceite o el mantenimiento que se esté mostrando. */
+    private void badgeMenu() {
+        if (badgeTask >= 0 && badgeTask < maint().size()) taskMenu(badgeTask);
+        else oilMenu();
+    }
+
+    /** Aviso en el inicio cuando toca una tarea. «Aún no»: otra vez en 100 km o en 7 días. */
+    private boolean maintAlert() {
+        if (maintLater || oilLater || (oilDlg != null && oilDlg.isShowing())) return false;
+        final List<org.json.JSONObject> l = maint();
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < l.size(); i++) {
+            final org.json.JSONObject o = l.get(i);
+            if (taskFrac(o) > 0) continue;
+            if (o.optDouble("sz", 0) > odoKm() || o.optLong("sd", 0) > now) continue;
+            final int idx = i;
+            oilDlg = new TB(this, dlg())
+                .setTitle(I18n.t("Es hora de: " + taskName(o)))
+                .setMessage(I18n.t(taskEvery(o)) + "\n\n" + I18n.t("¿Ya lo hiciste?"))
+                .setPositiveButton("Ya lo hice", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { taskDone(idx, null); } })
+                .setNegativeButton("Aún no", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    try {
+                        List<org.json.JSONObject> l2 = maint();
+                        org.json.JSONObject t = l2.get(idx);
+                        t.put("sz", odoKm() + (useMph() ? 60 / 0.621371f : 100));
+                        t.put("sd", System.currentTimeMillis() + 7 * 86400000L);
+                        saveMaint(l2);
+                    } catch (Throwable ignored) { }
+                }})
+                .setOnCancelListener(new DialogInterface.OnCancelListener() { public void onCancel(DialogInterface d) { maintLater = true; } })
+                .show();
+            return true;
+        }
+        return false;
+    }
+
+    /** Ajustes → Tu vehículo → Otros mantenimientos. */
+    private void maintSection(LinearLayout body) {
+        LinearLayout m = section(body, "Otros mantenimientos");
+        List<org.json.JSONObject> l = maint();
+        for (int i = 0; i < l.size(); i++) {
+            final int idx = i;
+            org.json.JSONObject o = l.get(i);
+            rowIc(m, taskIcon(o), taskName(o), taskEvery(o), taskLeftText(o), new Runnable() { public void run() { taskMenu(idx); } });
+        }
+        rowIc(m, "add_circle", "Agregar mantenimiento", "Filtros, bujías, frenos, correa, SOAT… Avisa por kilómetros, por tiempo o lo que llegue primero", null,
+            new Runnable() { public void run() { addTask(); } });
+    }
+
+    private void addTask() {
+        final String[] names = new String[MAINT_TEMPLATES.length + 1];
+        for (int i = 0; i < MAINT_TEMPLATES.length; i++) names[i] = I18n.t(MAINT_TEMPLATES[i][1]);
+        names[MAINT_TEMPLATES.length] = I18n.t("Otro (escribe el nombre)");
+        new TB(this, dlg()).raw()
+            .setTitle(I18n.t("Agregar mantenimiento"))
+            .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                final org.json.JSONObject o = new org.json.JSONObject();
+                try {
+                    if (w < MAINT_TEMPLATES.length) {
+                        String[] tp = MAINT_TEMPLATES[w];
+                        o.put("t", tp[0]).put("km", Double.parseDouble(tp[2]));
+                        setTaskTime(o, tp[3]);
+                        pickIcon(tp[4], new StrCb() { public void on(String ic) {
+                            try { o.put("ic", ic); } catch (Throwable ignored) { }
+                            taskSchedule(o, -1);
+                        }});
+                    } else {
+                        askText(I18n.t("Nombre del mantenimiento"), "", new TextCb() { public void on(String v) {
+                            if (v.trim().length() == 0) return;
+                            try { o.put("n", v.trim()).put("km", 10000).put("mo", 12); } catch (Throwable ignored) { }
+                            pickIcon("build", new StrCb() { public void on(String ic) {
+                                try { o.put("ic", ic); } catch (Throwable ignored) { }
+                                taskSchedule(o, -1);
+                            }});
+                        }});
+                    }
+                } catch (Throwable ignored) { }
+            }})
+            .setNegativeButton(I18n.t("Cancelar"), null)
+            .show();
+    }
+
+    /** Cada cuánto: por km, por tiempo o lo que llegue primero; después, la última vez. idx = -1 si es nueva. */
+    private void taskSchedule(final org.json.JSONObject o, final int idx) {
+        final double km0 = o.optDouble("km", 0), mo0 = taskDays(o);
+        final long n0 = taskTimeN(o);
+        final char u0 = taskUnit(o);
+        int sel = km0 > 0 && mo0 > 0 ? 2 : mo0 > 0 ? 1 : 0;
+        String[] opts = {I18n.t("Por kilómetros"), I18n.t("Por tiempo"), I18n.t("Lo que llegue primero")};
+        new TB(this, dlg()).raw()
+            .setTitle(taskName(o))
+            .setSingleChoiceItems(opts, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, final int w) {
+                d.dismiss();
+                final Runnable askMonths = new Runnable() { public void run() {
+                    if (w == 0) { setTaskTime(o, 0, 'm'); taskLast(o, idx); return; }
+                    askTime(I18n.t("¿Cada cuánto tiempo?"), mo0 > 0 ? n0 : 12, mo0 > 0 ? u0 : 'm', new TimeCb() { public void on(long n, char u) {
+                        setTaskTime(o, n, u);
+                        taskLast(o, idx);
+                    }});
+                }};
+                if (w == 1) { try { o.put("km", 0); } catch (Throwable ignored) { } askMonths.run(); return; }
+                final Runnable askKm = new Runnable() { public void run() {
+                    askNumber(I18n.t("¿Cada cuántos " + unit() + "?"), km0 > 0 ? toUnit((float) km0) : (useMph() ? 6000 : 10000), new NumCb() { public void on(float v) {
+                        if (v < 100) { toast("Escribe un número válido"); return; }
+                        try { o.put("km", fromUnit(v)); } catch (Throwable ignored) { }
+                        askMonths.run();
+                    }});
+                }};
+                // las tareas por km necesitan el kilometraje del tablero (el mismo del aceite)
+                if (!prefs.contains("odo_base_km")) {
+                    new TB(Main.this, dlg())
+                        .setTitle("Kilometraje del tablero")
+                        .setMessage("StradaOS no puede leer el kilometraje del carro. Escríbelo una vez y StradaOS le suma lo que recorras con el GPS.")
+                        .setPositiveButton("Escribirlo", new DialogInterface.OnClickListener() { public void onClick(DialogInterface dd, int ww) {
+                            askOilUnit(new Runnable() { public void run() { askOdo(askKm); } });
+                        }})
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+                } else askKm.run();
+            }})
+            .show();
+    }
+
+    /** Última vez: kilometraje (si va por km) y fecha (si va por tiempo). */
+    private void taskLast(final org.json.JSONObject o, final int idx) {
+        // En Android 4.x el selector de fecha avisa dos veces (al tocar Listo y al cerrarse): se guarda una sola vez
+        final boolean[] saved = {false};
+        final Runnable finish = new Runnable() { public void run() {
+            if (saved[0]) return;
+            saved[0] = true;
+            try { o.remove("sz"); o.remove("sd"); } catch (Throwable ignored) { }
+            List<org.json.JSONObject> l = maint();
+            if (idx >= 0 && idx < l.size()) l.set(idx, o); else l.add(o);
+            saveMaint(l);
+            toast(taskName(o) + ": " + taskLeftText(o));
+            if (settingsView != null) showSettings(settingsCat);
+        }};
+        final Runnable askDate = new Runnable() { public void run() {
+            if (taskDays(o) <= 0) { finish.run(); return; }
+            pickDate("¿Cuándo fue la última vez?", o.optLong("ld", 0), new LongCb() { public void on(long when) {
+                try { o.put("ld", Math.min(System.currentTimeMillis(), when)); } catch (Throwable ignored) { }
+                finish.run();
+            }});
+        }};
+        if (o.optDouble("km", 0) > 0) {
+            float def = o.has("lkm") ? toUnit((float) o.optDouble("lkm", 0)) : toUnit(odoKm());
+            askNumber(I18n.t("¿A cuántos " + unit() + " fue la última vez?"), def, new NumCb() { public void on(float v) {
+                try { o.put("lkm", fromUnit(v)); } catch (Throwable ignored) { }
+                askDate.run();
+            }});
+        } else askDate.run();
+    }
+
+    private void taskMenu(final int idx) {
+        final List<org.json.JSONObject> l = maint();
+        if (idx < 0 || idx >= l.size()) return;
+        final org.json.JSONObject o = l.get(idx);
+        StringBuilder head = new StringBuilder(taskEvery(o));
+        if (o.optDouble("km", 0) > 0) head.append("\n").append(I18n.t("Última vez")).append(": ").append(fmtDist((float) o.optDouble("lkm", 0)));
+        if (taskDays(o) > 0 && o.optLong("ld", 0) > 0)
+            head.append(o.optDouble("km", 0) > 0 ? " · " : "\n" + I18n.t("Última vez") + ": ").append(I18n.sdf("d MMM yyyy").format(new Date(o.optLong("ld", 0))));
+        head.append("\n").append(taskFrac(o) <= 0 ? I18n.t("¡Ya toca!") : I18n.t("Faltan " + taskLeftText(o)));
+        LinearLayout ht = new LinearLayout(this);
+        ht.setOrientation(LinearLayout.VERTICAL);
+        int hp = (int) (22 * s);
+        ht.setPadding(hp, hp, hp, (int) (6 * s));
+        LinearLayout tt = new LinearLayout(this);
+        tt.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView ti = icon(taskIcon(o), 24);
+        ti.setColorFilter(RED);
+        tt.addView(ti, new LinearLayout.LayoutParams((int) (24 * s), (int) (24 * s)));
+        TextView tn = tv(taskName(o), 19, TEXT, true);
+        tn.setPadding((int) (10 * s), 0, 0, 0);
+        tt.addView(tn);
+        ht.addView(tt);
+        TextView hs = tv(head.toString(), 14, MUTED, false);
+        hs.setSingleLine(false);
+        hs.setMaxLines(5);
+        hs.setLineSpacing(3 * s, 1f);
+        hs.setPadding(0, (int) (6 * s), 0, 0);
+        ht.addView(hs);
+        new TB(this, dlg())
+            .setCustomTitle(ht)
+            .setItems(new String[]{"Ya lo hice", "Cambiar cada cuánto", "Corregir la última vez", "Cambiar el nombre", "Cambiar el ícono", "Borrar"},
+                new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    if (w == 0) taskDone(idx, null);
+                    else if (w == 1) taskSchedule(o, idx);
+                    else if (w == 2) taskLast(o, idx);
+                    else if (w == 3) askText(I18n.t("Nombre del mantenimiento"), taskName(o), new TextCb() { public void on(String v) {
+                        if (v.trim().length() == 0) return;
+                        try { o.put("n", v.trim()); } catch (Throwable ignored) { }
+                        l.set(idx, o); saveMaint(l); if (settingsView != null) showSettings(settingsCat);
+                    }});
+                    else if (w == 4) pickIcon(taskIcon(o), new StrCb() { public void on(String ic) {
+                        try { o.put("ic", ic); } catch (Throwable ignored) { }
+                        l.set(idx, o); saveMaint(l); if (settingsView != null) showSettings(settingsCat);
+                    }});
+                    else new TB(Main.this, dlg())
+                        .setTitle(I18n.t("¿Borrar «" + taskName(o) + "»?"))
+                        .setPositiveButton("Borrar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface dd, int ww) {
+                            l.remove(idx); saveMaint(l); if (settingsView != null) showSettings(settingsCat);
+                        }})
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+                }})
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    /** «Ya lo hice»: si va por km confirma el kilometraje; la fecha es hoy. */
+    private void taskDone(final int idx, final Runnable next) {
+        final List<org.json.JSONObject> l = maint();
+        if (idx < 0 || idx >= l.size()) return;
+        final org.json.JSONObject o = l.get(idx);
+        final Runnable save = new Runnable() { public void run() {
+            try { o.put("ld", System.currentTimeMillis()); o.remove("sz"); o.remove("sd"); } catch (Throwable ignored) { }
+            l.set(idx, o);
+            saveMaint(l);
+            toast(taskName(o) + ": " + taskLeftText(o));
+            if (settingsView != null) showSettings(settingsCat);
+            if (next != null) next.run();
+        }};
+        if (o.optDouble("km", 0) > 0) {
+            askNumber(I18n.t("Kilometraje del tablero al hacerlo") + " (" + unit() + ")", toUnit(odoKm()), new NumCb() { public void on(float v) {
+                float km = fromUnit(v);
+                try { o.put("lkm", km); } catch (Throwable ignored) { }
+                // de paso corrige el kilometraje estimado con el real del tablero
+                prefs.edit().putFloat("odo_base_km", km).putFloat("odo_gps_m", 0).apply();
+                odoPending = 0;
+                save.run();
+            }});
+        } else save.run();
+    }
+
+    interface NumCb { void on(float v); }
+
+    /**
+     * Campo de texto para las ventanas. La actividad usa un tema oscuro y las ventanas siguen el tema de StradaOS:
+     * en modo claro el texto y la pista salían blancos sobre fondo blanco (visto en la 2.13 de prueba).
+     */
+    private android.widget.EditText field() {
+        android.widget.EditText et = new android.widget.EditText(this);
+        et.setTextColor(LIGHT ? 0xFF1A1A1A : Color.WHITE);
+        et.setHintTextColor(LIGHT ? 0xFF7A808A : 0xFFA0A6B0);
+        // 2.21: recuadro redondeado del color del tema (antes, la raya del sistema, distinta en cada Android)
+        et.setBackground(round(INNER, 14));
+        et.setPadding((int) (16 * s), (int) (12 * s), (int) (16 * s), (int) (12 * s));
+        et.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * s * FONT);
+        return et;
+    }
+
+    interface TimeCb { void on(long n, char unit); }
+
+    /** Número + unidad (días, semanas o meses) en un solo diálogo. */
+    private void askTime(String title, long def, char unit, final TimeCb cb) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        et.setText(String.valueOf(def));
+        et.setSelection(et.getText().length());
+        final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+        rg.setOrientation(LinearLayout.HORIZONTAL);
+        final char[] units = {'d', 'w', 'm'};
+        String[] names = {"Días", "Semanas", "Meses"};
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(new android.view.ContextThemeWrapper(this,
+                LIGHT ? android.R.style.Theme_DeviceDefault_Light : android.R.style.Theme_DeviceDefault));
+            rb.setId(1000 + i);
+            rb.setText(I18n.t(names[i]));
+            rb.setTextColor(LIGHT ? 0xFF1A1A1A : Color.WHITE);
+            rb.setTextSize(TypedValue.COMPLEX_UNIT_PX, 15 * s * FONT);
+            rb.setPadding(rb.getPaddingLeft(), 0, (int) (14 * s), 0);
+            rg.addView(rb, new android.widget.RadioGroup.LayoutParams(-2, -2));
+            if (units[i] == unit) rb.setChecked(true);
+        }
+        if (rg.getCheckedRadioButtonId() == -1) rg.check(1002);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+        rlp.topMargin = (int) (10 * s);
+        wrap.addView(rg, rlp);
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(wrap)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                try {
+                    long v = Long.parseLong(et.getText().toString().replaceAll("[^0-9]", ""));
+                    int i = Math.max(0, Math.min(2, rg.getCheckedRadioButtonId() - 1000));
+                    char u = units[i];
+                    long maxV = u == 'd' ? 3650 : u == 'w' ? 520 : 240;
+                    if (v < 1 || v > maxV) throw new NumberFormatException();
+                    cb.on(v, u);
+                } catch (Throwable e) { toast("Escribe un número válido"); }
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void askNumber(String title, float def, final NumCb cb) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        if (def >= 0) { et.setText(String.valueOf(Math.round(def))); et.setSelection(et.getText().length()); }
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et);
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(wrap)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                try {
+                    float v = Float.parseFloat(et.getText().toString().replaceAll("[^0-9]", ""));
+                    if (v < 0 || v > 5000000) throw new NumberFormatException();
+                    cb.on(v);
+                } catch (Throwable e) { toast("Escribe un número válido"); }
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void buildAaCard() {
+        FrameLayout card = new FrameLayout(this);
+        place(board, card, mapX, mapY, mapW, mapH);
+        // fondo decorativo mientras no hay GPS; encima, el mapa en vivo
+        card.addView(new MapView(this, s, 20 * s), new FrameLayout.LayoutParams(-1, -1));
+        if (!prefs.getBoolean("map_live", true)) { liveMap = null; seedLastLocation(); buildAaCardRest(card); return; }
+        liveMap = new LiveMapView(this, s, 20 * s);
+        card.addView(liveMap, new FrameLayout.LayoutParams(-1, -1));
+        liveMap.setVisibility(View.INVISIBLE);
+        liveMap.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { liveMap.cycleZoom(); }
+        });
+        liveMap.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) {
+                showMapDiag();
+                return true;
+            }
+        });
+        seedLastLocation();
+
+        buildAaCardRest(card);
+    }
+
+    private void buildAaCardRest(FrameLayout card) {
+        LinearLayout tag = new LinearLayout(this);
+        tag.setGravity(Gravity.CENTER_VERTICAL);
+        tag.setBackground(round((CARD & 0x00FFFFFF) | 0xE0000000, 12));
+        tag.setPadding((int) (12 * s), (int) (7 * s), (int) (12 * s), (int) (7 * s));
+        tag.addView(icon("my_location", 16), new LinearLayout.LayoutParams((int) (16 * s), (int) (16 * s)));
+        mapTagTv = tv("Buscando GPS…", 13, TEXT, true);
+        mapTagTv.setPadding((int) (8 * s), 0, 0, 0);
+        tag.addView(mapTagTv);
+        placeWrap(card, tag, 16, 16);
+        tag.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { fixGps(); }
+        });
+
+        // 2.18: qué botones de conexión se ven (Reinaldo, MIGSGx #12). Con uno o ninguno, el clima usa el espacio libre.
+        String cm = prefs.getString("conn_buttons", "both");
+        boolean showAa = "both".equals(cm) || "aa".equals(cm), showCp = "both".equals(cm) || "cp".equals(cm);
+        int nBtn = (showAa ? 1 : 0) + (showCp ? 1 : 0);
+        boolean wx = nBtn < 2 && prefs.getBoolean("weather_on", true);
+        boolean hasPanel = nBtn > 0 || wx;
+        final float panelY = hasPanel ? mapH - 96 : mapH, panelW = mapW - 24 - insL - insR;
+        final FrameLayout panel = new FrameLayout(this);
+        panel.setBackground(round((CARD & 0x00FFFFFF) | 0xEB000000, 16));
+        place(card, panel, 12 + insL, panelY, panelW, 84);
+        if (!hasPanel) panel.setVisibility(View.GONE);
+
+        // botón redondo del navegador: tamaño, lado u oculto (Tinoyevski #18, Andrés). Normal = el de siempre.
+        int nbSize = prefs.getInt("nav_btn_size", 0);   // 0 normal, 1 grande, 2 muy grande, 3 oculto
+        float nb = nbSize == 1 ? 68 : nbSize == 2 ? 84 : 52;
+        String nbSide = prefs.getString("nav_btn_side", "auto");
+        boolean nbLeft = "left".equals(nbSide) || ("auto".equals(nbSide) && playerLeft);
+        final View navBtn = circleIcon("map", nb, nb / 2, (CARD & 0x00FFFFFF) | 0xEB000000);
+        place(card, navBtn, nbLeft ? 12 + insL : mapW - 12 - nb - insR, panelY - 12 - nb, nb, nb);
+        if (nbSize == 3) navBtn.setVisibility(View.GONE);
+        // 2.20 (Daniel): mini velocímetro sobre el mapa cuando la tarjeta del vehículo está oculta
+        mapGauge = null;
+        if (!showCar && carSpeed && prefs.getBoolean("map_gauge", false)) {
+            FrameLayout gb = new FrameLayout(this);
+            gb.setBackground(round((CARD & 0x00FFFFFF) | 0xE0000000, 66));
+            mapGauge = new Gauge(this, s);
+            mapGauge.setColors(RED, TEXT, SOFT);
+            mapGauge.setUnit(useMph());
+            mapGauge.setSmall(true);
+            gb.addView(mapGauge, new FrameLayout.LayoutParams(-1, -1));
+            // tamaño (pequeño/normal/grande) limitado para que en pantallas bajas no tape el mapa
+            int gsz = prefs.getInt("map_gauge_size", 1);
+            float gs = gsz == 0 ? 108 : gsz == 2 ? 160 : 132;
+            gs = Math.min(gs, Math.min(mapH * 0.45f, mapW * 0.42f));
+            gb.setBackground(round((CARD & 0x00FFFFFF) | 0xE0000000, gs / 2));
+            // esquina: automático = arriba, en el lado contrario al botón del navegador (como antes)
+            String corner = prefs.getString("map_gauge_corner", "auto");
+            if ("auto".equals(corner)) corner = nbLeft ? "tr" : "tl";
+            boolean gLeft = corner.endsWith("l"), gBottom = corner.startsWith("b");
+            float gx = gLeft ? 12 : mapW - 12 - gs, gy = 52;
+            if (gBottom) gx = gLeft ? 12 + insL : mapW - 12 - gs - insR;
+            if (gBottom) {
+                gy = Math.max(52, panelY - 12 - gs);
+                // abajo del mismo lado que el botón del navegador: se corre hacia adentro para no taparlo
+                if (nbSize != 3 && gLeft == nbLeft) gx = gLeft ? 12 + insL + nb + 12 : mapW - 12 - gs - insR - nb - 12;
+                mapGaugeBox = gb;
+            } else mapGaugeBox = null;
+            place(card, gb, gx, gy, gs, gs);
+        } else mapGaugeBox = null;
+        navBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { openNavApp(); }
+        });
+        navBtn.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { pickFor("nav_app", "Navegación"); return true; }
+        });
+
+        float slotW = (panelW - 28) / 2, fullW = panelW - 20;
+        View aa = null, cp = null;
+        aaBtnTv = null; aaSubTv = null; cpSubTv = null;
+        float x = 10;
+        if (showAa) {
+            aa = projButton("navigation", "Android Auto", RED, true);
+            aaBtnTv = (TextView) aa.getTag();
+            float w = nBtn == 2 || wx ? slotW : fullW;
+            place(panel, aa, x, 10, w, 64);
+            x += w + 8;
+        }
+        if (showCp) {
+            cp = projButton("phone_iphone", "CarPlay", BTN, false);
+            cpSubTv = (TextView) cp.getTag();
+            float w = nBtn == 2 || wx ? slotW : fullW;
+            place(panel, cp, x, 10, w, 64);
+            x += w + 8;
+        }
+        aaSubTv = aaBtnTv;
+        panelWx = null;
+        if (wx) buildPanelWeather(panel, x, nBtn == 0 ? fullW : slotW, nBtn == 0);
+
+        // Android Auto / CarPlay plegables: una flechita los esconde para ver todo el mapa (Druids07, idea de Andrés).
+        // Tocar o deslizar la flechita hacia arriba los muestra; hacia abajo (o deslizar los botones) los esconde.
+        final FrameLayout handle = new FrameLayout(this);
+        handle.setBackground(round((CARD & 0x00FFFFFF) | 0xEB000000, 11));
+        final ImageView chev = icon("chevron_right", 18);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams((int) (18 * s), (int) (18 * s));
+        clp.gravity = Gravity.CENTER;
+        handle.addView(chev, clp);
+        place(card, handle, 12 + insL + (panelW - 64) / 2, panelY - 28, 64, 24);
+        final float shift = 96 * s;
+        final View[] moving = mapGaugeBox != null ? new View[]{panel, navBtn, handle, mapGaugeBox} : new View[]{panel, navBtn, handle};
+        if (!hasPanel) handle.setVisibility(View.GONE);
+        final boolean open0 = prefs.getBoolean("aa_panel_open", true);
+        for (View v : moving) v.setTranslationY(open0 ? 0 : shift);
+        chev.setRotation(open0 ? 90 : -90);
+        final Runnable[] setOpen = new Runnable[2];   // [0] mostrar, [1] esconder
+        for (int k = 0; k < 2; k++) {
+            final boolean show = k == 0;
+            setOpen[k] = new Runnable() { public void run() {
+                prefs.edit().putBoolean("aa_panel_open", show).apply();
+                for (View v : moving) v.animate().translationY(show ? 0 : shift).setDuration(220);
+                chev.animate().rotation(show ? 90 : -90).setDuration(220);
+            }};
+        }
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            float y0;
+            public boolean onTouch(View v, MotionEvent e) {
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { y0 = e.getRawY(); return true; }
+                if (e.getActionMasked() != MotionEvent.ACTION_UP) return true;
+                float d = e.getRawY() - y0;
+                boolean isOpen = prefs.getBoolean("aa_panel_open", true);
+                if (d < -12 * s) setOpen[0].run();
+                else if (d > 12 * s) setOpen[1].run();
+                else setOpen[isOpen ? 1 : 0].run();
+                return true;
+            }
+        });
+        View.OnTouchListener swipeDown = new View.OnTouchListener() {
+            float x0, y0;
+            public boolean onTouch(View v, MotionEvent e) {
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { x0 = e.getRawX(); y0 = e.getRawY(); return false; }
+                if (e.getActionMasked() != MotionEvent.ACTION_UP) return false;
+                float dx = e.getRawX() - x0, d = e.getRawY() - y0;
+                if (d < 30 * s || d < 2 * Math.abs(dx)) return false;
+                MotionEvent c = MotionEvent.obtain(e);
+                c.setAction(MotionEvent.ACTION_CANCEL);
+                v.onTouchEvent(c);   // que no abra Android Auto/CarPlay
+                c.recycle();
+                setOpen[1].run();
+                return true;
+            }
+        };
+        if (panelWx != null) panelWx.setOnTouchListener(swipeDown);
+        if (aa != null) {
+            aa.setOnTouchListener(swipeDown);
+            aa.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { openAndroidAuto(); }
+            });
+            aa.setOnLongClickListener(new View.OnLongClickListener() {
+                public boolean onLongClick(View v) { chooseConnection(null); return true; }
+            });
+        }
+        if (cp != null) {
+            cp.setOnTouchListener(swipeDown);
+            cp.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { openCarPlay(); }
+            });
+            cp.setOnLongClickListener(new View.OnLongClickListener() {
+                public boolean onLongClick(View v) { pickFor("carplay", "CarPlay"); return true; }
+            });
+        }
+        updateMapTag();
+    }
+
+    /**
+     * Clima en el panel del mapa (2.18, Reinaldo): ícono, temperatura, estado y máx/mín. A todo el ancho (sin botones
+     * de conexión) también muestra las próximas horas. Tocarlo abre el detalle.
+     */
+    private void buildPanelWeather(FrameLayout panel, float x, float w, boolean wide) {
+        LinearLayout b = new LinearLayout(this);
+        b.setGravity(Gravity.CENTER_VERTICAL);
+        b.setBackground(round(BTN, 14));
+        b.setPadding((int) (12 * s), 0, (int) (10 * s), 0);
+        panelWxIc = icon("cloud", 30);
+        b.addView(panelWxIc, new LinearLayout.LayoutParams((int) (30 * s), (int) (30 * s)));
+        panelWxTemp = tv("--°", 22, TEXT, true);
+        panelWxTemp.setPadding((int) (8 * s), 0, (int) (8 * s), 0);
+        b.addView(panelWxTemp);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        panelWxDesc = tv("Clima", 13, TEXT, true);
+        panelWxHiLo = tv("", 11, MUTED, false);
+        panelWxHiLo.setPadding(0, (int) (3 * s), 0, 0);
+        col.addView(panelWxDesc);
+        col.addView(panelWxHiLo);
+        b.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+        panelWxHours = null;
+        if (wide) {
+            panelWxHours = new LinearLayout(this);
+            panelWxHours.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+            b.addView(panelWxHours, new LinearLayout.LayoutParams(-2, -1));
+        }
+        place(panel, b, x, 10, w, 64);
+        b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { showWeatherDetail(); } });
+        panelWx = b;
+        showPanelWeather();
+    }
+
+    private String deg(double t) { return I18n.integer(Math.round(t)) + "°"; }
+
+    private String hourLabel(int hh) {
+        String fmt = prefs.getString("clock", "auto");
+        boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+        Calendar c = Calendar.getInstance();
+        c.set(Calendar.HOUR_OF_DAY, hh);
+        c.set(Calendar.MINUTE, 0);
+        return I18n.sdf(h24 ? "HH:mm" : "h a").format(c.getTime());
+    }
+
+    private void showPanelWeather() {
+        if (panelWx == null) return;
+        Weather.Now n = weatherNow;
+        if (n == null) {
+            panelWxIc.setImageBitmap(asset("ic/cloud.png"));
+            panelWxTemp.setText("--°");
+            panelWxDesc.setText(I18n.t("Clima"));
+            panelWxHiLo.setText(I18n.t(Double.isNaN(wLat) ? "Esperando la ubicación…" : "Cargando…"));
+            if (panelWxHours != null) panelWxHours.removeAllViews();
+            return;
+        }
+        panelWxIc.setImageBitmap(asset("ic/" + Weather.icon(n.code, n.day) + ".png"));
+        panelWxTemp.setText(deg(n.temp));
+        panelWxDesc.setText(I18n.t(Weather.describe(n.code)));
+        Weather.Day d = n.today();
+        String hl = d != null ? I18n.t("Máx " + deg(d.hi) + " · Mín " + deg(d.lo)) : (n.city != null ? n.city : "");
+        panelWxHiLo.setText(hl);
+        if (panelWxHours != null) {
+            panelWxHours.removeAllViews();
+            for (int i = 1; i < n.hours.size() && i <= 3; i++) {
+                Weather.Hour hr = n.hours.get(i);
+                LinearLayout c = new LinearLayout(this);
+                c.setOrientation(LinearLayout.VERTICAL);
+                c.setGravity(Gravity.CENTER_HORIZONTAL);
+                c.addView(tv(hourLabel(hr.hour), 10, MUTED, false));
+                ImageView ic = icon(Weather.icon(hr.code, hr.day), 16);
+                c.addView(ic, new LinearLayout.LayoutParams((int) (16 * s), (int) (16 * s)));
+                c.addView(tv(deg(hr.temp), 12, TEXT, true));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (52 * s), -2);
+                panelWxHours.addView(c, lp);
+            }
+        }
+    }
+
+    /** Probabilidad de lluvia con el ícono del paraguas (vacío si no va a llover). */
+    private View rainView(int pct, float size, int gravity) {
+        LinearLayout l = new LinearLayout(this);
+        l.setGravity(gravity);
+        if (pct > 0) {
+            ImageView u = icon("umbrella", size);
+            u.setAlpha(0.6f);
+            l.addView(u, new LinearLayout.LayoutParams((int) (size * s), (int) (size * s)));
+            TextView t = tv(I18n.integer(pct) + "%", size, MUTED, false);
+            t.setPadding((int) (3 * s), 0, 0, 0);
+            l.addView(t);
+        } else l.addView(tv(" ", size, MUTED, false));
+        return l;
+    }
+
+    /** Detalle del clima: ahora, próximas horas y los próximos días (tocando el clima de arriba o el del panel). */
+    private void showWeatherDetail() {
+        final Weather.Now n = weatherNow;
+        if (!prefs.getBoolean("weather_on", true)) { toast("El clima está apagado en Ajustes → Mapa y clima"); return; }
+        if (n == null) { toast(Double.isNaN(wLat) ? "Esperando la ubicación para el clima…" : "Cargando el clima…"); refreshWeatherNow(); return; }
+        int pad = (int) (20 * s);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, pad / 2);
+
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(icon(Weather.icon(n.code, n.day), 48), new LinearLayout.LayoutParams((int) (48 * s), (int) (48 * s)));
+        TextView big = tv(deg(n.temp) + n.unit, 40, TEXT, true);
+        big.setPadding((int) (14 * s), 0, (int) (16 * s), 0);
+        head.addView(big);
+        LinearLayout hc = new LinearLayout(this);
+        hc.setOrientation(LinearLayout.VERTICAL);
+        hc.addView(tv(Weather.describe(n.code), 17, TEXT, true));
+        StringBuilder extra = new StringBuilder();
+        if (!Double.isNaN(n.feels)) extra.append(I18n.t("Sensación " + deg(n.feels)));
+        if (n.humidity >= 0) extra.append(extra.length() > 0 ? " · " : "").append(I18n.t("Humedad " + I18n.integer(n.humidity) + "%"));
+        if (!Double.isNaN(n.wind)) extra.append(extra.length() > 0 ? " · " : "").append(I18n.t("Viento " + I18n.integer(Math.round(n.wind)) + " " + n.windUnit));
+        TextView ex2 = tv(extra.toString(), 13, MUTED, false);
+        ex2.setSingleLine(false);
+        ex2.setPadding(0, (int) (4 * s), 0, 0);
+        hc.addView(ex2);
+        head.addView(hc, new LinearLayout.LayoutParams(0, -2, 1));
+        box.addView(head);
+
+        if (!n.hours.isEmpty()) {
+            TextView ht = tv("PRÓXIMAS HORAS", 11, MUTED, true);
+            ht.setPadding(0, (int) (16 * s), 0, (int) (6 * s));
+            box.addView(ht);
+            android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+            hs.setHorizontalScrollBarEnabled(false);
+            LinearLayout hrow = new LinearLayout(this);
+            for (int i = 0; i < n.hours.size(); i++) {
+                Weather.Hour hr = n.hours.get(i);
+                LinearLayout c = new LinearLayout(this);
+                c.setOrientation(LinearLayout.VERTICAL);
+                c.setGravity(Gravity.CENTER_HORIZONTAL);
+                c.addView(tv(i == 0 ? I18n.t("Ahora") : hourLabel(hr.hour), 11, MUTED, false));
+                c.addView(icon(Weather.icon(hr.code, hr.day), 22), new LinearLayout.LayoutParams((int) (22 * s), (int) (22 * s)));
+                c.addView(tv(deg(hr.temp), 14, TEXT, true));
+                c.addView(rainView(hr.rain, 10, Gravity.CENTER_HORIZONTAL));
+                hrow.addView(c, new LinearLayout.LayoutParams((int) (64 * s), -2));
+            }
+            hs.addView(hrow);
+            box.addView(hs);
+        }
+        if (n.days.size() > 1) {
+            TextView dt = tv("PRÓXIMOS DÍAS", 11, MUTED, true);
+            dt.setPadding(0, (int) (14 * s), 0, (int) (4 * s));
+            box.addView(dt);
+            java.text.SimpleDateFormat in = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            for (int i = 0; i < n.days.size(); i++) {
+                Weather.Day d = n.days.get(i);
+                String name;
+                if (i == 0) name = I18n.t("Hoy");
+                else {
+                    try { name = I18n.sdf("EEEE").format(in.parse(d.date)); } catch (Throwable e) { name = d.date; }
+                    if (name.length() > 0) name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+                }
+                LinearLayout r = new LinearLayout(this);
+                r.setGravity(Gravity.CENTER_VERTICAL);
+                r.setPadding(0, (int) (4 * s), 0, (int) (4 * s));
+                r.addView(tv(name, 14, TEXT, false), new LinearLayout.LayoutParams(0, -2, 1));
+                r.addView(icon(Weather.icon(d.code, true), 20), new LinearLayout.LayoutParams((int) (20 * s), (int) (20 * s)));
+                r.addView(rainView(d.rain, 12, Gravity.RIGHT | Gravity.CENTER_VERTICAL), new LinearLayout.LayoutParams((int) (64 * s), -2));
+                TextView t = tv(deg(d.hi) + " / " + deg(d.lo), 14, TEXT, true);
+                t.setGravity(Gravity.RIGHT);
+                r.addView(t, new LinearLayout.LayoutParams((int) (100 * s), -2));
+                box.addView(r);
+            }
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        new TB(this, dlg())
+            .setTitle(n.city != null ? n.city : I18n.t("Clima"))
+            .setView(sv)
+            .setPositiveButton("Cerrar", null)
+            .show();
+    }
+
+    /** Botón de proyección: ícono + título + subtítulo (el subtítulo se guarda en getTag()). */
+    private View projButton(String ic, String title, int color, boolean filled) {
+        LinearLayout b = new LinearLayout(this);
+        b.setGravity(Gravity.CENTER_VERTICAL);
+        b.setBackground(round(color, 14));
+        b.setPadding((int) (12 * s), 0, (int) (8 * s), 0);
+        ImageView pic = icon(ic, 26);
+        if (filled) pic.clearColorFilter();
+        b.addView(pic, new LinearLayout.LayoutParams((int) (26 * s), (int) (26 * s)));
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding((int) (10 * s), 0, 0, 0);
+        col.addView(tv(title, 15, filled ? Color.WHITE : TEXT, true));
+        TextView sub = tv("", 11, filled ? 0xD9FFFFFF : MUTED, false);
+        sub.setPadding(0, (int) (3 * s), 0, 0);
+        col.addView(sub);
+        b.addView(col, new LinearLayout.LayoutParams(-1, -2));
+        b.setTag(sub);
+        return b;
+    }
+
+    // ── mapa en vivo ──
+
+    private void seedLastLocation() {
+        Location best = null;
+        for (String p : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, "passive"}) {
+            try {
+                Location l = lm.getLastKnownLocation(p);
+                if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+            } catch (Throwable ignored) { }
+        }
+        if (best != null) feedMap(best);
+    }
+
+    private void feedMap(Location l) {
+        if (l != null) { wLat = l.getLatitude(); wLon = l.getLongitude(); }
+        if (liveMap == null || l == null) return;
+        float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0;
+        liveMap.setPosition(l.getLatitude(), l.getLongitude(), l.hasBearing() && kmh > 4 ? l.getBearing() : Float.NaN, kmh);
+        liveMap.setVisibility(View.VISIBLE);
+        updateMapTag();
+    }
+
+    /** km/h o mph: lo elegido, o mph en EE. UU., Reino Unido, Liberia y Birmania. */
+    private boolean useMph() {
+        String u = prefs.getString("speed_unit", "auto");
+        if ("mph".equals(u)) return true;
+        if ("kmh".equals(u)) return false;
+        String c = java.util.Locale.getDefault().getCountry();
+        return "US".equals(c) || "GB".equals(c) || "LR".equals(c) || "MM".equals(c);
+    }
+
+    /** 0 = bien (o buscando señal), 1 = StradaOS sin permiso de ubicación, 2 = ubicación del equipo apagada. */
+    private int gpsState() {
+        try {
+            if (SDK >= 23 && checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return 1;
+        } catch (Throwable ignored) { }
+        try {
+            boolean gps = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+            boolean net = false;
+            try { net = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER); } catch (Throwable ignored) { }
+            if (!gps && !net) return 2;
+        } catch (Throwable ignored) { }
+        return 0;
+    }
+
+    /** Toca el letrero del mapa: pide el permiso o abre los ajustes de ubicación según la causa. */
+    private void fixGps() {
+        int st = gpsState();
+        if (st == 1) {
+            boolean asked = false;
+            if (!prefs.getBoolean("loc_asked", false)) {
+                try { asked = !Modern.ensurePermissions(this, 78); } catch (Throwable ignored) { }
+            }
+            if (!asked) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    toast("Permisos → Ubicación → Permitir");
+                } catch (Throwable e) { toast("Activa la ubicación para StradaOS en los ajustes de la pantalla"); }
+            }
+            prefs.edit().putBoolean("loc_asked", true).apply();
+        } else if (st == 2) {
+            try {
+                startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                toast("Activa la ubicación (GPS)");
+            } catch (Throwable e) { toast("Activa la ubicación (GPS) en los ajustes de la pantalla"); }
+        } else {
+            showMapDiag();
+        }
+    }
+
+    /** Diagnóstico del mapa con la causa del GPS arriba. */
+    private String mapDiag() {
+        int st = gpsState();
+        boolean gpsOn = false, netOn = false;
+        try { gpsOn = lm.isProviderEnabled(LocationManager.GPS_PROVIDER); } catch (Throwable ignored) { }
+        try { netOn = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER); } catch (Throwable ignored) { }
+        boolean hasGps = false;
+        try { hasGps = lm.getProvider(LocationManager.GPS_PROVIDER) != null; } catch (Throwable ignored) { }
+        long ago = lastFixAny > 0 ? (SystemClock.elapsedRealtime() - lastFixAny) / 1000 : -1;
+        String head = "Permiso de ubicación: " + (st == 1 ? "NO (toca el letrero del mapa)" : "sí")
+            + "\nGPS del equipo: " + (!hasGps ? "no encontrado" : gpsOn ? "encendido" : "apagado")
+            + " · ubicación por red: " + (netOn ? "encendida" : "apagada")
+            + "\nÚltima señal: " + (ago < 0 ? "ninguna desde que abrió StradaOS" : ago < 120 ? "hace " + ago + " s" : "hace " + (ago / 60) + " min")
+            + (gpsStartAt > 0 ? "\nBuscando desde hace " + ((SystemClock.elapsedRealtime() - gpsStartAt) / 60000) + " min" : "");
+        return I18n.lines(head + "\n\n" + (liveMap != null ? liveMap.diag() : "Mapa en vivo apagado"));
+    }
+
+    private void showMapDiag() {
+        new TB(this, dlg()).diag().setTitle("Diagnóstico del mapa").setMessage(mapDiag()).setPositiveButton("OK", null).show();
+    }
+
+    private void updateMapTag() {
+        if (mapTagTv == null) return;
+        boolean live = lastFix > 0;
+        int st = gpsState();
+        if (!prefs.getBoolean("map_live", true)) mapTagTv.setText(I18n.t("Mapa en vivo apagado"));
+        else if (!live && st == 1) mapTagTv.setText(I18n.t("Sin permiso de ubicación · toca aquí"));
+        else if (!live && st == 2) mapTagTv.setText(I18n.t("Ubicación apagada · toca aquí"));
+        else if (liveMap == null || !liveMap.hasFix())
+            mapTagTv.setText(I18n.t(gpsStartAt > 0 && SystemClock.elapsedRealtime() - gpsStartAt > 180000 ? "Sin señal GPS · toca aquí" : "Buscando GPS…"));
+        else if (liveMap.usingFile()) mapTagTv.setText(I18n.t(live ? "Mapa sin conexión" : "Sin señal GPS · mapa sin conexión"));
+        else if (liveMap.offline()) mapTagTv.setText(I18n.t(live ? "En vivo · sin internet" : "Sin señal GPS ni internet"));
+        else mapTagTv.setText(I18n.t(live ? "Mapa en vivo" : "Sin señal GPS · última posición"));
+    }
+
+    private void buildAudioCard() {
+        final FrameLayout card = card(audX, rowY, audW, cardH, CARD);
+        // contenido centrado: la tarjeta es más ancha sin la del vehículo y más alta con la barra compacta
+        final float dx = (audW - 248) / 2, dy = (cardH - 380) / 2;
+        final TextView audioLbl = tv("AUDIO", 11, MUTED, true);
+        placeWrap(card, audioLbl, 18, 14);
+        sourceTv = tv("", 11, RED, true);
+        sourceTv.setGravity(Gravity.RIGHT);
+        sourceTv.setSingleLine(true);
+        sourceTv.setPadding(0, 0, (int) (4 * s), 0);   // la última letra en negrita se recortaba en Android 11
+        place(card, sourceTv, 70, 14, audW - 88, 18);   // ancho de sobra: en Android 11 «BLUETOOTH» salía cortado
+        playerArt = new PlayerArt(this, s, asset("ic/music_note.png"));
+        // Tarjeta alta (barra lateral): diseño vertical que llena el alto en vez de dejar espacio vacío (Andrés, Picanto)
+        tallPlayer = cardH - 380 >= 60;
+        final View prev, play, next;
+        if (vertical && cardH < 240) {
+            // Franja ancha (vertical sin la tarjeta del vehículo): carátula a la izquierda, canción al centro y
+            // botones grandes a la derecha
+            tallPlayer = false;
+            float A = cardH - 28, tx = 14 + A + 18, bs = 60, ps = 78, gap = 10;
+            float bx = audW - 18 - (bs * 2 + ps + gap * 2), tw = bx - tx - 12;
+            place(card, playerArt, 14, 14, A, A);
+            card.removeView(audioLbl);
+            card.removeView(sourceTv);
+            sourceTv.setGravity(Gravity.LEFT);
+            place(card, sourceTv, tx, 22, tw, 18);
+            trackTv = tv("Nada sonando", 20, TEXT, true);
+            place(card, trackTv, tx, 46, tw, 30);
+            artistTv = tv("Radio, Bluetooth o USB", 14, MUTED, false);
+            place(card, artistTv, tx, 80, tw, 22);
+            timePosTv = tv("", 13, MUTED, false);
+            place(card, timePosTv, tx, 108, tw, 20);
+            prev = circleIcon("skip_previous", bs, bs / 2, BTN);
+            play = circleIcon("play_arrow", ps, ps * 0.47f, RED);
+            next = circleIcon("skip_next", bs, bs / 2, BTN);
+            place(card, prev, bx, (cardH - bs) / 2, bs, bs);
+            place(card, play, bx + bs + gap, (cardH - ps) / 2, ps, ps);
+            place(card, next, bx + bs + gap + ps + gap, (cardH - bs) / 2, bs, bs);
+        } else if (tallPlayer) {
+            boolean big = audW >= 290;
+            float bs = big ? 66 : 60, ps = big ? 86 : 76, gap = big ? 12 : 10;
+            float yb = cardH - 22 - ps;                 // botones abajo
+            float yt = yb - 18 - 18;                    // tiempo (el avance lo muestra el anillo de la carátula)
+            float ya = yt - 6 - 20;                     // artista
+            float yti = ya - 28;                        // canción
+            float area = yti - 10 - 38;
+            float A = Math.min(audW - 56, area);
+            place(card, playerArt, (audW - A) / 2, 38 + (area - A) / 2, A, A);
+            trackTv = tv("Nada sonando", 19, TEXT, true);
+            trackTv.setGravity(Gravity.CENTER_HORIZONTAL);
+            trackTv.setSingleLine(true);
+            trackTv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            place(card, trackTv, 18, yti, audW - 36, 26);
+            artistTv = tv("Radio, Bluetooth o USB", 14, MUTED, false);
+            artistTv.setGravity(Gravity.CENTER_HORIZONTAL);
+            artistTv.setSingleLine(true);
+            artistTv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            place(card, artistTv, 18, ya, audW - 36, 20);
+            timePosTv = tv("", 13, MUTED, false);
+            timePosTv.setGravity(Gravity.CENTER_HORIZONTAL);
+            place(card, timePosTv, 18, yt, audW - 36, 18);
+            prev = circleIcon("skip_previous", bs, bs / 2, BTN);
+            play = circleIcon("play_arrow", ps, ps * 0.47f, RED);
+            next = circleIcon("skip_next", bs, bs / 2, BTN);
+            float x0 = (audW - (bs * 2 + ps + gap * 2)) / 2;
+            place(card, prev, x0, yb + (ps - bs) / 2, bs, bs);
+            place(card, play, x0 + bs + gap, yb, ps, ps);
+            place(card, next, x0 + bs + gap + ps + gap, yb + (ps - bs) / 2, bs, bs);
+        } else {
+        // carátula un poco más chica y textos más arriba y más altos: con fuentes de sistema altas (Android 13+)
+        // la última línea quedaba cortada contra el botón ▶ (issue #18)
+        place(card, playerArt, 38 + dx, 32 + dy, 172, 172);
+        trackTv = tv("Nada sonando", 17, TEXT, true);
+        trackTv.setGravity(Gravity.CENTER);
+        place(card, trackTv, 14, 210 + dy, audW - 28, 28);
+        artistTv = tv("Radio, Bluetooth o USB", 13, MUTED, false);
+        artistTv.setGravity(Gravity.CENTER);
+        place(card, artistTv, 14, 240 + dy, audW - 28, 22);
+        timePosTv = tv("", 12, MUTED, false);
+        timePosTv.setGravity(Gravity.CENTER);
+        place(card, timePosTv, 14, 264 + dy, audW - 28, 20);
+        // botones más grandes (antes 52/64): se tocan mejor con el carro en marcha
+        prev = circleIcon("skip_previous", 60, 30, BTN);
+        play = circleIcon("play_arrow", 74, 36, RED);
+        next = circleIcon("skip_next", 60, 30, BTN);
+        place(card, prev, 20 + dx, 300 + dy, 60, 60);
+        place(card, play, 87 + dx, 293 + dy, 74, 74);
+        place(card, next, 168 + dx, 300 + dy, 60, 60);
+        }
+        playIc = (ImageView) ((FrameLayout) play).getChildAt(0);
+        final View.OnClickListener goPrev = mediaClick(KeyEvent.KEYCODE_MEDIA_PREVIOUS), goNext = mediaClick(KeyEvent.KEYCODE_MEDIA_NEXT);
+        prev.setOnClickListener(goPrev);
+        play.setOnClickListener(mediaClick(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE));
+        next.setOnClickListener(goNext);
+        // deslizar sobre la tarjeta: ← siguiente canción, → anterior (como pasar páginas)
+        card.setOnTouchListener(new View.OnTouchListener() {
+            float x0, y0;
+            public boolean onTouch(View v, MotionEvent e) {
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { x0 = e.getX(); y0 = e.getY(); return false; }
+                if (e.getActionMasked() != MotionEvent.ACTION_UP) return false;
+                float dx = e.getX() - x0, dy = e.getY() - y0;
+                if (Math.abs(dx) < 60 * s || Math.abs(dx) < 2 * Math.abs(dy)) return false;
+                MotionEvent c = MotionEvent.obtain(e);
+                c.setAction(MotionEvent.ACTION_CANCEL);
+                v.onTouchEvent(c);   // que no cuente como toque (abrir la app) ni como toque largo
+                c.recycle();
+                final boolean nextSong = dx < 0;
+                (nextSong ? goNext : goPrev).onClick(v);
+                playerArt.animate().translationX((nextSong ? -24 : 24) * s).setDuration(120).withEndAction(new Runnable() {
+                    public void run() { playerArt.animate().translationX(0).setDuration(160); }
+                });
+                return true;
+            }
+        });
+        card.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { showPlayerDiag(); return true; }
+        });
+        card.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { openMusicApp(); }
+        });
+        renderTrack();
+        // Oculta (2.18): se arma igual (la música sigue actualizándose sin fallar) pero no se muestra
+        if (!showPlayer) board.removeView(card);
+    }
+
+    private void buildWebCard() {
+        FrameLayout card = card(760 + ex, 260, 248, 184, CARD);
+        FrameLayout ic = new FrameLayout(this);
+        ic.setBackground(round(RED_DARK, 16));
+        ImageView g = icon("public", 30);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (30 * s), (int) (30 * s));
+        lp.gravity = Gravity.CENTER;
+        ic.addView(g, lp);
+        place(card, ic, 18, 20, 56, 56);
+        placeWrap(card, tv("Navegador", 18, TEXT, true), 18, 94);
+        placeWrap(card, tv("Internet desde la pantalla", 12, MUTED, false), 18, 122);
+        TextView arrow = tv("›", 26, RED, false);
+        placeWrap(card, arrow, 214, 130);
+        card.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { openBrowser(); }
+        });
+        card.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { pickFor("web", "Navegador"); return true; }
+        });
+    }
+
+    // ───────────────────────── barra inferior personalizable ─────────────────────────
+    // Cada botón guarda en "dock_N" una app ("app:paquete/Actividad") o una función ("fn:id"), y en "dock_N_name"
+    // un nombre propio opcional. Sin nada guardado, cada botón hace lo de siempre (DOCK_DEFAULT).
+
+    // My Car: راديو FM، راديو إنترنت، الصلاة، OBD، بلوتوث، ثم 3 أزرار «إضافة تطبيق» وأخيراً «التطبيقات»
+    static final String[] DOCK_DEFAULT = {"radio", "iradio", "prayer", "obd", "bt", "add", "add", "add"};
+    /** Funciones que puede tener un botón: id, nombre, ícono. */
+    static final String[][] DOCK_FNS = {
+        {"radio", "Radio", "radio"}, {"bt", "Bluetooth", "bluetooth"}, {"cam", "Cámara", "photo_camera"},
+        {"music", "Música", "music_note"}, {"nav", "Navegación", "map"}, {"aa", "Android Auto", "navigation"},
+        {"carplay", "CarPlay", "phone_iphone"}, {"web", "Navegador web", "public"}, {"files", "Archivos", "folder"},
+        {"settings", "Ajustes", "settings"},
+        {"iradio", "Radio por internet", "radio_tower"}, {"prayer", "Oración", "mosque"}, {"obd", "OBD2", "obd"},
+        {"add", "Agregar app", "add_circle"},
+        {"apps", "Apps", "apps"},
+    };
+
+    /** Función de fábrica del botón i según la cantidad de botones: «Apps» siempre al final (2.19). Con 7, lo de siempre. */
+    private String dockDefault(int i) {
+        if (i == dockCount - 1) return "apps";
+        if (i < DOCK_DEFAULT.length) return DOCK_DEFAULT[i];
+        String[] extra = {"music", "nav", "cam"};
+        return extra[Math.min(extra.length - 1, i - DOCK_DEFAULT.length)];
+    }
+
+    private String[] dockFn(String id) {
+        for (String[] f : DOCK_FNS) if (f[0].equals(id)) return f;
+        return DOCK_FNS[DOCK_FNS.length - 1];
+    }
+
+    /** Lo que hace el botón N: "app:…" o "fn:…". Si la app elegida ya no está instalada, vuelve a lo de siempre. */
+    private String dockTarget(int i) {
+        String t = prefs.getString("dock_" + i, null);
+        if (t != null && t.startsWith("app:")) {
+            ComponentName cn = ComponentName.unflattenFromString(t.substring(4));
+            if (cn != null && installed(cn.getPackageName())) return t;
+            t = null;
+        }
+        return t != null ? t : "fn:" + dockDefault(i);
+    }
+
+    private String dockName(int i) {
+        String custom = prefs.getString("dock_" + i + "_name", "").trim();
+        if (custom.length() > 0) return custom;
+        String t = dockTarget(i);
+        if (t.startsWith("app:")) return labelOf(t.substring(4));
+        String id = t.substring(3);
+        return "web".equals(id) ? "Navegador" : dockFn(id)[1];
+    }
+
+    /** Pack de íconos elegido (2.19); null = íconos de siempre. */
+    private IconPack iconPack() {
+        String p = prefs.getString("icon_pack", "");
+        if (p.length() == 0) return null;
+        IconPack ip = IconPack.get(this, p);
+        if (ip == null && !installed(p)) prefs.edit().remove("icon_pack").apply();
+        return ip;
+    }
+
+    /** Ícono de una app de la lista: el del pack si lo trae, si no el de siempre. */
+    private Drawable iconOf(ResolveInfo r) {
+        try {
+            IconPack ip = iconPack();
+            if (ip != null) {
+                Drawable d = ip.icon(new ComponentName(r.activityInfo.packageName, r.activityInfo.name));
+                if (d != null) return d;
+            }
+        } catch (Throwable ignored) { }
+        return r.loadIcon(getPackageManager());
+    }
+
+    /**
+     * Con «Íconos de las apps» (2.19, Reinaldo, Lucas Cacciola): la app que abre cada función (radio, Bluetooth,
+     * cámara, archivos, navegación, música) con su propio ícono. null = se queda el ícono redondo de StradaOS.
+     */
+    private Drawable fnAppIcon(String id) {
+        try {
+            String saved = null;
+            int slot = -1;
+            if ("radio".equals(id)) slot = 0;
+            else if ("bt".equals(id)) slot = 1;
+            else if ("cam".equals(id)) slot = 2;
+            else if ("files".equals(id)) slot = 3;
+            else if ("nav".equals(id)) saved = prefs.getString("nav_app", null);
+            else if ("music".equals(id)) saved = prefs.getString("music_app", null);
+            else return null;
+            if (slot >= 0) {
+                saved = prefs.getString(SLOTS[slot][0], null);
+                if (saved == null) {
+                    ResolveInfo r = find(SLOTS[slot][2], SLOTS[slot][3]);
+                    return r != null ? iconOf(r) : null;
+                }
+            }
+            return saved != null ? appIcon(saved) : null;
+        } catch (Throwable e) { return null; }
+    }
+
+    private Drawable appIcon(String component) {
+        try {
+            IconPack ip = iconPack();
+            if (ip != null) {
+                Drawable d = ip.icon(ComponentName.unflattenFromString(component));
+                if (d != null) return d;
+            }
+        } catch (Throwable ignored) { }
+        try {
+            return getPackageManager().getActivityIcon(ComponentName.unflattenFromString(component));
+        } catch (Throwable e) {
+            try { return getPackageManager().getApplicationIcon(ComponentName.unflattenFromString(component).getPackageName()); }
+            catch (Throwable e2) { return null; }
+        }
+    }
+
+    private void buildDock() {
+        // tamaños según la barra: normal (como siempre), compacta (menos alta) o lateral (botones al costado)
+        // 2.19: cantidad de botones (4 a 10) y tamaño de los íconos (Tinoyevski #18, MIGSGx #12). 7 y normal = lo de siempre.
+        final int n = dockCount;
+        int isz = prefs.getInt("dock_icon_size", 1);
+        float ik = isz == 0 ? 0.82f : isz == 2 ? 1.2f : 1f;
+        final float railX = railLeft ? 16 : 1016 + ex, step = (boardH - 24) / (float) n;
+        float cs0 = (sideDock ? (dockLabels ? 40 : 48) : compactDock ? 50 : 64) * ik;
+        if (sideDock) cs0 = Math.min(cs0, step - (dockLabels ? 18 : 6));          // que quepan en la barra lateral
+        final float lblSize = sideDock ? 10 : compactDock ? 12 : 13, lblPad = sideDock ? 2 : compactDock ? 2 : 8;
+        final boolean appStyle = "apps".equals(prefs.getString("dock_style", "circle"));
+        // botones a lo ancho: con 7 se usan las posiciones de siempre; con otra cantidad se reparten parejo
+        final float slotW = n == 7 && !vertical ? 138 + ex / 6 : (948 + ex) / (float) n, itemW = Math.min(120, slotW - 4);
+        final float x0 = n == 7 && !vertical ? 38 : 38 + (slotW - itemW) / 2;
+        if (vertical) cs0 = Math.min(cs0, slotW - 10);                            // con muchos botones, que no se monten
+        final float cs = cs0;          // círculo
+        if (sideDock) {
+            View rail = new View(this);
+            rail.setBackground(round(DOCK, 20));
+            place(board, rail, railX, 12, RAIL, boardH - 24);
+        }
+        for (int i = 0; i < n; i++) {
+            final int idx = i;
+            String t = dockTarget(i);
+            LinearLayout b = new LinearLayout(this);
+            b.setOrientation(LinearLayout.VERTICAL);
+            b.setGravity(Gravity.CENTER_HORIZONTAL);
+            Drawable appIc = t.startsWith("app:") ? appIcon(t.substring(4)) : appStyle ? fnAppIcon(t.substring(3)) : null;
+            if (appIc != null) {
+                FrameLayout f = new FrameLayout(this);
+                GradientDrawable g = new GradientDrawable();
+                g.setShape(GradientDrawable.OVAL);
+                g.setColor(CIRCLE);
+                f.setBackground(g);
+                ImageView iv = new ImageView(this);
+                iv.setImageDrawable(appIc);
+                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (cs * 0.69f * s), (int) (cs * 0.69f * s));
+                lp.gravity = Gravity.CENTER;
+                f.addView(iv, lp);
+                b.addView(f, new LinearLayout.LayoutParams((int) (cs * s), (int) (cs * s)));
+            } else {
+                String id = t.startsWith("fn:") ? t.substring(3) : dockDefault(i);
+                b.addView(circleIcon(dockFn(id)[2], cs, cs * 0.44f, CIRCLE), new LinearLayout.LayoutParams((int) (cs * s), (int) (cs * s)));
+            }
+            if (dockLabels) {
+                TextView l = tv(dockName(i), lblSize, SOFT, false);
+                l.setGravity(Gravity.CENTER_HORIZONTAL);
+                l.setSingleLine(true);
+                l.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                l.setPadding(0, (int) (lblPad * s), 0, 0);
+                b.addView(l, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            } else {
+                b.setGravity(Gravity.CENTER);   // sin nombres: el círculo queda centrado en la franja
+            }
+            if (sideDock) { b.setGravity(Gravity.CENTER); place(board, b, railX, 12 + step * i, RAIL, step); }
+            else if (compactDock) { b.setGravity(Gravity.CENTER); place(board, b, x0 + slotW * i, dockTop + 4, itemW, boardH - dockTop - 8); }
+            else place(board, b, x0 + slotW * i, dockTop + (dockLabels ? 18 : 6), itemW, dockLabels ? 110 : 132);
+            b.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { runDock(idx); }
+            });
+            b.setOnLongClickListener(new View.OnLongClickListener() {
+                public boolean onLongClick(View v) { dockMenu(idx, null); return true; }
+            });
+        }
+    }
+
+    private void runDock(int i) {
+        String t = dockTarget(i);
+        if (t.startsWith("app:")) {
+            try {
+                Intent it = new Intent(Intent.ACTION_MAIN);
+                it.addCategory(Intent.CATEGORY_LAUNCHER);
+                it.setComponent(ComponentName.unflattenFromString(t.substring(4)));
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                startActivity(it);
+            } catch (Throwable e) {
+                toast("No se pudo abrir «" + dockName(i) + "». Déjalo presionado para elegir otra app.");
+            }
+            return;
+        }
+        if ("fn:add".equals(t)) { pickDock(i, null); return; }   // My Car: زر فارغ «إضافة تطبيق»
+        runFn(t.substring(3));
+    }
+
+    private void runFn(String id) {
+        if ("radio".equals(id)) openSlot(0);
+        else if ("bt".equals(id)) openSlot(1);
+        else if ("cam".equals(id)) openSlot(2);
+        else if ("files".equals(id)) openSlot(3);
+        else if ("settings".equals(id)) openSlot(4);
+        else if ("web".equals(id)) openBrowser();
+        else if ("music".equals(id)) openMusicApp();
+        else if ("nav".equals(id)) openNavApp();
+        else if ("aa".equals(id)) openAndroidAuto();
+        else if ("carplay".equals(id)) openCarPlay();
+        else if ("iradio".equals(id)) openScreen(RadioActivity.class);
+        else if ("prayer".equals(id)) openScreen(PrayerActivity.class);
+        else if ("obd".equals(id)) openScreen(ObdActivity.class);
+        else openDrawer();
+    }
+
+    /** Menú del botón N: cambiar app o función, cambiar nombre, volver a lo de siempre. */
+    private void dockMenu(final int i, final Runnable after) {
+        final String def = dockFn(dockDefault(i))[1];
+        new TB(this, dlg())
+            .setTitle("Botón " + (i + 1) + " · " + dockName(i))
+            .setItems(new String[]{"Cambiar app o función", "Cambiar el nombre", "Restablecer (" + ("web".equals(dockDefault(i)) ? "Navegador" : def) + ")"},
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        if (w == 0) pickDock(i, after);
+                        else if (w == 1) renameDock(i, after);
+                        else {
+                            prefs.edit().remove("dock_" + i).remove("dock_" + i + "_name").apply();
+                            toast("Botón restablecido");
+                            dockChanged(after);
+                        }
+                    }
+                })
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    private void dockChanged(Runnable after) {
+        rebuild();
+        if (after != null) after.run();
+    }
+
+    private void pickDock(final int i, final Runnable after) {
+        final TargetCb save = new TargetCb() { public void on(String target) {
+            prefs.edit().putString("dock_" + i, target).remove("dock_" + i + "_name").apply();
+            toast("Guardado: " + dockName(i));
+            dockChanged(after);
+        }};
+        final List<String[]> extra = new ArrayList<String[]>();
+        extra.add(new String[]{"fns", "★  Funciones de StradaOS (Música, Navegación, Android Auto…)", "apps"});
+        pickApp("¿Qué abre el botón " + (i + 1) + "?", extra, null, true, new TargetCb() { public void on(String target) {
+            if (!"fns".equals(target)) { save.on(target); return; }
+            List<String[]> fns = new ArrayList<String[]>();
+            for (String[] f : DOCK_FNS) fns.add(new String[]{"fn:" + f[0], f[1], f[2]});
+            pickApp("Función del botón " + (i + 1), fns, null, false, save);
+        }});
+    }
+
+    private void renameDock(final int i, final Runnable after) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setText(dockName(i));
+        et.setSelection(et.getText().length());
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et);
+        new TB(this, dlg())
+            .setTitle("Nombre del botón " + (i + 1) + " (vacío = el de la app)")
+            .setView(wrap)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                prefs.edit().putString("dock_" + i + "_name", et.getText().toString().trim()).apply();
+                dockChanged(after);
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    interface TargetCb { void on(String target); }
+
+    /**
+     * Lista para elegir una app, con su ícono. `extra`: opciones fijas arriba ({valor, texto, ícono}).
+     * `pin`: paquetes que van primero (p. ej. apps de navegación). Devuelve "app:paquete/Actividad" o el valor extra.
+     */
+    private void pickApp(String title, final List<String[]> extra, String[] pin, boolean withApps, final TargetCb cb) {
+        final PackageManager pm = getPackageManager();
+        final List<ResolveInfo> list = new ArrayList<ResolveInfo>();
+        if (withApps) {
+            if (pin != null) for (String p : pin) for (ResolveInfo r : apps) if (r.activityInfo.packageName.equals(p)) list.add(r);
+            for (ResolveInfo r : apps) if (!list.contains(r)) list.add(r);
+        }
+        final int nx = extra == null ? 0 : extra.size();
+        final HashMap<Integer, Drawable> icons = new HashMap<Integer, Drawable>();
+        BaseAdapter ad = new BaseAdapter() {
+            public int getCount() { return nx + list.size(); }
+            public Object getItem(int pos) { return pos; }
+            public long getItemId(int pos) { return pos; }
+            public View getView(int pos, View cv, ViewGroup parent) {
+                LinearLayout row = new LinearLayout(Main.this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding((int) (20 * s), (int) (10 * s), (int) (20 * s), (int) (10 * s));
+                TextView t;
+                if (pos < nx) {
+                    String[] e = extra.get(pos);
+                    View ic = e[2] != null ? icon(e[2], 28) : new View(Main.this);
+                    row.addView(ic, new LinearLayout.LayoutParams((int) (36 * s), (int) (28 * s)));
+                    t = tv(e[1], 17, LIGHT ? 0xFF1A1A1A : Color.WHITE, true);
+                } else {
+                    ResolveInfo r = list.get(pos - nx);
+                    Drawable d = icons.get(pos);
+                    if (d == null) { try { d = iconOf(r); } catch (Throwable e) { d = null; } if (d != null) icons.put(pos, d); }
+                    ImageView iv = new ImageView(Main.this);
+                    iv.setImageDrawable(d);
+                    iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                    row.addView(iv, new LinearLayout.LayoutParams((int) (36 * s), (int) (36 * s)));
+                    t = tv(String.valueOf(r.loadLabel(pm)), 17, LIGHT ? 0xFF1A1A1A : Color.WHITE, false);
+                }
+                t.setPadding((int) (16 * s), 0, 0, 0);
+                row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                return row;
+            }
+        };
+        new TB(this, dlg())
+            .setTitle(title)
+            .setAdapter(ad, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int which) {
+                    if (which < nx) { cb.on(extra.get(which)[0]); return; }
+                    ResolveInfo r = list.get(which - nx);
+                    cb.on("app:" + new ComponentName(r.activityInfo.packageName, r.activityInfo.name).flattenToString());
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    // ── apps preferidas ──
+
+    static final String[] MUSIC_PKGS = {"com.spotify.music", "in.krosbits.musicolet", "com.google.android.apps.youtube.music",
+        "com.maxrave.simpmusic", "com.maxmpz.audioplayer", "org.videolan.vlc", "deezer.android.app", "com.amazon.mp3",
+        "com.apple.android.music", "com.soundcloud.android", "com.google.android.youtube", "com.aspiro.tidal", "com.zionhuang.music",
+        "it.vfsfitvnm.vimusic", "app.vitune.android", "com.kapp.youtube.final"};
+    static final String[] NAV_PKGS = {"com.waze", "com.google.android.apps.maps", "com.google.android.apps.mapslite", "com.sygic.aura",
+        "net.osmand", "net.osmand.plus", "app.organicmaps", "com.mapswithme.maps.pro", "com.here.app.maps", "ru.yandex.yandexnavi",
+        "com.huawei.maps.app", "cz.seznam.mapy", "com.tomtom.gplay.navapp", "com.navitel", "com.magicearth.app"};
+
+    private String firstInstalled(String[] pkgs) {
+        for (String p : pkgs) if (getPackageManager().getLaunchIntentForPackage(p) != null) return p;
+        return null;
+    }
+
+    /** Toca el reproductor: la app de música elegida; si no hay, la de la fuente que suena. */
+    private void openMusicApp() {
+        if (launchSaved("music_app")) return;
+        if ("Android Auto".equals(curSource) && launchPkg(PKG_HUR)) return;
+        if ("Bluetooth".equals(curSource)) { ComponentName cn = btMusicApp(); if (cn != null && launchComponent(cn)) return; }
+        String p = firstInstalled(MUSIC_PKGS);
+        if (p != null && launchPkg(p)) return;
+        toast("Elige tu app de música");
+        pickFor("music_app", "Música", null);
+    }
+
+    /** App de navegación elegida; si no hay, la primera conocida que esté instalada (Waze, Maps, OsmAnd…). */
+    private void openNavApp() {
+        if (launchSaved("nav_app")) return;
+        String p = firstInstalled(NAV_PKGS);
+        if (p != null && launchPkg(p)) return;
+        toast("Elige tu app de navegación");
+        pickFor("nav_app", "Navegación", null);
+    }
+
+    private boolean launchComponent(ComponentName cn) {
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN);
+            i.addCategory(Intent.CATEGORY_LAUNCHER);
+            i.setComponent(cn);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            startActivity(i);
+            return true;
+        } catch (Throwable e) { return false; }
+    }
+
+    private String autoLabel(String key, String[] pkgs, String none) {
+        String c = prefs.getString(key, null);
+        if (c != null) return labelOf(c);
+        String p = firstInstalled(pkgs);
+        return p != null ? "Automático · " + labelOf(p) : none;
+    }
+
+    // ───────────────────────── helpers de UI ─────────────────────────
+
+    private TextView tv(String t, float size, int color, boolean medium) {
+        TextView v = new TextView(this);
+        v.setText(I18n.t(t));
+        v.setTextColor(color);
+        v.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * s * FONT);
+        v.setIncludeFontPadding(false);
+        v.setSingleLine(true);
+        v.setEllipsize(TextUtils.TruncateAt.END);
+        v.setTypeface(Typeface.create(medium ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
+        return v;
+    }
+
+    private GradientDrawable round(int color, float r) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(r * s);
+        return d;
+    }
+
+    private void place(ViewGroup parent, View v, float x, float y, float w, float hh) {
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (w * s), (int) (hh * s));
+        lp.gravity = Gravity.TOP | Gravity.LEFT;
+        lp.leftMargin = (int) (x * s);
+        lp.topMargin = (int) (y * s);
+        parent.addView(v, lp);
+    }
+
+    private void placeWrap(ViewGroup parent, View v, float x, float y) {
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2);
+        lp.gravity = Gravity.TOP | Gravity.LEFT;
+        lp.leftMargin = (int) (x * s);
+        lp.topMargin = (int) (y * s);
+        parent.addView(v, lp);
+    }
+
+    private FrameLayout card(float x, float y, float w, float hh, int color) {
+        FrameLayout c = new FrameLayout(this);
+        c.setBackground(round(color, 20));
+        place(board, c, x, y, w, hh);
+        return c;
+    }
+
+    private ImageView icon(String name, float size) {
+        ImageView v = new ImageView(this);
+        v.setImageBitmap(asset("ic/" + name + ".png"));
+        v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if (ICON != 0xFFFFFFFF) v.setColorFilter(ICON);
+        return v;
+    }
+
+    private FrameLayout circleIcon(String name, float d, float ic, int color) {
+        FrameLayout f = new FrameLayout(this);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(color);
+        f.setBackground(g);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (ic * s), (int) (ic * s));
+        lp.gravity = Gravity.CENTER;
+        ImageView iv = icon(name, ic);
+        if (color == RED) iv.clearColorFilter();
+        f.addView(iv, lp);
+        return f;
+    }
+
+    private Bitmap asset(String path) {
+        Bitmap b = iconCache.get(path);
+        if (b != null) return b;
+        try {
+            InputStream in = getAssets().open(path);
+            b = BitmapFactory.decodeStream(in);
+            in.close();
+            iconCache.put(path, b);
+        } catch (Exception e) {
+            b = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        }
+        return b;
+    }
+
+    private void toast(String m) {
+        Toast.makeText(this, I18n.t(m), Toast.LENGTH_LONG).show();
+    }
+
+    // ───────────────────────── reloj, GPS, audio ─────────────────────────
+
+    private void updateClock() {
+        if (timeTv == null) return;
+        Date now = new Date();
+        String fmt = prefs.getString("clock", "auto");
+        boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+        timeTv.setText(I18n.sdf(h24 ? "HH:mm" : "h:mm a").format(now));
+        String d = I18n.sdf(vertical ? "EEE d MMM" : I18n.datePattern()).format(now);
+        dateTv.setText(d.substring(0, 1).toUpperCase(I18n.loc) + d.substring(1));
+        int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        String saludo = I18n.t(hr >= 5 && hr < 12 ? "Buenos días" : (hr >= 12 && hr < 19 ? "Buenas tardes" : "Buenas noches"));
+        String nombre = prefs.getString("user_name", "").trim();
+        greetTv.setText(nombre.length() > 0 ? saludo + ", " + nombre : saludo);
+        updatePrayerChip();
+    }
+
+    // ───────────────────────── My Car: الصلاة، الراديو، OBD ─────────────────────────
+
+    private TextView prayerTv;
+
+    private void updatePrayerChip() {
+        if (prayerTv == null) return;
+        try {
+            long now = System.currentTimeMillis();
+            long[] nx = Prayer.next(this, now);
+            if (nx == null) { prayerTv.setVisibility(View.GONE); return; }
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis(nx[1]);
+            String fmt = prefs.getString("clock", "auto");
+            boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+            String t = Prayer.name((int) nx[0]) + "  " + Prayer.hhmm(c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE), h24);
+            long left = nx[1] - now;
+            prayerTv.setText(left <= 15 * 60000L ? t + "  · " + Prayer.remaining(left) : t);
+            prayerTv.setTextColor(left <= 15 * 60000L ? RED : TEXT);
+            prayerTv.setVisibility(View.VISIBLE);
+            if (prayerIc == null) {
+                prayerIc = new android.graphics.drawable.BitmapDrawable(getResources(), asset("ic/mosque.png"));
+            }
+            int sz = (int) (16 * s);
+            prayerIc.setBounds(0, 0, sz, sz);
+            prayerIc.setColorFilter(left <= 15 * 60000L ? RED : ICON, android.graphics.PorterDuff.Mode.SRC_IN);
+            prayerTv.setCompoundDrawables(prayerIc, null, null, null);
+            prayerTv.setCompoundDrawablePadding((int) (6 * s));
+        } catch (Throwable e) {
+            prayerTv.setVisibility(View.GONE);
+        }
+    }
+    private android.graphics.drawable.BitmapDrawable prayerIc;
+
+    void openScreen(Class<?> c) {
+        try { startActivity(new Intent(this, c)); } catch (Throwable e) { toast(String.valueOf(e.getMessage())); }
+    }
+
+    private final LocationListener gpsListener = new LocationListener() {
+        public void onLocationChanged(Location l) {
+            lastFix = SystemClock.elapsedRealtime();
+            lastFixAny = lastFix;
+            setGps(true, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
+            feedMap(l);
+            try {
+                if (Prayer.saveFix(Main.this, l.getLatitude(), l.getLongitude())) { Prayer.schedule(Main.this); updatePrayerChip(); }
+            } catch (Throwable ignored) { }
+        }
+        public void onStatusChanged(String p, int st, Bundle e) { }
+        public void onProviderEnabled(String p) { }
+        public void onProviderDisabled(String p) { setGps(false, 0); }
+    };
+
+    /** Ubicación por red (WiFi/datos): solo para ubicar el mapa mientras llega el GPS. */
+    private final LocationListener netListener = new LocationListener() {
+        public void onLocationChanged(Location l) { if (lastFix == 0) feedMap(l); }
+        public void onStatusChanged(String p, int st, Bundle e) { }
+        public void onProviderEnabled(String p) { }
+        public void onProviderDisabled(String p) { }
+    };
+
+    private void startGps() {
+        if (gpsStartAt == 0) gpsStartAt = SystemClock.elapsedRealtime();
+        try {
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, gpsListener);
+            try { lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 0, netListener); } catch (Throwable ignored) { }
+        } catch (Exception e) {
+            setGps(false, 0);
+        }
+    }
+
+    private void stopGps() {
+        try { lm.removeUpdates(gpsListener); } catch (Exception ignored) { }
+        try { lm.removeUpdates(netListener); } catch (Exception ignored) { }
+    }
+
+    private void setGps(boolean ok, float kmh) {
+        if (speedTv == null) return;
+        if (!ok) lastFix = 0;
+        float v = speedFix(useMph() ? kmh * 0.621371f : kmh);
+        speedTv.setText(ok ? String.valueOf(Math.round(kmh < 2 ? 0 : v)) : "--");
+        if (carGauge != null) carGauge.setSpeed(kmh < 2 ? 0 : v, ok);
+        if (mapGauge != null) mapGauge.setSpeed(kmh < 2 ? 0 : v, ok);
+        if (topSpeedTv != null) topSpeedTv.setText((ok ? String.valueOf(Math.round(kmh < 2 ? 0 : v)) : "--") + " " + (useMph() ? "mph" : "km/h"));
+        int gs = ok ? 0 : gpsState();
+        gpsTv.setText(ok ? "GPS" : I18n.t(gs == 1 ? "Sin permiso" : gs == 2 ? "GPS apagado" : "Buscando GPS"));
+        gpsDot.setBackground(round(ok ? 0xFF3DDC84 : MUTED, 4));
+        updateMapTag();
+    }
+
+    private View.OnClickListener mediaClick(final int code) {
+        return new View.OnClickListener() {
+            public void onClick(View v) {
+                int which = code == KeyEvent.KEYCODE_MEDIA_NEXT ? 1 : code == KeyEvent.KEYCODE_MEDIA_PREVIOUS ? -1 : 0;
+                boolean done = false;
+
+                if (mediaWatcher != null && "ms".equals(curOrigin)) {
+                    try { done = mediaWatcher.command(which); } catch (Throwable ignored) { }
+                }
+                if (!done && which == 0) done = startMusicApp();
+                if (!done && !sendBtCommand(code)) sendMediaKey(code);
+                h.postDelayed(new Runnable() { public void run() { updatePlayIcon(); } }, 600);
+            }
+        };
+    }
+
+    /**
+     * ▶ sin nada sonando ni ninguna app de música activa (Android 5+, issue #2): le pide reproducir a la app de música
+     * preferida con su receptor de teclas multimedia y, si en 2,5 s no suena nada, la abre. En Android 4 no se usa:
+     * ahí ▶ es lo que pasa el sonido de la radio al Bluetooth.
+     */
+    private boolean startMusicApp() {
+        if (SDK < 21 || "Bluetooth".equals(curSource) || "Android Auto".equals(curSource)) return false;
+        if (mediaWatcher != null && mediaWatcher.hasSession()) return false;
+        final AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am.isMusicActive()) return false;
+        String saved = prefs.getString("music_app", null);
+        ComponentName cn = saved != null ? ComponentName.unflattenFromString(saved) : null;
+        final String pkg = cn != null ? cn.getPackageName() : firstInstalled(MUSIC_PKGS);
+        if (pkg == null) return false;
+        long t = SystemClock.uptimeMillis();
+        for (int a : new int[]{KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP}) {
+            Intent i = new Intent(Intent.ACTION_MEDIA_BUTTON);
+            i.setPackage(pkg);
+            i.putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(t, t, a, KeyEvent.KEYCODE_MEDIA_PLAY, 0));
+            try { sendBroadcast(i); } catch (Throwable ignored) { }
+        }
+        h.postDelayed(new Runnable() { public void run() {
+            if (am.isMusicActive()) return;
+            if (!launchSaved("music_app")) launchPkg(pkg);
+        }}, 2500);
+        return true;
+    }
+
+    /** Si suena Bluetooth, controla directamente la app Bluetooth de fábrica (com.clw.btmusic). */
+    private boolean sendBtCommand(int code) {
+        if (!"Bluetooth".equals(curSource)) return false;
+        if (bt != null && bt.command(code == KeyEvent.KEYCODE_MEDIA_NEXT ? 1 : code == KeyEvent.KEYCODE_MEDIA_PREVIOUS ? -1 : 0)) {
+            h.postDelayed(new Runnable() { public void run() { if (bt != null) bt.refresh(); } }, 700);
+            return true;
+        }
+        String a = code == KeyEvent.KEYCODE_MEDIA_NEXT ? "com.clw.btmusic.next"
+                : code == KeyEvent.KEYCODE_MEDIA_PREVIOUS ? "com.clw.btmusic.previous" : "com.clw.btmusic.togglepause";
+        try {
+            Intent i = new Intent(a);
+            i.setClassName("com.clw.btmusic", "com.clw.btmusic.BTPlaybackService");
+            return startService(i) != null;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private void sendMediaKey(int code) {
+        long t = SystemClock.uptimeMillis();
+        KeyEvent down = new KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0);
+        KeyEvent up = new KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0);
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        try {
+            java.lang.reflect.Method m = AudioManager.class.getMethod("dispatchMediaKeyEvent", KeyEvent.class);
+            m.invoke(am, down);
+            m.invoke(am, up);
+            return;
+        } catch (Throwable ignored) { }
+        Intent i1 = new Intent(Intent.ACTION_MEDIA_BUTTON);
+        i1.putExtra(Intent.EXTRA_KEY_EVENT, down);
+        sendOrderedBroadcast(i1, null);
+        Intent i2 = new Intent(Intent.ACTION_MEDIA_BUTTON);
+        i2.putExtra(Intent.EXTRA_KEY_EVENT, up);
+        sendOrderedBroadcast(i2, null);
+    }
+
+    private void updatePlayIcon() {
+        if (playIc == null) return;
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        boolean on = playingState != null ? playingState : am.isMusicActive();
+        playIc.setImageBitmap(asset(on ? "ic/pause.png" : "ic/play_arrow.png"));
+    }
+
+    // ───────────────────────── pista en reproducción ─────────────────────────
+
+    private void showTrack(NowPlaying.Track t) {
+        long now = SystemClock.elapsedRealtime();
+        boolean hasContent = t.title != null || t.artist != null;
+        // Un aviso sin pista de otra fuente (p. ej. el sistema cuando entra la cámara de reversa)
+        // no debe borrar ni pausar lo que muestra la fuente actual.
+        if (curOrigin != null && !curOrigin.equals(t.origin) && !hasContent) return;
+        // Con Android Auto conectado el celular manda la misma canción también por Bluetooth (AVRCP), a cada segundo
+        // y a veces sin título (solo tiempo o estado). Mientras Android Auto sea la fuente, Bluetooth solo aporta
+        // tiempo y estado: nunca cambia la etiqueta ni borra la pista. Antes esos avisos sin título ponían
+        // «Bluetooth» y la notificación de Open Headunit volvía a poner «Android Auto»: la etiqueta titilaba.
+        boolean aaOwns = "rcc".equals(curOrigin) || ("Android Auto".equals(curSource) && aaRunning());
+        if (aaOwns && "bt".equals(t.origin)) {
+            if (t.clear) return;
+            if (t.polled && Boolean.FALSE.equals(t.playing)) t.playing = null; // estado local del servicio, no el real
+            if (t.title == null || sameTitle(t.title, curTitle)) {
+                t.title = null;
+                t.source = null;
+                t.artist = null;
+                hasContent = false;
+            } else if ("Android Auto".equals(curSource)) {
+                // Canción nueva: la notificación de Open Headunit suele llegar un instante después.
+                // Se mantiene «Android Auto» unos segundos; si no llega, pasa a Bluetooth.
+                t.source = null;
+                aaWaitTitle = t.title;
+                h.removeCallbacks(aaWait);
+                h.postDelayed(aaWait, 5000);
+            }
+        }
+        if (hasContent && !t.clear) curOrigin = t.origin;
+        if (t.clear) {
+            curOrigin = null;
+            curTitle = curArtist = curSource = null;
+            curArt = null;
+            durMs = -1;
+            posKnown = false;
+            playingState = false;
+            renderTrack();
+            return;
+        }
+        boolean newTrack = t.title != null && !t.title.equals(curTitle);
+        if (newTrack) {
+            posBaseMs = 0;
+            posBaseAt = now;
+            posKnown = true;
+            durMs = -1;
+            if (!t.artSet) curArt = null;
+            // ¿La notificación de Open Headunit ya trae la carátula de esta canción?
+            if (!t.artSet && NotifArt.lastArt != null && textsMatch(NotifArt.lastTexts, t.title)) {
+                curArt = NotifArt.lastArt;
+                t.source = "Android Auto";
+                aaWaitTitle = null;
+                h.removeCallbacks(aaWait);
+            }
+        }
+        if (t.title != null) curTitle = t.title;
+        if (t.artist != null) curArtist = t.artist;
+        if (t.source != null) curSource = t.source;
+        if (t.durationMs > 0) durMs = t.durationMs;
+        if (t.artSet) curArt = t.art;
+        long pos = currentPos();
+        if (t.positionMs >= 0) { pos = t.positionMs; posKnown = true; }
+        if (t.playing != null) {
+            playingState = t.playing;
+        }
+        posBaseMs = pos;
+        posBaseAt = now;
+        renderTrack();
+    }
+
+    /** Misma canción aunque una fuente la mande recortada o con otras mayúsculas. */
+    private static boolean sameTitle(String a, String b) {
+        if (a == null || b == null) return false;
+        String x = a.trim().toLowerCase(ES), y = b.trim().toLowerCase(ES);
+        if (x.equals(y)) return true;
+        return Math.min(x.length(), y.length()) > 8 && (x.startsWith(y) || y.startsWith(x));
+    }
+
+    /**
+     * Android Auto sigue conectado: Open Headunit corriendo y, además, el celular conectado por USB en modo
+     * Android Auto (o, si nunca se vio por USB, p. ej. inalámbrico, una notificación de Open Headunit reciente).
+     * Open Headunit sigue corriendo después de quitar el cable, así que el proceso solo no basta.
+     * Se revisa cada 3 s como máximo.
+     */
+    private boolean aaRunning() {
+        long now = SystemClock.elapsedRealtime();
+        if (now - aaCheckedAt > 3000) {
+            aaCheckedAt = now;
+            boolean alive = processRunning(PKG_HUR);
+            if (alive) {
+                int usb = aaUsbState();
+                if (usb == 1) aaUsbSeen = true;
+                else if (usb == 0) alive = !aaUsbSeen && NotifArt.lastAt > 0 && now - NotifArt.lastAt < 15000;
+            }
+            aaRunningCached = alive;
+        }
+        return aaRunningCached;
+    }
+
+    /** 1 = hay un celular por USB en modo Android Auto (accesorio de Google), 0 = no hay, -1 = no se puede saber. */
+    private int aaUsbState() {
+        try {
+            android.hardware.usb.UsbManager um = (android.hardware.usb.UsbManager) getSystemService(USB_SERVICE);
+            if (um == null) return -1;
+            java.util.HashMap<String, android.hardware.usb.UsbDevice> list = um.getDeviceList();
+            if (list == null) return -1;
+            for (android.hardware.usb.UsbDevice d : list.values())
+                if (d.getVendorId() == 0x18D1 && d.getProductId() >= 0x2D00 && d.getProductId() <= 0x2D05) return 1;
+            return 0;
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+    private boolean aaUsbSeen;
+
+    /**
+     * Si Android Auto tenía la canción y se desconectó (se quitó el cable), la fuente pasa a Bluetooth y, si está
+     * activado, abre un instante la app de música Bluetooth para que el sonido vuelva al Bluetooth.
+     */
+    private void checkAaGone(boolean now) {
+        if (!"Android Auto".equals(curSource) || "rcc".equals(curOrigin)) return;
+        if (now) aaCheckedAt = 0;
+        if (aaRunning()) return;
+        BtBridge.log("Android Auto se desconectó");
+        aaWaitTitle = null;
+        h.removeCallbacks(aaWait);
+        curSource = "Bluetooth";
+        curArt = null;
+        renderTrack();
+        if (bt != null && bt.isConnected()) bt.refresh();
+        if (prefs.getBoolean("aa_off_bt", true) && (clwBt || btMusicApp() != null)) {
+            btRouted = false;
+            openBtAudioApp(false);
+        }
+    }
+
+    private final BroadcastReceiver usbOffReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            h.postDelayed(new Runnable() { public void run() { checkAaGone(true); } }, 1500);
+        }
+    };
+    private long aaCheckedAt;
+    private boolean aaRunningCached;
+    private String aaWaitTitle;
+
+    /** Si la canción nueva no llegó por la notificación de Android Auto, la fuente pasa a Bluetooth. */
+    private final Runnable aaWait = new Runnable() {
+        public void run() {
+            String w = aaWaitTitle;
+            aaWaitTitle = null;
+            if (w == null || !"Android Auto".equals(curSource) || !sameTitle(w, curTitle)) return;
+            curSource = "Bluetooth";
+            curArt = null;
+            renderTrack();
+        }
+    };
+
+    private static boolean textsMatch(java.util.List<String> texts, String title) {
+        if (texts == null || title == null) return false;
+        String tt = title.trim().toLowerCase(ES);
+        for (String s : texts) {
+            if (s == null) continue;
+            String x = s.trim().toLowerCase(ES);
+            if (x.equals(tt) || (tt.length() > 3 && x.contains(tt))) return true;
+        }
+        return false;
+    }
+
+    /** Carátula de Android Auto leída de la notificación de Open Headunit. */
+    private void applyAaNotif(Bitmap art, java.util.List<String> texts) {
+        if (art == null || curTitle == null) return;
+        if (!textsMatch(texts, curTitle)) return;
+        if (aaWaitTitle != null && sameTitle(aaWaitTitle, curTitle)) { aaWaitTitle = null; h.removeCallbacks(aaWait); }
+        curArt = art;
+        curSource = "Android Auto";
+        renderTrack();
+    }
+
+    private void showPlayerDiag() {
+        String msg = "Fuente: " + (curOrigin != null ? curOrigin : "—") + " / " + (curSource != null ? curSource : "—")
+                + "\nPista: " + curTitle + " — " + curArtist
+                + "\nCarátula: " + (curArt != null ? curArt.getWidth() + "x" + curArt.getHeight() : "no")
+                + "\n\nLector de notificaciones (accesibilidad): " + (NotifArt.running ? "ACTIVO" : "apagado")
+                + "\nÚltima notificación de Open Headunit: " + (NotifArt.lastAt == 0 ? "ninguna"
+                    : ((SystemClock.elapsedRealtime() - NotifArt.lastAt) / 1000) + " s, carátula "
+                    + (NotifArt.lastArt != null ? "sí" : "no") + ", textos " + NotifArt.lastTexts)
+                + "\nOpen Headunit corriendo: " + (processRunning(PKG_HUR) ? "sí" : "no")
+                + " · celular por USB en modo Android Auto: " + (aaUsbState() == 1 ? "sí" : aaUsbState() == 0 ? "no" : "no se sabe")
+                + "\nAndroid Auto conectado (para StradaOS): " + (aaRunning() ? "sí" : "no")
+                + "\nApp Bluetooth conectada: " + (bt != null && bt.isConnected() ? "sí" : "no")
+                + "\nAudio Bluetooth automático: " + (clwBt ? (btAutoOn() ? "activado" : "desactivado") : "no aplica (otra marca)")
+                + (clwBt ? "" : "\nApp de música Bluetooth: " + (btMusicApp() != null ? btMusicApp().getPackageName() : "no encontrada")
+                    + " · abrir al conectar: " + (prefs.getBoolean("bt_open_connect", false) ? "sí" : "no"))
+                + "\nSonido en Bluetooth (estimado): " + (btRouted ? "sí" : "no") + " · app al frente: " + topPackage()
+                + "\nActivaciones: " + BtBridge.activations
+                + "\n\nEventos Bluetooth:\n" + BtBridge.logText();
+        new TB(this, dlg()).diag()
+            .setTitle("Diagnóstico del reproductor")
+            .setMessage(msg)
+            .setPositiveButton("OK", null)
+            .setNeutralButton("Accesibilidad", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { openAccessibility(); }
+            })
+            .show();
+    }
+
+    private void openAccessibility() {
+        try {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            toast("Activa «Carátula de Android Auto» (StradaOS)");
+        } catch (Throwable e) {
+            toast("No se pudo abrir Accesibilidad");
+        }
+    }
+
+    private long currentPos() {
+        long p = posBaseMs;
+        if (playingState != null && playingState) p += SystemClock.elapsedRealtime() - posBaseAt;
+        if (durMs > 0 && p > durMs) p = durMs;
+        return p;
+    }
+
+    private static String fmt(long ms) {
+        long sec = Math.max(0, ms / 1000);
+        return (sec / 60) + ":" + (sec % 60 < 10 ? "0" : "") + (sec % 60);
+    }
+
+    private void renderTrack() {
+        if (trackTv == null) return;
+        if (curTitle == null && curArtist == null) {
+            trackTv.setText(I18n.t("Nada sonando"));
+            artistTv.setText(I18n.t("Radio, Bluetooth o USB"));
+            sourceTv.setText("");
+            timePosTv.setText("");
+            playerArt.setArt(null);
+            playerArt.setProgress(-1);
+        } else {
+            boolean aaOff = curSource != null && curSource.toLowerCase(ES).contains("headunit")
+                    && ("Conectado".equalsIgnoreCase(curArtist) || "Connected".equalsIgnoreCase(curArtist));
+            trackTv.setText(curTitle != null ? curTitle : (curSource != null ? I18n.t(curSource) : ""));
+            artistTv.setText(aaOff ? I18n.t("Activa «Pista actual de AA» en Open Headunit") : (curArtist != null ? curArtist : ""));
+            sourceTv.setText(curSource != null ? I18n.t(curSource).toUpperCase(I18n.loc) : "");
+            playerArt.setArt(curArt);
+            updateProgress();
+        }
+        if (playIc != null) {
+            boolean on = playingState != null ? playingState
+                    : ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
+            playIc.setImageBitmap(asset(on ? "ic/pause.png" : "ic/play_arrow.png"));
+        }
+    }
+
+    private void updateProgress() {
+        if (playerArt == null || (curTitle == null && curArtist == null)) return;
+        if (durMs > 0 && posKnown) {
+            long p = currentPos();
+            playerArt.setProgress(p / (float) durMs);
+            timePosTv.setText(fmt(p) + "  /  " + fmt(durMs));
+        } else if (durMs > 0) {
+            playerArt.setProgress(-1);
+            timePosTv.setText(fmt(durMs));
+        } else {
+            playerArt.setProgress(-1);
+            timePosTv.setText("");
+        }
+    }
+
+    private final Runnable progressTick = new Runnable() {
+        public void run() {
+            updateProgress();
+            h.postDelayed(this, 1000);
+        }
+    };
+
+    // ───────────────────────── configuración ─────────────────────────
+
+    private void openSettings() { showSettings(C_VEHICLE); }
+
+    private void usbHelp() {
+        new TB(this, dlg())
+            .setTitle("«Ninguna aplic. funciona con este accesorio USB»")
+            .setMessage("Ese aviso lo causa una app de espejo de fábrica (EasyConnection/CarbitLink) que toma el USB antes que la app que elegiste.\n\n1. Desconecta el celular.\n2. Ajustes → Aplicaciones → EasyConnection → «Borrar datos».\n3. Apaga y enciende el carro.\n4. En Open Headunit → USB, si tu celular aparece como «Ignorado», tócalo para permitirlo.")
+            .setPositiveButton("Abrir EasyConnection", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    for (String p : USB_HOGS) if (installed(p)) {
+                        try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + p)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Throwable ignored) { }
+                        return;
+                    }
+                    toast("No hay apps de espejo instaladas");
+                }
+            })
+            .setNegativeButton("Cerrar", null).show();
+    }
+
+    private void runDiag() {
+        toast("Exportando… puede tardar un minuto");
+        new Thread(new Runnable() {
+            public void run() {
+                final String r = Diag.export(Main.this);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        new TB(Main.this, dlg())
+                            .setTitle("Diagnóstico listo")
+                            .setMessage("Se guardó en:\n" + r + "\n\nCopia la carpeta StradaDiag a una memoria USB y adjúntala en un «issue» del repositorio de StradaOS en GitHub.")
+                            .setPositiveButton("OK", null).show();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private String clockLabel() {
+        String c = prefs.getString("clock", "auto");
+        return "12".equals(c) ? "12 horas" : "24".equals(c) ? "24 horas" : "Automático";
+    }
+
+    private void chooseClock() {
+        final String[] opts = {"Automático", "12 horas (a.m./p.m.)", "24 horas"};
+        final String[] vals = {"auto", "12", "24"};
+        new TB(this, dlg())
+            .setTitle("Formato de hora")
+            .setItems(opts, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putString("clock", vals[w]).apply();
+                    updateClock();
+                }
+            }).show();
+    }
+
+    interface TextCb { void on(String v); }
+
+    /** Texto libre en una ventana (nombre de un mantenimiento, etc.). */
+    private void askText(String title, String def, final TextCb cb) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setText(def);
+        et.setSelection(et.getText().length());
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et);
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(wrap)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { cb.on(et.getText().toString()); }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void editText(final String key, String title, String def) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setText(prefs.getString(key, def));
+        et.setSelection(et.getText().length());
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et);
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(wrap)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putString(key, et.getText().toString().trim()).apply();
+                    if ("city_manual".equals(key)) refreshWeatherNow();
+                    if ("map_url".equals(key)) toast("Se aplicará al reiniciar StradaOS");
+                    if ("extra_actions".equals(key)) {
+                        try { nowPlaying.stop(); nowPlaying.start(); } catch (Throwable ignored) { }
+                    }
+                    builtW = 0;
+                    build(root.getWidth(), root.getHeight());
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    // ───────────────────────── universal: asistente, color, foto, CarPlay ─────────────────────────
+
+    static final String[] ACCENT_NAMES = {"StradaOS", "Rojo", "Naranja", "Amarillo", "Verde", "Turquesa", "Azul", "Morado", "Rosa", "Plata"};
+    static final int[] ACCENT_COLORS = {0xFFFE3211, 0xFFE3262F, 0xFFFF7A1A, 0xFFF5B800, 0xFF2DBE6C, 0xFF14B8B0, 0xFF2F7CF6, 0xFF8E5CF7, 0xFFE8457C, 0xFF9AA3AF};
+    static final String[] CARPLAY_PKGS = {"com.zjinnova.zlink", "com.zjinnova.zlink5", "com.autokit", "cn.manstep.phonemirrorBox",
+            "cn.manstep.phonemirrorBox.nomap", "com.suding.speedplay", "com.tlink.carplay", "com.syu.carlink", "com.carlinkit.autokit"};
+
+    private void rebuild() {
+        builtW = 0;
+        if (root.getWidth() > 0) build(root.getWidth(), root.getHeight());
+    }
+
+    private void applyAccent() {
+        RED = prefs.getInt("accent", 0xFFFE3211);
+        int r = (RED >> 16) & 255, g = (RED >> 8) & 255, b = RED & 255;
+        int br = (BG >> 16) & 255, bgc = (BG >> 8) & 255, bb = BG & 255, pct = LIGHT ? 16 : 18;
+        RED_DARK = 0xFF000000 | ((r * pct / 100 + br * (100 - pct) / 100) << 16) | ((g * pct / 100 + bgc * (100 - pct) / 100) << 8) | (b * pct / 100 + bb * (100 - pct) / 100);
+    }
+
+    /** Usuario que actualiza desde una versión anterior: conserva su carro. Usuario nuevo: asistente. */
+    private void migrateOrSetup() {
+        if (prefs.getBoolean("setup_done", false)) return;
+        boolean upgrade = false;
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            upgrade = pi.lastUpdateTime - pi.firstInstallTime > 60000;
+        } catch (Throwable ignored) { }
+        if (upgrade) {
+            prefs.edit().putBoolean("setup_done", true).apply();
+        } else {
+            h.postDelayed(new Runnable() { public void run() { wizard(); } }, 600);
+        }
+    }
+
+    /** Cambia el idioma («auto», «es», «en», «pt», «it», «de», «ms», «ar») y reconstruye la pantalla. */
+    private void setLanguage(String code) {
+        prefs.edit().putString("lang", code).apply();
+        I18n.set(this, "auto".equals(code) ? I18n.system() : code);
+        rebuild();
+    }
+
+    /** Primer paso del asistente: idioma (preseleccionado el del sistema). */
+    private void wizard() {
+        int sel = Math.max(0, java.util.Arrays.asList(I18n.CODES).indexOf(I18n.lang));
+        wizardDlg = new TB(this, dlg()).raw()
+            .setTitle("اللغة · Language")
+            .setSingleChoiceItems(I18n.NAMES, sel, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    d.dismiss();
+                    setLanguage(I18n.CODES[w]);
+                    wizardWelcome();
+                }
+            })
+            .setCancelable(false)
+            .show();
+    }
+    private android.app.Dialog wizardDlg;
+
+    private void wizardWelcome() {
+        new TB(this, dlg())
+            .setTitle("Bienvenido a StradaOS")
+            .setMessage("Vamos a dejar el launcher a tu gusto: tu nombre, tu vehículo, el color y la foto. Toma menos de un minuto y lo puedes cambiar después en el engranaje ⚙.")
+            .setPositiveButton("Empezar", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    ask("user_name", "¿Cómo te llamas?", "", new Runnable() { public void run() {
+                    ask("car_name", "Nombre del vehículo (ej.: Mazda 2, Spark GT)", "Mi vehículo", new Runnable() { public void run() {
+                    ask("car_tag", "Etiqueta corta (versión o placa). Déjalo vacío si no quieres", "", new Runnable() { public void run() {
+                    chooseAccent(new Runnable() { public void run() {
+                    chooseFontSize(new Runnable() { public void run() {
+                        prefs.edit().putBoolean("setup_done", true).apply();
+                        rebuild();
+                        reviewShortcuts(new Runnable() { public void run() {
+                            if (!askDefaultHome(new Runnable() { public void run() { pickPhoto(); } })) pickPhoto();
+                        } });
+                    }});
+                    }});
+                    }});
+                    }});
+                    }});
+                }
+            })
+            .setNegativeButton("Después", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { prefs.edit().putBoolean("setup_done", true).apply(); }
+            })
+            .show();
+    }
+
+    // ── asistente: revisar qué app abre cada botón ──
+
+    static final String[][] REVIEW = {{"radio", "Radio"}, {"bt", "Bluetooth"}, {"btaudio", "Música Bluetooth"}, {"cam", "Cámara"}, {"files", "Archivos"}, {"aa", "Android Auto"}};
+
+    /** Qué app abre cada botón en esta pantalla: la elegida o la que StradaOS detectó. */
+    private String shortcutLabel(String key) {
+        String c = prefs.getString(key, null);
+        if (c != null) return labelOf(c);
+        if ("btaudio".equals(key)) { ComponentName cn = btMusicApp(); return cn != null ? "Automático · " + labelOf(cn.flattenToString()) : "No encontrada"; }
+        if ("aa".equals(key)) {
+            String p = prefs.getString("conn_app", null);
+            if (p != null) return labelOf(p);
+            List<String> cand = connCandidates();
+            return cand.isEmpty() ? "No encontrada" : "Automático · " + labelOf(cand.get(0));
+        }
+        for (String[] sl : SLOTS) if (sl[0].equals(key)) {
+            ResolveInfo r = find(sl[2], sl[3]);
+            return r != null ? "Automático · " + r.loadLabel(getPackageManager()) : "No encontrada";
+        }
+        return "Automático";
+    }
+
+    /** Lista de botones con su app; tocar uno deja elegir otra. Funciona igual en cualquier versión de Android. */
+    private void reviewShortcuts(final Runnable next) {
+        final String[] items = new String[REVIEW.length];
+        for (int i = 0; i < REVIEW.length; i++) items[i] = REVIEW[i][1] + "\n    → " + shortcutLabel(REVIEW[i][0]);
+        new TB(this, dlg())
+            .setTitle("¿Qué app abre cada botón?")
+            .setItems(items, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, final int w) {
+                    pickFor(REVIEW[w][0], REVIEW[w][1], new Runnable() { public void run() { reviewShortcuts(next); } });
+                }
+            })
+            .setCancelable(false)
+            .setPositiveButton("Están bien", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { refreshStates(); if (next != null) next.run(); }
+            })
+            .show();
+    }
+
+    private void ask(final String key, String title, String def, final Runnable next) {
+        final android.widget.EditText et = field();
+        et.setSingleLine(true);
+        et.setText(prefs.getString(key, def));
+        et.setSelection(et.getText().length());
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = (int) (20 * s);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(et);
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(wrap)
+            .setCancelable(false)
+            .setPositiveButton("Siguiente", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putString(key, et.getText().toString().trim()).apply();
+                    if (next != null) next.run();
+                }
+            })
+            .show();
+    }
+
+    /** Asistente (2.19): tamaño de la letra. */
+    private void chooseFontSize(final Runnable next) {
+        String[] o = {I18n.t("Pequeña"), I18n.t("Normal"), I18n.t("Grande"), I18n.t("Muy grande")};
+        new TB(this, dlg()).raw()
+            .setTitle(I18n.t("Tamaño de la letra"))
+            .setSingleChoiceItems(o, prefs.getInt("font_size", 1), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                d.dismiss();
+                prefs.edit().putInt("font_size", w).apply();
+                rebuild();
+                next.run();
+            }})
+            .setCancelable(false)
+            .show();
+    }
+
+    private void chooseAccent(final Runnable next) {
+        new TB(this, dlg())
+            .setTitle("Color de acento")
+            .setAdapter(new BaseAdapter() {
+                public int getCount() { return ACCENT_NAMES.length; }
+                public Object getItem(int p) { return ACCENT_NAMES[p]; }
+                public long getItemId(int p) { return p; }
+                public View getView(int p, View cv, ViewGroup parent) {
+                    LinearLayout row = new LinearLayout(Main.this);
+                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    int pad = (int) (14 * s);
+                    row.setPadding(pad * 2, pad, pad, pad);
+                    View dot = new View(Main.this);
+                    GradientDrawable g = new GradientDrawable();
+                    g.setShape(GradientDrawable.OVAL);
+                    g.setColor(ACCENT_COLORS[p]);
+                    dot.setBackground(g);
+                    row.addView(dot, new LinearLayout.LayoutParams((int) (28 * s), (int) (28 * s)));
+                    TextView t = tv(ACCENT_NAMES[p], 17, TEXT, false);
+                    t.setPadding(pad, 0, 0, 0);
+                    row.addView(t);
+                    return row;
+                }
+            }, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putInt("accent", ACCENT_COLORS[w]).apply();
+                    applyAccent();
+                    if (next != null) next.run(); else rebuild();
+                }
+            })
+            .setCancelable(next == null)
+            .show();
+    }
+
+    // ── foto del vehículo ──
+
+    private static final int REQ_PHOTO = 41;
+    private static final int REQ_LOGO = 47;
+
+    // ───────────────────────── My Car: شكل السيارة وشعار الماركة ─────────────────────────
+
+    /** قائمة بطاقة السيارة: الرسم (النوع واللون)، صورة حقيقية، شعار الماركة. */
+    private void carLookMenu() {
+        final boolean hasPhoto = CarPhoto.load(this) != null, hasLogo = loadBrandLogo() != null;
+        String[] items = {
+            I18n.L("نوع السيارة المرسومة: ", "Drawn car type: ") + CarArt.typeName(CarArt.typeIndex(prefs.getString("car_art", "suv"))),
+            I18n.L("لون السيارة", "Car colour"),
+            hasPhoto ? I18n.L("تغيير صورة سيارتي الحقيقية", "Change my real car photo") : I18n.L("استخدام صورة سيارتي الحقيقية", "Use a photo of my real car"),
+            I18n.L("إزالة الصورة (عرض الرسم)", "Remove the photo (show the drawing)"),
+            hasLogo ? I18n.L("تغيير شعار الماركة", "Change brand logo") : I18n.L("إضافة شعار الماركة (صورة من الشاشة أو USB)", "Add a brand logo (image from screen or USB)"),
+            I18n.L("إزالة شعار الماركة", "Remove brand logo"),
+        };
+        new TB(this, dlg()).raw().setTitle(I18n.L("شكل السيارة في البطاقة", "Car card look"))
+            .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                if (w == 0) chooseCarType();
+                else if (w == 1) chooseCarColor();
+                else if (w == 2) pickPhoto();
+                else if (w == 3) { CarPhoto.delete(Main.this); if ("none".equals(prefs.getString("car_art", "suv"))) prefs.edit().putString("car_art", "suv").apply(); rebuild(); }
+                else if (w == 4) pickBrandLogo();
+                else { new File(getFilesDir(), "brand_logo.png").delete(); rebuild(); }
+            }})
+            .setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
+    }
+
+    private void chooseCarType() {
+        String[] n = new String[CarArt.TYPES.length];
+        for (int i = 0; i < n.length; i++) n[i] = CarArt.typeName(i);
+        new TB(this, dlg()).raw().setTitle(I18n.L("نوع السيارة", "Car type"))
+            .setSingleChoiceItems(n, CarArt.typeIndex(prefs.getString("car_art", "suv")), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                d.dismiss();
+                prefs.edit().putString("car_art", CarArt.TYPES[w]).apply();
+                if (CarPhoto.load(Main.this) != null) toast(I18n.L("تظهر الرسمة عند إزالة صورة السيارة", "The drawing shows when the car photo is removed"));
+                rebuild();
+            }}).show();
+    }
+
+    private void chooseCarColor() {
+        final GridLayoutLite grid = new GridLayoutLite();
+        new TB(this, dlg()).raw().setTitle(I18n.L("لون السيارة", "Car colour")).setView(grid.build(new IntPick() { public void on(int i) {
+                prefs.edit().putInt("car_art_color", CarArt.COLORS[i]).apply();
+                rebuild();
+            }})).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
+    }
+
+    interface IntPick { void on(int i); }
+
+    /** شبكة دوائر الألوان مع أسمائها. */
+    private class GridLayoutLite {
+        android.app.Dialog dlgRef;
+        View build(final IntPick cb) {
+            LinearLayout col = new LinearLayout(Main.this);
+            col.setOrientation(LinearLayout.VERTICAL);
+            col.setPadding((int) (16 * s), (int) (8 * s), (int) (16 * s), 0);
+            int cur = prefs.getInt("car_art_color", CarArt.COLORS[0]);
+            LinearLayout row = null;
+            for (int i = 0; i < CarArt.COLORS.length; i++) {
+                if (i % 6 == 0) { row = new LinearLayout(Main.this); col.addView(row); }
+                final int idx = i;
+                LinearLayout it = new LinearLayout(Main.this);
+                it.setOrientation(LinearLayout.VERTICAL);
+                it.setGravity(Gravity.CENTER_HORIZONTAL);
+                it.setPadding((int) (6 * s), (int) (6 * s), (int) (6 * s), (int) (6 * s));
+                View dot = new View(Main.this);
+                GradientDrawable g = new GradientDrawable();
+                g.setShape(GradientDrawable.OVAL);
+                g.setColor(CarArt.COLORS[i]);
+                g.setStroke((int) ((CarArt.COLORS[i] == cur ? 4 : 1) * s), CarArt.COLORS[i] == cur ? RED : MUTED);
+                dot.setBackground(g);
+                it.addView(dot, new LinearLayout.LayoutParams((int) (44 * s), (int) (44 * s)));
+                TextView t = tv(CarArt.colorName(i), 11, SOFT, false);
+                t.setGravity(Gravity.CENTER);
+                it.addView(t, new LinearLayout.LayoutParams((int) (64 * s), -2));
+                it.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { cb.on(idx); toast(CarArt.colorName(idx)); } });
+                row.addView(it);
+            }
+            return col;
+        }
+    }
+
+    private Bitmap loadBrandLogo() {
+        File f = new File(getFilesDir(), "brand_logo.png");
+        if (!f.exists()) return null;
+        try { return BitmapFactory.decodeFile(f.getAbsolutePath()); } catch (Throwable e) { return null; }
+    }
+
+    private void pickBrandLogo() {
+        new TB(this, dlg()).raw()
+            .setTitle(I18n.L("شعار ماركة سيارتك", "Your car brand logo"))
+            .setMessage(I18n.L("اختر صورة الشعار (PNG بخلفية شفافة أفضل). يمكنك تحميلها من الإنترنت ونسخها إلى الشاشة أو إلى فلاشة USB.",
+                "Choose the logo image (a PNG with transparent background looks best). Download it and copy it to the screen or a USB stick."))
+            .setPositiveButton(I18n.L("الذاكرة / USB", "Memory / USB"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                browseForLogo = true; browseImages0();
+            }})
+            .setNeutralButton(I18n.L("المعرض", "Gallery"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                try {
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                    i.setType("image/*");
+                    startActivityForResult(Intent.createChooser(i, I18n.L("اختر الشعار", "Choose the logo")), REQ_LOGO);
+                } catch (Throwable e) { browseForLogo = true; browseImages0(); }
+            }})
+            .setNegativeButton(I18n.L("إلغاء", "Cancel"), null).show();
+    }
+
+    private void saveBrandLogo(final CarPhoto.Opener op) {
+        new Thread(new Runnable() { public void run() {
+            String err = null;
+            try {
+                Bitmap b = CarPhoto.decode(op);
+                Bitmap sm = CarPhoto.scaled(b, 256);
+                java.io.FileOutputStream os = new java.io.FileOutputStream(new File(getFilesDir(), "brand_logo.png"));
+                sm.compress(Bitmap.CompressFormat.PNG, 100, os);
+                os.close();
+            } catch (Throwable e) { err = e.getMessage(); }
+            final String fe = err;
+            runOnUiThread(new Runnable() { public void run() {
+                if (fe != null) toast(I18n.L("تعذّر فتح الصورة: ", "Could not open the image: ") + fe);
+                else { toast(I18n.L("تم وضع الشعار ✓", "Logo set ✓")); rebuild(); }
+            }});
+        }}).start();
+    }
+
+    private void photoMenu() { carLookMenu(); }
+
+    private void photoMenuOld() {
+        final boolean has = CarPhoto.load(this) != null;
+        String[] opts = has ? new String[]{"Elegir otra foto", "Quitar la foto"} : new String[]{"Elegir foto"};
+        new TB(this, dlg())
+            .setTitle("Foto del vehículo")
+            .setItems(opts, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == 0) pickPhoto();
+                    else { CarPhoto.delete(Main.this); rebuild(); }
+                }
+            }).show();
+    }
+
+    private void pickPhoto() {
+        new TB(this, dlg())
+            .setTitle("¿De dónde sacamos la foto?")
+            .setMessage("Consejo: usa una foto del carro de lado o de frente con fondo liso (blanco, gris o cielo). El fondo se quita solo.")
+            .setPositiveButton("Memoria / USB", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { browseImages(); }
+            })
+            .setNeutralButton("Galería", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try {
+                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.setType("image/*");
+                        startActivityForResult(Intent.createChooser(i, "Elige la foto"), REQ_PHOTO);
+                    } catch (Throwable e) { browseImages(); }
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == REQ_HOME) { homeResult(); return; }
+        if (req == REQ_BACKUP_CREATE || req == REQ_BACKUP_OPEN) {
+            if (res == RESULT_OK && data != null && data.getData() != null) backupDocument(data.getData(), req == REQ_BACKUP_CREATE);
+            return;
+        }
+        if (req == REQ_LOGO) {
+            if (res == RESULT_OK && data != null && data.getData() != null) {
+                final Uri lu = data.getData();
+                saveBrandLogo(new CarPhoto.Opener() { public InputStream open() throws Exception { return getContentResolver().openInputStream(lu); } });
+            }
+            return;
+        }
+        if (req != REQ_PHOTO || res != RESULT_OK || data == null || data.getData() == null) return;
+        final Uri uri = data.getData();
+        processPhoto(new CarPhoto.Opener() {
+            public InputStream open() throws Exception { return getContentResolver().openInputStream(uri); }
+        });
+    }
+
+    private boolean browseForLogo;
+
+    private void browseImages() {
+        browseForLogo = false;
+        browseImages0();
+    }
+
+    private void browseImages0() {
+        final ProgressDialogLite pd = new ProgressDialogLite("Buscando fotos…");
+        new Thread(new Runnable() {
+            public void run() {
+                final List<File> found = new ArrayList<File>();
+                File ext = android.os.Environment.getExternalStorageDirectory();
+                String[] roots = {ext.getAbsolutePath(), "/mnt", "/storage", "/udisk", "/mnt/usb_storage"};
+                for (String r : roots) scanImages(new File(r), 4, found);
+                Collections.sort(found, new Comparator<File>() {
+                    public int compare(File a, File b) { long x = b.lastModified() - a.lastModified(); return x > 0 ? 1 : x < 0 ? -1 : 0; }
+                });
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (found.isEmpty()) {
+                            toast("No encontré fotos (.jpg/.png). Cópialas a la memoria USB o a Download.");
+                            return;
+                        }
+                        final int n = Math.min(found.size(), 80);
+                        String[] names = new String[n];
+                        for (int i = 0; i < n; i++) names[i] = found.get(i).getName() + "  ·  " + found.get(i).getParentFile().getName();
+                        new TB(Main.this, dlg())
+                            .setTitle("Elige la foto")
+                            .setItems(names, new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface d, int w) {
+                                    final File f = found.get(w);
+                                    CarPhoto.Opener op = new CarPhoto.Opener() {
+                                        public InputStream open() throws Exception { return new java.io.FileInputStream(f); }
+                                    };
+                                    if (browseForLogo) saveBrandLogo(op); else processPhoto(op);
+                                }
+                            }).setNegativeButton("Cancelar", null).show();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private final java.util.HashSet<String> scanned = new java.util.HashSet<String>();
+
+    private void scanImages(File dir, int depth, List<File> out) {
+        if (depth < 0 || dir == null || out.size() > 400) return;
+        try {
+            String canon = dir.getCanonicalPath();
+            if (!scanned.add(canon) && depth < 4) return;
+        } catch (Throwable ignored) { }
+        File[] fs = dir.listFiles();
+        if (fs == null) return;
+        for (File f : fs) {
+            String n = f.getName().toLowerCase(ES);
+            if (f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))
+                    && f.length() > 15000 && !n.startsWith(".")) out.add(f);
+        }
+        for (File f : fs) {
+            String n = f.getName();
+            if (f.isDirectory() && !n.startsWith(".") && !"Android".equals(n) && !"LOST.DIR".equals(n)
+                    && !n.equalsIgnoreCase("thumbnails") && !"StradaDiag".equals(n)) scanImages(f, depth - 1, out);
+        }
+    }
+
+    private void processPhoto(final CarPhoto.Opener opener) {
+        // 2.18 (Andrés): ya no se quita el fondo solo; la foto se usa tal cual (derecha) y quitarlo es opcional
+        final ProgressDialogLite pd = new ProgressDialogLite("Abriendo la foto…");
+        new Thread(new Runnable() {
+            public void run() {
+                Bitmap src = null;
+                String err = null;
+                boolean already = false;
+                try {
+                    src = CarPhoto.decode(opener);
+                    already = CarPhoto.hasTransparency(src);
+                } catch (Throwable e) {
+                    err = e.getMessage();
+                }
+                final Bitmap fsrc = src;
+                final String ferr = err;
+                final boolean falready = already;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (fsrc == null) { toast("No se pudo abrir la imagen" + (ferr != null ? ": " + ferr : "")); return; }
+                        previewPhoto(fsrc, null, 0, falready);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Vista previa de la foto. Sin recortar: se guarda tal cual (achicada). «Quitar el fondo» es opcional y se puede
+     * repetir con más fuerza; «Usar la foto original» vuelve a la foto completa.
+     */
+    private void previewPhoto(final Bitmap src, final Bitmap cut, final int strength, final boolean already) {
+        final Bitmap shown = cut != null ? CarPhoto.fitToCard(cut) : already ? CarPhoto.fitToCard(src) : CarPhoto.scaled(src, 900);
+        FrameLayout box = new FrameLayout(this);
+        box.setBackgroundColor(CARD);
+        int pad = (int) (16 * s);
+        box.setPadding(pad, pad, pad, pad);
+        ImageView iv = new ImageView(this);
+        iv.setImageBitmap(shown);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        FrameLayout.LayoutParams ivlp = new FrameLayout.LayoutParams((int) (396 * s), (int) (240 * s));
+        ivlp.gravity = Gravity.CENTER;   // en pantallas anchas la foto quedaba pegada a la izquierda
+        box.addView(iv, ivlp);
+        String title = already ? "La foto ya trae fondo transparente"
+                : cut == null ? "Vista previa"
+                : "Sin fondo · nivel " + (strength + 1) + " de 4" + (strength >= 2 ? " (también quita el reflejo del piso)" : "");
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(box);
+        final AlertDialog[] dref = new AlertDialog[1];
+        if (cut != null) {
+            // botón de verdad (no un letrero): volver a la foto completa
+            TextView back = tv("Usar la foto original, con fondo", 14, TEXT, true);
+            back.setGravity(Gravity.CENTER);
+            back.setBackground(round(BTN, 12));
+            back.setPadding(pad, (int) (12 * s), pad, (int) (12 * s));
+            back.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                if (dref[0] != null) try { dref[0].dismiss(); } catch (Throwable ignored) { }
+                previewPhoto(src, null, 0, false);
+            }});
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(pad, pad / 2, pad, 0);
+            col.addView(back, lp);
+        }
+        AlertDialog.Builder b = new TB(this, dlg())
+            .setTitle(title)
+            .setView(col)
+            .setPositiveButton("Usar esta", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (CarPhoto.save(Main.this, shown)) { toast("Foto guardada"); rebuild(); }
+                    else toast("No se pudo guardar la foto");
+                }
+            })
+            .setNegativeButton("Cancelar", null);
+        if (!already && strength < 3) {
+            b.setNeutralButton(cut == null ? "Quitar el fondo" : "Quitar más fondo", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    final int next = cut == null ? 1 : strength + 1;
+                    final ProgressDialogLite pd = new ProgressDialogLite("Quitando el fondo…");
+                    new Thread(new Runnable() {
+                        public void run() {
+                            Bitmap c2 = null;
+                            try { c2 = CarPhoto.removeBackground(src, next); } catch (Throwable ignored) { }
+                            final Bitmap fc2 = c2;
+                            runOnUiThread(new Runnable() {
+                                public void run() {
+                                    pd.dismiss();
+                                    if (fc2 == null && cut == null) { toast("No se detectó un fondo liso: se usa la foto tal cual"); previewPhoto(src, null, 0, false); }
+                                    else previewPhoto(src, fc2 != null ? fc2 : cut, fc2 != null ? next : strength, false);
+                                }
+                            });
+                        }
+                    }).start();
+                }
+            });
+        }
+        dref[0] = b.show();
+    }
+
+    /** Diálogo de espera simple (compatible con Android 4.1). */
+    private class ProgressDialogLite {
+        private final AlertDialog d;
+        ProgressDialogLite(String msg) {
+            LinearLayout l = new LinearLayout(Main.this);
+            l.setGravity(Gravity.CENTER_VERTICAL);
+            int pad = (int) (22 * s);
+            l.setPadding(pad, pad, pad, pad);
+            l.addView(new android.widget.ProgressBar(Main.this));
+            TextView t = tv(msg, 16, TEXT, false);
+            t.setPadding(pad, 0, 0, 0);
+            l.addView(t);
+            d = new TB(Main.this, dlg()).setView(l).setCancelable(false).create();
+            d.show();
+        }
+        void dismiss() { try { d.dismiss(); } catch (Throwable ignored) { } }
+    }
+
+    // ── CarPlay (requiere adaptador USB con su app) ──
+
+    /** App de proyección integrada en la pantalla (ZLink, CarLink, TLink, AutoKit…): suele manejar Android Auto y CarPlay. */
+    private String nativeProjectionApp() {
+        for (String p : CARPLAY_PKGS) if (installed(p)) return p;
+        ResolveInfo r = find("carplay|zlink|carlink|autokit|tlink|speedplay", "carplay|zlink|carlink|autokit|tlink");
+        // EasyConnection/Carbit es solo espejo de pantalla: no es Android Auto ni CarPlay
+        if (r != null && r.activityInfo.packageName.startsWith("net.easyconn")) return null;
+        return r != null ? r.activityInfo.packageName : null;
+    }
+
+    private String carPlayApp() {
+        String saved = prefs.getString("carplay", null);
+        if (saved != null) return saved;
+        return nativeProjectionApp();
+    }
+
+    /** Nombre visible de un paquete o de un componente guardado. */
+    private String labelOf(String pkgOrComponent) {
+        try {
+            String pkg = pkgOrComponent.contains("/") ? ComponentName.unflattenFromString(pkgOrComponent).getPackageName() : pkgOrComponent;
+            PackageManager pm = getPackageManager();
+            return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+        } catch (Throwable e) {
+            return "App elegida";
+        }
+    }
+
+    private void openCarPlay() {
+        if (launchSaved("carplay")) return;
+        String p = nativeProjectionApp();
+        if (p != null && launchPkg(p)) return;
+        new TB(this, dlg())
+            .setTitle("Apple CarPlay")
+            .setMessage("CarPlay necesita un chip de autenticación de Apple dentro del equipo, así que no se puede activar solo con una app.\n\n• Si tu pantalla trae CarPlay integrado, deja presionado este botón y elige su app (ZLink, CarLink, TLink…).\n• Si no, puedes usar un adaptador CarPlay USB para pantallas Android (tipo Carlinkit/AutoKit): instala su app y este botón la abrirá.")
+            .setPositiveButton("Entendido", null)
+            .setNeutralButton("Elegir app", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { pickFor("carplay", "CarPlay"); }
+            }).show();
+    }
+
+    // ───────────────────────── tema (oscuro / claro / automático) ─────────────────────────
+
+    static int dlg() { return LIGHT ? AlertDialog.THEME_DEVICE_DEFAULT_LIGHT : AlertDialog.THEME_DEVICE_DEFAULT_DARK; }
+
+    private void applyTheme() {
+        String mode = prefs.getString("theme", "dark");
+        LIGHT = "light".equals(mode) || ("auto".equals(mode) && !darkHours()) || ("system".equals(mode) && !systemNight());
+        if (LIGHT) {
+            BG = 0xFFE9ECF1; CARD = 0xFFFFFFFF; INNER = 0xFFF1F3F7; BTN = 0xFFE2E6EC; DOCK = 0xFFDDE1E8;
+            TEXT = 0xFF14161B; MUTED = 0xFF6B7280; SOFT = 0xFF3A404C; CIRCLE = 0xFFFFFFFF; ICON = 0xFF2B303A;
+        } else {
+            BG = 0xFF15171C; CARD = 0xFF1E2128; INNER = 0xFF262A33; BTN = 0xFF2A2E37; DOCK = 0xFF0D0E11;
+            TEXT = 0xFFF2F3F5; MUTED = 0xFF8B9099; SOFT = 0xFFC5C8CE; CIRCLE = 0xFF23262E; ICON = 0xFFFFFFFF;
+        }
+    }
+
+    /** Modo automático: ¿estamos en el horario oscuro? (por defecto de 6 p. m. a 6 a. m., como siempre). */
+    private boolean darkHours() {
+        Calendar c = Calendar.getInstance();
+        int m = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
+        int a = prefs.getInt("dark_start", 18 * 60), b = prefs.getInt("dark_end", 6 * 60);
+        if (a == b) return false;
+        return a < b ? (m >= a && m < b) : (m >= a || m < b);
+    }
+
+    /** Modo «Sistema»: sigue el modo oscuro de la pantalla (algunas lo activan al encender las luces del carro). */
+    private boolean systemNight() {
+        try {
+            return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable e) { return false; }
+    }
+
+    /** Hora del día (minutos) con el formato elegido en Ajustes → Reloj. */
+    private String fmtMinutes(int m) {
+        String fmt = prefs.getString("clock", "auto");
+        boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+        Calendar c = Calendar.getInstance();
+        c.set(Calendar.HOUR_OF_DAY, m / 60);
+        c.set(Calendar.MINUTE, m % 60);
+        return I18n.sdf(h24 ? "HH:mm" : "h:mm a").format(c.getTime());
+    }
+
+    private void askDarkTime(final String key, int def, String title) {
+        int cur = prefs.getInt(key, def);
+        String fmt = prefs.getString("clock", "auto");
+        boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+        pickTime(title, cur, h24, new IntCb() { public void on(int minutes) {
+            prefs.edit().putInt(key, minutes).apply();
+            boolean was = LIGHT;
+            applyTheme();
+            if (was != LIGHT) { applyAccent(); rebuild(); }
+            showSettings(settingsCat);
+        }});
+    }
+
+    interface LongCb { void on(long v); }
+
+    /**
+     * Columna «▲ valor ▼» para elegir un número con el dedo (ventanas de hora y fecha, 2.21). Mantener presionado
+     * repite. Reemplaza a los selectores del sistema, que cambian con cada versión de Android y no siguen el tema.
+     */
+    private LinearLayout stepper(final Runnable up, final Runnable down, TextView value, float w) {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        for (int k = 0; k < 2; k++) {
+            final Runnable act = k == 0 ? up : down;
+            final FrameLayout b = circleIcon("chevron_right", 50, 26, BTN);
+            b.getChildAt(0).setRotation(k == 0 ? -90 : 90);
+            b.setOnTouchListener(new View.OnTouchListener() {
+                final Runnable rep = new Runnable() { public void run() {
+                    if (b.getWindowToken() == null) return;   // la ventana se cerró con el dedo puesto
+                    act.run();
+                    h.postDelayed(this, 110);
+                }};
+                public boolean onTouch(View v, MotionEvent e) {
+                    int a = e.getActionMasked();
+                    if (a == MotionEvent.ACTION_DOWN) { act.run(); h.postDelayed(rep, 450); v.setAlpha(0.6f); }
+                    else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) { h.removeCallbacks(rep); v.setAlpha(1f); }
+                    return true;
+                }
+            });
+            if (k == 1) col.addView(value, new LinearLayout.LayoutParams((int) (w * s), (int) (58 * s)));
+            col.addView(b, new LinearLayout.LayoutParams((int) (50 * s), (int) (50 * s)));
+        }
+        return col;
+    }
+
+    /** Ventana para elegir una hora del día (devuelve los minutos desde la medianoche). Los minutos van de 5 en 5. */
+    private void pickTime(String title, int minutes, final boolean h24, final IntCb cb) {
+        final int[] v = {Math.max(0, Math.min(23, minutes / 60)), Math.max(0, Math.min(55, (minutes % 60) / 5 * 5))};
+        final TextView hv = tv("", 34, TEXT, true), mv = tv("", 34, TEXT, true);
+        hv.setGravity(Gravity.CENTER);
+        mv.setGravity(Gravity.CENTER);
+        final Runnable show = new Runnable() { public void run() {
+            hv.setText(h24 ? String.format(Locale.US, "%02d", v[0]) : ((v[0] + 11) % 12 + 1) + (v[0] < 12 ? " AM" : " PM"));
+            mv.setText(String.format(Locale.US, "%02d", v[1]));
+        }};
+        show.run();
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER);
+        row.setPadding(0, (int) (6 * s), 0, (int) (2 * s));
+        row.addView(stepper(new Runnable() { public void run() { v[0] = (v[0] + 1) % 24; show.run(); } },
+            new Runnable() { public void run() { v[0] = (v[0] + 23) % 24; show.run(); } }, hv, h24 ? 110 : 170));
+        TextView colon = tv(":", 34, MUTED, true);
+        colon.setGravity(Gravity.CENTER);
+        row.addView(colon, new LinearLayout.LayoutParams((int) (28 * s), -2));
+        row.addView(stepper(new Runnable() { public void run() { v[1] = (v[1] + 5) % 60; show.run(); } },
+            new Runnable() { public void run() { v[1] = (v[1] + 55) % 60; show.run(); } }, mv, 110));
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(row)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { cb.on(v[0] * 60 + v[1]); } })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    /** Ventana para elegir una fecha (día, mes y año) que no pase de hoy. */
+    private void pickDate(String title, long when, final LongCb cb) {
+        final Calendar c = Calendar.getInstance();
+        if (when > 0) c.setTimeInMillis(when);
+        c.set(Calendar.HOUR_OF_DAY, 12);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        String[] names;
+        try { names = new java.text.DateFormatSymbols(I18n.loc).getShortMonths(); } catch (Throwable e) { names = null; }
+        final String[] months = names;
+        final TextView dv = tv("", 32, TEXT, true), mv = tv("", 26, TEXT, true), yv = tv("", 32, TEXT, true);
+        final TextView[] tvs = {dv, mv, yv};
+        for (TextView t : tvs) t.setGravity(Gravity.CENTER);
+        final Runnable show = new Runnable() { public void run() {
+            long now = System.currentTimeMillis();
+            if (c.getTimeInMillis() > now) c.setTimeInMillis(now);
+            if (c.get(Calendar.YEAR) < 1990) c.set(Calendar.YEAR, 1990);
+            int m = c.get(Calendar.MONTH);
+            dv.setText(String.valueOf(c.get(Calendar.DAY_OF_MONTH)));
+            mv.setText(months != null && m < months.length && months[m].length() > 0 ? months[m].replace(".", "") : String.valueOf(m + 1));
+            yv.setText(String.valueOf(c.get(Calendar.YEAR)));
+        }};
+        show.run();
+        final int[] fields = {Calendar.DAY_OF_MONTH, Calendar.MONTH, Calendar.YEAR};
+        final float[] widths = {96, 120, 124};
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER);
+        row.setPadding(0, (int) (6 * s), 0, (int) (2 * s));
+        // en inglés el mes va primero (Nov 14 2026); en los demás idiomas, el día
+        int[] order = "en".equals(I18n.lang) ? new int[]{1, 0, 2} : new int[]{0, 1, 2};
+        for (final int i : order) {
+            LinearLayout col = stepper(new Runnable() { public void run() { c.add(fields[i], 1); show.run(); } },
+                new Runnable() { public void run() { c.add(fields[i], -1); show.run(); } }, tvs[i], widths[i]);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.leftMargin = lp.rightMargin = (int) (6 * s);
+            row.addView(col, lp);
+        }
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(row)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { cb.on(c.getTimeInMillis()); } })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    // ───────────────────────── clima ─────────────────────────
+
+    private void maybeWeather() {
+        if (!prefs.getBoolean("weather_on", true) || Double.isNaN(wLat)) { showWeather(); return; }
+        if (SystemClock.elapsedRealtime() - weatherAt < 30 * 60 * 1000L && weatherNow != null) return;
+        weatherAt = SystemClock.elapsedRealtime();
+        Weather.fetch(this, wLat, wLon, new Weather.Listener() {
+            public void onWeather(final Weather.Now n, String err) {
+                h.post(new Runnable() { public void run() {
+                    if (n != null) weatherNow = n; else weatherAt = SystemClock.elapsedRealtime() - 25 * 60 * 1000L; // reintenta en 5 min
+                    showWeather();
+                }});
+            }
+        });
+    }
+
+    private void refreshWeatherNow() { weatherAt = 0; weatherNow = null; maybeWeather(); }
+
+    private void showWeather() {
+        showPanelWeather();
+        if (weatherBox == null) return;
+        if (!prefs.getBoolean("weather_on", true) || weatherNow == null) { weatherBox.setVisibility(View.GONE); return; }
+        weatherBox.setVisibility(View.VISIBLE);
+        weatherIc.setImageBitmap(asset("ic/" + Weather.icon(weatherNow.code, weatherNow.day) + ".png"));
+        weatherTv.setText(Math.round(weatherNow.temp) + "°" + weatherNow.unit);
+        weatherCityTv.setText(weatherNow.city != null ? weatherNow.city : I18n.t(Weather.describe(weatherNow.code)));
+    }
+
+    // ───────────────────────── panel de ajustes ─────────────────────────
+
+    interface IntCb { void on(int i); }
+
+    // 2.20: Ajustes reordenados (Andrés): cada opción en el apartado donde uno la busca
+    static final String[] CAT_NAMES = {"Volver al inicio", "Tu vehículo", "Mantenimientos", "Pantalla de inicio", "Barra de apps", "Apariencia",
+        "Conexión", "Mapa y clima", "Música", "Sistema", "Acerca de", "Siria · My Car"};
+    static final String[] CAT_ICONS = {"arrow_back", "directions_car", "car_repair", "dehaze", "apps", "palette", "usb", "map", "music_note", "tune", "info", "mosque"};
+    static final int C_VEHICLE = 1, C_MAINT = 2, C_HOME = 3, C_DOCK = 4, C_LOOK = 5, C_CONN = 6, C_MAP = 7, C_MUSIC = 8, C_SYS = 9, C_ABOUT = 10, C_SYRIA = 11;
+    /** ترتيب الأقسام في الشريط الجانبي (My Car: «سوريا» ثانياً). */
+    static final int[] CAT_ORDER = {0, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+    private android.widget.ScrollView settingsScroll;
+    private int settingsScrollCat = -1;
+    private int settingsPendingY = -1;   // posición por restaurar en una página que aún no se ha acomodado
+
+    private void closeSettings() {
+        settingsCat = -1;
+        settingsScroll = null; settingsScrollCat = -1; settingsPendingY = -1;
+        if (settingsView != null) { root.removeView(settingsView); settingsView = null; }
+    }
+
+    private void showSettings(int cat) {
+        float keep = s;
+        s = uiS;
+        try { showSettings0(cat); } finally { s = keep; }
+    }
+
+    private void showSettings0(int cat) {
+        if (cat == 0) { closeSettings(); return; }
+        // al cambiar un ajuste se redibuja la página: que se quede donde estaba, no que vuelva arriba
+        // (algunos ajustes redibujan dos veces seguidas: la segunda vez la página anterior aún no se acomodó y su
+        // posición sigue pendiente; se usa esa y no un 0)
+        final int keepY = settingsScroll == null || settingsScrollCat != cat ? 0
+                : settingsPendingY >= 0 ? settingsPendingY : settingsScroll.getScrollY();
+        settingsPendingY = keepY > 0 ? keepY : -1;
+        settingsCat = cat;
+        if (settingsView != null) root.removeView(settingsView);
+        settingsView = new FrameLayout(this);
+        settingsView.setBackgroundColor(BG);
+        settingsView.setClickable(true);
+        root.addView(settingsView, new FrameLayout.LayoutParams(-1, -1));
+
+        FrameLayout panel = new FrameLayout(this);
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams((int) ((vertical ? 720 : 1024) * s), (int) ((vertical ? boardH : 600) * s));
+        plp.gravity = Gravity.CENTER;
+        settingsView.addView(panel, plp);
+
+        if (vertical) settingsTabs(panel, cat);
+        else {
+        // barra lateral
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setPadding((int) (10 * s), (int) (12 * s), (int) (10 * s), (int) (12 * s));
+        android.widget.ScrollView sideSc = new android.widget.ScrollView(this);
+        sideSc.setVerticalScrollBarEnabled(false);
+        sideSc.setBackground(round(CARD, 20));
+        sideSc.addView(side, new FrameLayout.LayoutParams(-1, -2));
+        place(panel, sideSc, 16, 16, 240, 568);
+        LinearLayout brand = new LinearLayout(this);
+        brand.setGravity(Gravity.CENTER_VERTICAL);
+        brand.setPadding((int) (8 * s), 0, 0, (int) (8 * s));
+        ImageView logo = new ImageView(this);
+        logo.setImageBitmap(asset("logo.png"));
+        brand.addView(logo, new LinearLayout.LayoutParams((int) (30 * s), (int) (30 * s)));
+        TextView bt = tv("My Car", 18, TEXT, true);
+        bt.setPadding((int) (10 * s), 0, 0, 0);
+        brand.addView(bt);
+        side.addView(brand);
+        for (int oi = 0; oi < CAT_ORDER.length; oi++) {
+            final int i = CAT_ORDER[oi];
+            final int idx = i;
+            boolean sel = i == cat;
+            LinearLayout it = new LinearLayout(this);
+            it.setGravity(Gravity.CENTER_VERTICAL);
+            it.setPadding((int) (12 * s), 0, (int) (8 * s), 0);
+            if (sel) it.setBackground(round(RED_DARK, 12));
+            ImageView ic = icon(CAT_ICONS[i], 20);
+            if (sel) ic.setColorFilter(RED);
+            else if (ICON == 0xFFFFFFFF) ic.setAlpha(0.7f);
+            it.addView(ic, new LinearLayout.LayoutParams((int) (20 * s), (int) (20 * s)));
+            TextView lt = tv(CAT_NAMES[i], 14, sel ? RED : SOFT, sel);
+            lt.setPadding((int) (12 * s), 0, 0, 0);
+            it.addView(lt);
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(-1, (int) (40 * s));
+            ilp.bottomMargin = (int) (3 * s);
+            side.addView(it, ilp);
+            if (i == 0) {
+                View d = new View(this);
+                d.setBackgroundColor(BTN);
+                LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, Math.max(1, (int) s));
+                dl.topMargin = (int) (2 * s);
+                dl.bottomMargin = (int) (8 * s);
+                side.addView(d, dl);
+            }
+            it.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { showSettings(idx); }
+            });
+        }
+        }
+
+        // contenido
+        // La posición anterior se pone durante el acomodo (onLayout), antes del primer dibujo: si se pusiera después
+        // (con post), se vería un cuadro con la página arriba y luego el salto a su sitio (un parpadeo).
+        final android.widget.ScrollView sc = new android.widget.ScrollView(this) {
+            private boolean restored = keepY <= 0;
+            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                super.onLayout(changed, l, t, r, b);
+                if (!restored && getChildCount() > 0 && getChildAt(0).getHeight() > 0) {
+                    restored = true;
+                    scrollTo(0, keepY);   // ScrollView lo limita solo si la página quedó más corta
+                    if (settingsScroll == this) settingsPendingY = -1;
+                }
+            }
+        };
+        sc.setVerticalScrollBarEnabled(false);
+        if (vertical) place(panel, sc, 16, 84, 688, boardH - 96);
+        else place(panel, sc, 272, 16, 736, 568);
+        settingsScroll = sc; settingsScrollCat = cat;
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding((int) (8 * s), (int) (6 * s), (int) (8 * s), (int) (24 * s));
+        sc.addView(body, new FrameLayout.LayoutParams(-1, -2));
+        TextView title = tv(CAT_NAMES[cat], 24, TEXT, true);
+        title.setPadding((int) (4 * s), 0, 0, (int) (14 * s));
+        body.addView(title);
+
+        switch (cat) {
+            case C_VEHICLE: catVehicle(body); break;
+            case C_MAINT: catMaint(body); break;
+            case C_HOME: catHome(body); break;
+            case C_DOCK: catDock(body); break;
+            case C_LOOK: catLook(body); break;
+            case C_CONN: catConnection(body); break;
+            case C_MAP: catMapWeather(body); break;
+            case C_MUSIC: catMusic(body); break;
+            case C_SYS: catSystem(body); break;
+            case C_ABOUT: catAbout(body); break;
+            case C_SYRIA: catSyria(body); break;
+        }
+    }
+
+    /** Ajustes en vertical: las categorías van arriba, en una fila que se desliza, con la elegida a la vista. */
+    private void settingsTabs(FrameLayout panel, final int cat) {
+        final LinearLayout tabs = new LinearLayout(this);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        final View[] chosen = new View[1];
+        for (int oi = 0; oi < CAT_ORDER.length; oi++) {
+            final int i = CAT_ORDER[oi];
+            final int idx = i;
+            boolean sel = i == cat;
+            LinearLayout it = new LinearLayout(this);
+            it.setGravity(Gravity.CENTER_VERTICAL);
+            it.setPadding((int) (14 * s), 0, (int) (16 * s), 0);
+            it.setBackground(round(sel ? RED_DARK : CARD, 16));
+            ImageView ic = icon(CAT_ICONS[i], 20);
+            if (sel) ic.setColorFilter(RED);
+            else if (ICON == 0xFFFFFFFF) ic.setAlpha(0.7f);
+            it.addView(ic, new LinearLayout.LayoutParams((int) (20 * s), (int) (20 * s)));
+            if (i > 0) {   // «Volver al inicio» es solo la flecha
+                TextView lt = tv(CAT_NAMES[i], 14, sel ? RED : SOFT, sel);
+                lt.setPadding((int) (10 * s), 0, 0, 0);
+                it.addView(lt);
+            }
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(-2, (int) (48 * s));
+            ilp.rightMargin = (int) (8 * s);
+            tabs.addView(it, ilp);
+            if (sel) chosen[0] = it;
+            it.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { showSettings(idx); }
+            });
+        }
+        // la categoría elegida se deja a la vista durante el acomodo, antes de dibujar (sin salto)
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this) {
+            private boolean placed;
+            @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+                super.onLayout(changed, l, t, r, b);
+                if (!placed && chosen[0] != null && chosen[0].getWidth() > 0) {
+                    placed = true;
+                    scrollTo(Math.max(0, chosen[0].getLeft() - (getWidth() - chosen[0].getWidth()) / 2), 0);
+                }
+            }
+        };
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(tabs, new FrameLayout.LayoutParams(-2, -1));
+        place(panel, hs, 16, 18, 688, 52);
+    }
+
+    // ── piezas de diseño ──
+
+    private LinearLayout section(LinearLayout body, String name) {
+        TextView h2 = tv(I18n.t(name).toUpperCase(I18n.loc), 11, MUTED, true);
+        h2.setPadding((int) (6 * s), (int) (10 * s), 0, (int) (8 * s));
+        body.addView(h2);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(round(CARD, 16));
+        card.setPadding((int) (18 * s), (int) (4 * s), (int) (18 * s), (int) (4 * s));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.bottomMargin = (int) (10 * s);
+        body.addView(card, lp);
+        return card;
+    }
+
+    private LinearLayout rowBase(LinearLayout card, String title, String sub) {
+        if (card.getChildCount() > 0) {
+            View d = new View(this);
+            d.setBackgroundColor(BTN);
+            card.addView(d, new LinearLayout.LayoutParams(-1, Math.max(1, (int) s)));
+        }
+        LinearLayout r = new LinearLayout(this);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(0, (int) (12 * s), 0, (int) (12 * s));
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        // separación con el control de la derecha: con letra XL el texto quedaba pegado a los botones (2.19)
+        col.setPadding(0, 0, (int) (16 * s), 0);
+        TextView t = tv(title, 15, TEXT, true);
+        t.setSingleLine(false);
+        col.addView(t);
+        if (sub != null && sub.length() > 0) {
+            TextView st = tv(sub, 12, MUTED, false);
+            st.setSingleLine(false);
+            st.setPadding(0, (int) (3 * s), 0, 0);
+            col.addView(st);
+        }
+        r.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
+        card.addView(r, new LinearLayout.LayoutParams(-1, -2));
+        return r;
+    }
+
+    private void row(LinearLayout card, String title, String sub, String value, final Runnable onClick) {
+        LinearLayout r = rowBase(card, title, sub);
+        if (value != null) {
+            TextView v = tv(value, 14, MUTED, false);
+            v.setGravity(Gravity.RIGHT);
+            v.setPadding((int) (12 * s), 0, (int) (4 * s), 0);
+            r.addView(v, new LinearLayout.LayoutParams((int) (220 * s), -2));
+        }
+        if (onClick != null) {
+            ImageView ch = icon("chevron_right", 20);
+            ch.setAlpha(0.6f);
+            r.addView(ch, new LinearLayout.LayoutParams((int) (20 * s), (int) (20 * s)));
+            r.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { onClick.run(); } });
+        }
+    }
+
+    /** Fila que muestra la opción elegida y abre una lista para cambiarla (cuando las opciones no caben en botones). */
+    private void choice(LinearLayout card, final String title, String sub, final String[] opts, final int sel, final IntCb cb) {
+        row(card, title, sub, I18n.t(opts[Math.max(0, Math.min(opts.length - 1, sel))]), new Runnable() { public void run() {
+            String[] tr = new String[opts.length];
+            for (int i = 0; i < opts.length; i++) tr[i] = I18n.t(opts[i]);
+            new TB(Main.this, dlg()).raw()
+                .setTitle(I18n.t(title))
+                .setSingleChoiceItems(tr, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    d.dismiss();
+                    cb.on(w);
+                }})
+                .show();
+        }});
+    }
+
+    private void segmented(LinearLayout card, String title, String sub, String[] opts, int sel, final IntCb cb) {
+        LinearLayout r = rowBase(card, title, sub);
+        LinearLayout g = new LinearLayout(this);
+        g.setBackground(round(BTN, 18));
+        int p = (int) (3 * s);
+        g.setPadding(p, p, p, p);
+        for (int i = 0; i < opts.length; i++) {
+            final int idx = i;
+            TextView o = tv(opts[i], 13, i == sel ? Color.WHITE : SOFT, i == sel);
+            o.setGravity(Gravity.CENTER);
+            // en Android 11+ la «o» final salía cortada («Clarc»): un espacio al final le da aire a la última letra
+            o.setText(o.getText() + " ");
+            o.setEllipsize(null);
+            o.setPadding((int) (15 * s), (int) (7 * s), (int) (12 * s), (int) (7 * s));
+            if (i == sel) o.setBackground(round(RED, 15));
+            o.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { cb.on(idx); } });
+            g.addView(o);
+        }
+        r.addView(g);
+    }
+
+    private void toggle(LinearLayout card, String title, String sub, final boolean on, final IntCb cb) {
+        LinearLayout r = rowBase(card, title, sub);
+        FrameLayout sw = new FrameLayout(this);
+        sw.setBackground(round(on ? RED : BTN, 14));
+        View knob = new View(this);
+        GradientDrawable k = new GradientDrawable();
+        k.setShape(GradientDrawable.OVAL);
+        k.setColor(Color.WHITE);
+        knob.setBackground(k);
+        FrameLayout.LayoutParams klp = new FrameLayout.LayoutParams((int) (22 * s), (int) (22 * s));
+        klp.gravity = (on ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL;
+        klp.leftMargin = klp.rightMargin = (int) (3 * s);
+        sw.addView(knob, klp);
+        r.addView(sw, new LinearLayout.LayoutParams((int) (50 * s), (int) (28 * s)));
+        r.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { cb.on(on ? 0 : 1); } });
+    }
+
+    private String appLabel(String key, String def) {
+        String c = prefs.getString(key, null);
+        return c == null ? def : labelOf(c);
+    }
+
+    private Runnable edit(final String key, final String title, final String def) {
+        return new Runnable() { public void run() { editText(key, title, def); } };
+    }
+
+    // ── categorías ──
+
+    private void catVehicle(LinearLayout body) {
+        LinearLayout c = section(body, "Datos");
+        row(c, "Tu nombre", "Aparece en el saludo de la pantalla de inicio", prefs.getString("user_name", ""), edit("user_name", "Tu nombre", ""));
+        row(c, "Nombre del vehículo", null, prefs.getString("car_name", "Mi vehículo"), edit("car_name", "Nombre del vehículo", "Mi vehículo"));
+        row(c, "Etiqueta", "Versión o placa. Déjala vacía para ocultarla", prefs.getString("car_tag", ""), edit("car_tag", "Etiqueta (vacío para ocultarla)", ""));
+        LinearLayout f = section(body, "Foto");
+        row(f, "Foto del vehículo", "Se usa tal cual; si quieres, le puedes quitar el fondo", CarPhoto.load(this) != null ? "Configurada" : "Sin foto",
+            new Runnable() { public void run() { photoMenu(); } });
+        LinearLayout un = section(body, "Unidades");
+        String su = prefs.getString("speed_unit", "auto");
+        segmented(un, "Velocidad", "Automático: mph en EE. UU. y Reino Unido", new String[]{"Auto", "km/h", "mph"}, "kmh".equals(su) ? 1 : "mph".equals(su) ? 2 : 0,
+            new IntCb() { public void on(int i) {
+                prefs.edit().putString("speed_unit", i == 1 ? "kmh" : i == 2 ? "mph" : "auto").apply(); rebuild(); showSettings(settingsCat);
+            }});
+        final String unitLbl = useMph() ? " mph" : " km/h";
+        String[] offLbl = new String[SPEED_OFFSETS.length];
+        for (int i = 0; i < offLbl.length; i++)
+            offLbl[i] = i == 0 ? I18n.t("Ninguna") : SPEED_OFFSETS[i].endsWith("%") ? SPEED_OFFSETS[i].replace("%", " %") : SPEED_OFFSETS[i] + unitLbl;
+        choice(un, "Corrección del velocímetro", "Suma o resta a la velocidad del GPS para que coincida con el tablero de tu carro",
+            offLbl, Math.max(0, java.util.Arrays.asList(SPEED_OFFSETS).indexOf(prefs.getString("speed_offset", "0"))), new IntCb() { public void on(int i) {
+                prefs.edit().putString("speed_offset", SPEED_OFFSETS[i]).apply(); rebuild(); showSettings(settingsCat);
+            }});
+        LinearLayout mt = section(body, "Mantenimientos");
+        row(mt, "Aceite, filtros, SOAT y más", "Ahora están en su propia sección", null, new Runnable() { public void run() { showSettings(C_MAINT); } });
+    }
+
+    /** Mantenimientos (2.20): el kilometraje, el aceite de siempre (sin perder lo configurado) y los demás. */
+    private void catMaint(LinearLayout body) {
+        LinearLayout k = section(body, "Kilometraje");
+        if (prefs.contains("odo_base_km"))
+            rowIc(k, "speed", "Kilometraje actual", "Estimado con el GPS. Corrígelo con el del tablero cuando quieras", "≈ " + fmtDist(odoKm()),
+                new Runnable() { public void run() { askOdo(null); } });
+        else
+            rowIc(k, "speed", "Kilometraje del tablero", "Escríbelo una vez y StradaOS le suma lo que recorras con el GPS", I18n.t("Configurar"),
+                new Runnable() { public void run() { askOilUnit(new Runnable() { public void run() { askOdo(null); } }); } });
+        LinearLayout o = section(body, "Cambio de aceite");
+        toggle(o, "Recordatorio de cambio de aceite", "Avisa cuando toca el cambio", oilOn(), new IntCb() { public void on(int i) {
+            if (i == 1 && !prefs.contains("odo_base_km")) { oilSetup(); return; }
+            prefs.edit().putBoolean("oil_on", i == 1).apply(); updateOilBadge(); showSettings(settingsCat);
+        }});
+        if (oilOn()) {
+            row(o, "Cada cuánto", null, fmtDist(prefs.getFloat("oil_interval_km", 5000)), new Runnable() { public void run() { askInterval(null); } });
+            row(o, "Último cambio", "Kilometraje del tablero cuando se hizo", fmtDist(prefs.getFloat("oil_last_km", 0)), new Runnable() { public void run() { askLast(null); } });
+            row(o, "Próximo cambio", null, fmtDist(oilNextKm()), new Runnable() { public void run() { oilMenu(); } });
+            row(o, "Ya hice el cambio de aceite", null, null, new Runnable() { public void run() { oilDone(); } });
+        }
+        addIcon(o, 0, "oil_barrel");
+        maintSection(body);
+        LinearLayout h = section(body, "En el inicio");
+        if (carSpeed)
+            toggle(h, "Mantenimiento en el inicio", "Junto a la velocidad se ve el más próximo (el aceite u otro). Los avisos siguen saliendo aunque lo ocultes",
+                prefs.getBoolean("oil_home", true), new IntCb() { public void on(int i) {
+                    prefs.edit().putBoolean("oil_home", i == 1).apply(); rebuild();
+                }});
+        else
+            row(h, "Mantenimiento en el inicio", "Se muestra junto a la velocidad: activa «Velocidad y servicio» en Pantalla de inicio", null,
+                new Runnable() { public void run() { showSettings(C_HOME); } });
+    }
+
+    /** Ícono al comienzo de la fila «n» de una tarjeta de Ajustes (las filas van separadas por líneas). */
+    private void addIcon(LinearLayout card, int rowIndex, String ic) {
+        try {
+            int seen = -1;
+            for (int i = 0; i < card.getChildCount(); i++) {
+                View v = card.getChildAt(i);
+                if (!(v instanceof LinearLayout)) continue;
+                if (++seen != rowIndex) continue;
+                ImageView iv = icon(ic, 22);
+                iv.setColorFilter(RED);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (22 * s), (int) (22 * s));
+                lp.rightMargin = (int) (14 * s);
+                ((LinearLayout) v).addView(iv, 0, lp);
+                return;
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private void rowIc(LinearLayout card, String ic, String title, String sub, String value, Runnable onClick) {
+        int before = 0;
+        for (int i = 0; i < card.getChildCount(); i++) if (card.getChildAt(i) instanceof LinearLayout) before++;
+        row(card, title, sub, value, onClick);
+        addIcon(card, before, ic);
+    }
+
+    private void catLook(LinearLayout body) {
+        LinearLayout c = section(body, "Tema");
+        String t = prefs.getString("theme", "dark");
+        final String[] themes = {"dark", "light", "auto", "system"};
+        segmented(c, "Modo", "Auto: por horario. Sistema: sigue el modo oscuro de la pantalla (algunas lo cambian al encender las luces)",
+            new String[]{"Oscuro", "Claro", "Auto", "Sistema"},
+            Math.max(0, java.util.Arrays.asList(themes).indexOf(t)), new IntCb() { public void on(int i) {
+                prefs.edit().putString("theme", themes[i]).apply();
+                applyTheme(); applyAccent(); rebuild(); showSettings(settingsCat);
+            }});
+        if ("auto".equals(t)) {
+            row(c, "Oscuro desde", null, fmtMinutes(prefs.getInt("dark_start", 18 * 60)), new Runnable() { public void run() {
+                askDarkTime("dark_start", 18 * 60, "Oscuro desde");
+            }});
+            row(c, "Claro desde", null, fmtMinutes(prefs.getInt("dark_end", 6 * 60)), new Runnable() { public void run() {
+                askDarkTime("dark_end", 6 * 60, "Claro desde");
+            }});
+        }
+        LinearLayout a = section(body, "Color de acento");
+        LinearLayout r = rowBase(a, "Color", "Botones, anillo del reproductor, ruta y etiquetas");
+        LinearLayout dots = new LinearLayout(this);
+        int cur = prefs.getInt("accent", 0xFFFE3211);
+        for (int i = 0; i < ACCENT_COLORS.length; i++) {
+            final int col = ACCENT_COLORS[i];
+            View d = new View(this);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(col);
+            if (col == cur) g.setStroke((int) (3 * s), TEXT);
+            d.setBackground(g);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (28 * s), (int) (28 * s));
+            lp.leftMargin = (int) (8 * s);
+            dots.addView(d, lp);
+            d.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                prefs.edit().putInt("accent", col).apply(); applyAccent(); rebuild();
+            }});
+        }
+        r.addView(dots);
+        LinearLayout tx = section(body, "Texto");
+        segmented(tx, "Tamaño de la letra", "Para leer mejor de lejos o que quepa más", new String[]{"S", "M", "L", "XL"}, prefs.getInt("font_size", 1), new IntCb() { public void on(int i) {
+            prefs.edit().putInt("font_size", i).apply(); rebuild(); showSettings(settingsCat);
+        }});
+        LinearLayout ic = section(body, "Íconos");
+        boolean appStyle = "apps".equals(prefs.getString("dock_style", "circle"));
+        segmented(ic, "Íconos de la barra", "Apps: el ícono de la app que abre cada botón (radio, cámara…)", new String[]{"StradaOS", "Apps"}, appStyle ? 1 : 0, new IntCb() { public void on(int i) {
+            prefs.edit().putString("dock_style", i == 1 ? "apps" : "circle").apply(); rebuild(); showSettings(settingsCat);
+        }});
+        final List<String[]> packs = IconPack.installed(this);
+        String curPack = prefs.getString("icon_pack", "");
+        String curLabel = I18n.t("Ninguno");
+        for (String[] pk : packs) if (pk[0].equals(curPack)) curLabel = pk[1];
+        row(ic, "Pack de íconos", packs.isEmpty() ? "Instala uno (los de Nova o ADW sirven) y elígelo aquí" : "Cambia los íconos de la barra y del cajón de apps",
+            curLabel, new Runnable() { public void run() {
+                if (packs.isEmpty()) { toast("No hay packs de íconos instalados"); return; }
+                String[] names = new String[packs.size() + 1];
+                names[0] = I18n.t("Ninguno (íconos de siempre)");
+                int sel = 0;
+                String cp = prefs.getString("icon_pack", "");
+                for (int i = 0; i < packs.size(); i++) { names[i + 1] = packs.get(i)[1]; if (packs.get(i)[0].equals(cp)) sel = i + 1; }
+                new TB(Main.this, dlg()).raw()
+                    .setTitle(I18n.t("Pack de íconos"))
+                    .setSingleChoiceItems(names, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                        d.dismiss();
+                        if (w == 0) prefs.edit().remove("icon_pack").apply();
+                        else {
+                            String pk = packs.get(w - 1)[0];
+                            IconPack ip = IconPack.get(Main.this, pk);
+                            if (ip == null) { toast("Ese pack no trae la lista de íconos (appfilter)"); return; }
+                            prefs.edit().putString("icon_pack", pk).apply();
+                            if (!"apps".equals(prefs.getString("dock_style", "circle"))) prefs.edit().putString("dock_style", "apps").apply();
+                            toast(I18n.t("Pack listo: {} íconos").replace("{}", String.valueOf(ip.size())));
+                        }
+                        rebuild(); showSettings(settingsCat);
+                    }})
+                    .show();
+            }});
+    }
+
+    /** Pantalla de inicio: qué tarjetas se ven, el mapa y la barra de arriba. */
+    private void catHome(LinearLayout body) {
+        LinearLayout lay = section(body, "Tarjetas");
+        segmented(lay, "Reproductor de música", "Ponlo del lado del conductor para tenerlo a la mano", new String[]{"Derecha", "Izquierda"},
+            playerLeft ? 1 : 0, new IntCb() { public void on(int i) {
+                prefs.edit().putString("player_side", i == 1 ? "left" : "right").apply(); rebuild();
+            }});
+        toggle(lay, "Tarjeta del reproductor", "Si la ocultas, el mapa gana espacio", showPlayer, new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("show_player", i == 1).apply(); rebuild();
+        }});
+        toggle(lay, "Tarjeta del vehículo", "Si la ocultas, la velocidad pasa arriba y el mapa y el reproductor ganan espacio", showCar, new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("show_car", i == 1).apply(); rebuild();
+        }});
+        toggle(lay, "Velocidad y servicio", "En la tarjeta del vehículo (o arriba si la ocultas). Apágalo si tu carro o pantalla no tiene GPS: la foto ocupa ese espacio",
+            carSpeed, new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("car_speed", i == 1).apply(); rebuild();
+            }});
+        if (carSpeed && showCar) {
+            segmented(lay, "Velocímetro", "En la tarjeta del vehículo. Toma el color de acento", new String[]{"Digital", "Analógico", "Mixto"},
+                prefs.getInt("speedo", 0), new IntCb() { public void on(int i) {
+                    prefs.edit().putInt("speedo", i).apply(); rebuild();
+                }});
+        }
+        LinearLayout mp = section(body, "Mapa");
+        final String[] connKeys = {"both", "aa", "cp", "none"};
+        choice(mp, "Botones de conexión", "Con uno o ninguno, el clima ocupa el espacio libre del mapa",
+            new String[]{"Android Auto y CarPlay", "Solo Android Auto", "Solo CarPlay", "Ninguno"},
+            Math.max(0, java.util.Arrays.asList(connKeys).indexOf(prefs.getString("conn_buttons", "both"))), new IntCb() { public void on(int i) {
+                prefs.edit().putString("conn_buttons", connKeys[i]).apply(); rebuild();
+            }});
+        final int nbSize = prefs.getInt("nav_btn_size", 0);
+        choice(mp, "Botón del navegador", "El botón redondo del mapa que abre tu app de navegación",
+            new String[]{"Normal", "Grande", "Muy grande", "Oculto"}, nbSize, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("nav_btn_size", i).apply(); rebuild();
+            }});
+        if (nbSize != 3) {
+            final String[] sideKeys = {"auto", "left", "right"};
+            segmented(mp, "Lado del botón del navegador", "Automático: del lado del reproductor (el del conductor)",
+                new String[]{"Automático", "Izquierda", "Derecha"},
+                Math.max(0, java.util.Arrays.asList(sideKeys).indexOf(prefs.getString("nav_btn_side", "auto"))), new IntCb() { public void on(int i) {
+                    prefs.edit().putString("nav_btn_side", sideKeys[i]).apply(); rebuild();
+                }});
+        }
+        if (carSpeed && !showCar) {
+            final boolean mg = prefs.getBoolean("map_gauge", false);
+            toggle(mp, "Velocímetro sobre el mapa", "Redondo, en una esquina del mapa (en vez de la velocidad de arriba)", mg, new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("map_gauge", i == 1).apply(); rebuild();
+            }});
+            if (mg) {
+                final String[] corners = {"auto", "tl", "tr", "bl", "br"};
+                choice(mp, "Esquina del velocímetro", "Automático: arriba, en el lado contrario al botón del navegador",
+                    new String[]{"Automático", "Arriba a la izquierda", "Arriba a la derecha", "Abajo a la izquierda", "Abajo a la derecha"},
+                    Math.max(0, java.util.Arrays.asList(corners).indexOf(prefs.getString("map_gauge_corner", "auto"))), new IntCb() { public void on(int i) {
+                        prefs.edit().putString("map_gauge_corner", corners[i]).apply(); rebuild();
+                    }});
+                segmented(mp, "Tamaño del velocímetro", "En pantallas bajas se limita para no tapar el mapa", new String[]{"Pequeño", "Normal", "Grande"},
+                    prefs.getInt("map_gauge_size", 1), new IntCb() { public void on(int i) {
+                        prefs.edit().putInt("map_gauge_size", i).apply(); rebuild();
+                    }});
+            }
+        }
+        LinearLayout top = section(body, "Barra de arriba");
+        toggle(top, "Íconos de Wi-Fi y Bluetooth", "Arriba, junto al clima. Toca para encender o apagar; déjalo presionado para abrir sus ajustes",
+            prefs.getBoolean("status_icons", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("status_icons", i == 1).apply(); rebuild();
+            }});
+        String ck = prefs.getString("clock", "auto");
+        segmented(top, "Formato de hora", null, new String[]{"Auto", "12 h", "24 h"}, "12".equals(ck) ? 1 : "24".equals(ck) ? 2 : 0,
+            new IntCb() { public void on(int i) {
+                prefs.edit().putString("clock", i == 1 ? "12" : i == 2 ? "24" : "auto").apply(); updateClock(); showSettings(settingsCat);
+            }});
+        if (SDK >= 19) {
+            LinearLayout scr = section(body, "Pantalla completa");
+            toggle(scr, "Ocultar la barra del sistema", "Esconde también la barra de navegación de tu pantalla (abajo o al costado). Desliza desde el borde para verla un momento",
+                prefs.getBoolean("hide_navbar", false), new IntCb() { public void on(int i) {
+                    prefs.edit().putBoolean("hide_navbar", i == 1).apply();
+                    noImmersive = false; stormCount = 0;
+                    immersive(); rebuild(); showSettings(settingsCat);
+                }});
+        }
+    }
+
+    private void catConnection(LinearLayout body) {
+        LinearLayout c = section(body, "Celular");
+        String chosen = prefs.getString("conn_app", null);
+        row(c, "Cómo conectar el celular", "La app que se abre al conectar por USB", chosen != null ? labelOf(chosen) : "Preguntar",
+            new Runnable() { public void run() { chooseConnection(null); } });
+        row(c, "App de Android Auto", "Botón naranja de la tarjeta central", appLabel("aa", "Automática"),
+            new Runnable() { public void run() { pickFor("aa", "Android Auto"); } });
+        row(c, "App de CarPlay", "Requiere pantalla con CarPlay o un adaptador", appLabel("carplay", carPlayApp() != null ? labelOf(carPlayApp()) : "Ninguna"),
+            new Runnable() { public void run() { pickFor("carplay", "CarPlay"); } });
+        LinearLayout hl = section(body, "Ayuda");
+        row(hl, "El celular dice «Ninguna aplic. funciona…»", "Cómo evitar que EasyConnection tome el USB", null,
+            new Runnable() { public void run() { usbHelp(); } });
+    }
+
+    /** Barra de apps: cómo se ve la barra, qué abre cada botón y el cajón. */
+    private void catDock(LinearLayout body) {
+        LinearLayout lay = section(body, "Diseño de la barra");
+        segmented(lay, "Barra de botones", "Lateral: los botones van al costado y todo se ve más grande en pantallas bajas como 1280×480. Oculta: el botón Apps va arriba", new String[]{"Normal", "Compacta", "Lateral", "Oculta"},
+            noDock ? 3 : sideDock ? 2 : compactDock ? 1 : 0, new IntCb() { public void on(int i) {
+                prefs.edit().putString("dock_mode", i == 3 ? "none" : i == 2 ? "side" : i == 1 ? "compact" : "normal").apply(); rebuild();
+            }});
+        if (!noDock) {
+            if (sideDock) {
+                String rs = prefs.getString("rail_side", "auto");
+                segmented(lay, "Lado de la barra lateral", "Automático: del lado del reproductor", new String[]{"Automático", "Izquierda", "Derecha"},
+                    "left".equals(rs) ? 1 : "right".equals(rs) ? 2 : 0, new IntCb() { public void on(int i) {
+                        prefs.edit().putString("rail_side", i == 1 ? "left" : i == 2 ? "right" : "auto").apply(); rebuild();
+                    }});
+            }
+            toggle(lay, "Nombres de los botones", "Debajo de cada ícono de la barra", dockLabels, new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("dock_labels", i == 1).apply(); rebuild();
+            }});
+            final String[] counts = {"4", "5", "6", "7", "8", "9", "10"};
+            choice(lay, "Cantidad de botones", "«Apps» siempre queda al final", counts, dockCount - 4, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("dock_count", i + 4).apply(); rebuild(); showSettings(settingsCat);
+            }});
+            segmented(lay, "Tamaño de los íconos", null, new String[]{"Pequeño", "Normal", "Grande"}, prefs.getInt("dock_icon_size", 1), new IntCb() { public void on(int i) {
+                prefs.edit().putInt("dock_icon_size", i).apply(); rebuild(); showSettings(settingsCat);
+            }});
+            LinearLayout c = section(body, "Botones (déjalos presionados en el inicio para cambiarlos)");
+        for (int i = 0; i < dockCount; i++) {
+            final int idx = i;
+            String t = dockTarget(i);
+            String what = t.startsWith("app:") ? "App: " + labelOf(t.substring(4)) : "Función: " + ("web".equals(t.substring(3)) ? "Navegador web" : dockFn(t.substring(3))[1]);
+            row(c, "Botón " + (i + 1) + " · " + dockName(i), what, null, new Runnable() { public void run() {
+                dockMenu(idx, new Runnable() { public void run() { if (settingsView != null) showSettings(settingsCat); } });
+            }});
+        }
+        row(c, "Revisar todos los botones", "Lista rápida de qué abre cada uno, como en el asistente", null, new Runnable() { public void run() {
+            reviewShortcuts(new Runnable() { public void run() { if (settingsView != null) showSettings(settingsCat); } });
+        }});
+        }
+        LinearLayout fa = section(body, "Apps de cada función");
+        String[][] items = {{"radio", "Radio"}, {"bt", "Bluetooth"}, {"cam", "Cámara"}, {"web", "Navegador web"}, {"files", "Archivos"}};
+        for (final String[] it : items) {
+            row(fa, it[1], null, "web".equals(it[0]) ? appLabel(it[0], "Automático") : shortcutLabel(it[0]), new Runnable() { public void run() { pickFor(it[0], it[1]); } });
+        }
+        row(fa, "Música Bluetooth", "La app que hace sonar el Bluetooth (se usa para pasar el sonido)", shortcutLabel("btaudio"), new Runnable() { public void run() { pickFor("btaudio", "Música Bluetooth"); } });
+        LinearLayout dw = section(body, "Cajón de apps");
+        int nh = hiddenApps().size();
+        row(dw, "Apps ocultas", "No se ven en el cajón, pero siguen instaladas y se pueden poner en los botones", nh == 0 ? I18n.t("Ninguna") : String.valueOf(nh),
+            new Runnable() { public void run() { manageHidden(new Runnable() { public void run() { if (settingsView != null) showSettings(settingsCat); } }); } });
+        LinearLayout r = section(body, "Restablecer");
+        row(r, "Restablecer accesos", "La barra vuelve a lo de siempre y se buscan las apps de fábrica", null, new Runnable() { public void run() {
+            SharedPreferences.Editor e = prefs.edit();
+            for (String k : new String[]{"radio", "bt", "cam", "files", "settings", "aa", "web", "carplay", "music_app", "nav_app"}) e.remove(k);
+            for (int i = 0; i < 10; i++) e.remove("dock_" + i).remove("dock_" + i + "_name");
+            e.apply();
+            toast("Accesos restablecidos");
+            refreshStates();
+            rebuild();
+            showSettings(settingsCat);
+        }});
+    }
+
+    private void catMapWeather(LinearLayout body) {
+        LinearLayout w = section(body, "Clima");
+        toggle(w, "Mostrar el clima", "Arriba, junto al saludo (necesita internet)", prefs.getBoolean("weather_on", true), new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("weather_on", i == 1).apply(); refreshWeatherNow(); showSettings(settingsCat);
+        }});
+        segmented(w, "Unidad", null, new String[]{"°C", "°F"}, "F".equals(prefs.getString("temp_unit", "C")) ? 1 : 0, new IntCb() { public void on(int i) {
+            prefs.edit().putString("temp_unit", i == 1 ? "F" : "C").apply(); refreshWeatherNow(); showSettings(settingsCat);
+        }});
+        String manual = prefs.getString("city_manual", "");
+        row(w, "Ciudad", "Vacío = automática por GPS", manual.length() > 0 ? manual : (weatherNow != null && weatherNow.city != null ? weatherNow.city + " (GPS)" : "Automática"),
+            edit("city_manual", "Ciudad (vacío = automática por GPS)", ""));
+        LinearLayout mo = section(body, "Mapa");
+        LinearLayout ml = mo, nv = mo;
+        segmented(mo, "El mapa apunta", "Según tu dirección: gira con el carro mientras te mueves", new String[]{"Norte arriba", "Según tu dirección"},
+            prefs.getBoolean("map_heading", false) ? 1 : 0, new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("map_heading", i == 1).apply(); LiveMapView.headingUp = i == 1;
+                if (liveMap != null) liveMap.invalidate(); showSettings(settingsCat);
+            }});
+        toggle(ml, "Mapa en vivo", "Apágalo si la pantalla va lenta: queda un mapa de adorno y el velocímetro sigue funcionando", prefs.getBoolean("map_live", true), new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("map_live", i == 1).apply(); rebuild(); showSettings(settingsCat);
+        }});
+        row(nv, "App de navegación preferida", "Se abre con el botón del mapa (Waze, Maps, OsmAnd…)", autoLabel("nav_app", NAV_PKGS, "Toca para elegir"),
+            new Runnable() { public void run() { pickFor("nav_app", "Navegación"); } });
+        LinearLayout m = mo;
+        segmented(m, "Brillo del mapa", "Solo en modo oscuro", new String[]{"Bajo", "Medio", "Alto"}, prefs.getInt("map_bright", 1), new IntCb() { public void on(int i) {
+            prefs.edit().putInt("map_bright", i).apply(); rebuild();
+        }});
+        LinearLayout off = section(body, "Mapa sin conexión");
+        LiveMapView.loadFile(this);
+        String mf = prefs.getString("map_file", "");
+        row(off, "Archivo del mapa", "Un archivo .map (p. ej. colombia.map) en la memoria de la pantalla o en una USB: el mapa se ve sin internet",
+            mf.length() == 0 ? "Ninguno" : LiveMapView.fileMap != null ? new File(mf).getName() : "Error",
+            new Runnable() { public void run() { pickMapFile(); } });
+        if (mf.length() > 0) {
+            row(off, LiveMapView.fileMap != null ? LiveMapView.fileMap.describe() : I18n.t("No se pudo abrir: " + LiveMapView.fileErr),
+                "Toca para dejar de usarlo o borrarlo", null, new Runnable() { public void run() { mapFileOptions(); } });
+        }
+        row(off, "Descargar un mapa", "Elige tu país: se descarga gratis de OpenStreetMap (mapsforge) y se usa sin internet", null,
+            new Runnable() { public void run() {
+                if (MapDownload.running || MapDownload.paused(Main.this)) downloadOptions(); else chooseMapToDownload("");
+            }});
+        dlStatusTv = tv("", 13, RED, true);
+        dlStatusTv.setPadding((int) (18 * s), (int) (4 * s), (int) (18 * s), (int) (12 * s));
+        off.addView(dlStatusTv);
+        refreshDownloadStatus();
+        row(off, "¿Dónde consigo el mapa?", "Mapas gratis de OpenStreetMap por país", null, new Runnable() { public void run() { mapHowTo(); } });
+        m = section(body, "Avanzado");
+        row(m, "Diagnóstico del mapa", "Fuentes probadas y errores", null, new Runnable() { public void run() {
+            new TB(Main.this, dlg()).setTitle("Diagnóstico del mapa")
+                .setMessage(mapDiag()).setPositiveButton("OK", null).show();
+        }});
+        row(m, "Fuente del mapa (avanzado)", "URL propia con {z}/{x}/{y}", prefs.getString("map_url", "").length() > 0 ? "Personalizada" : "Automática",
+            edit("map_url", "URL de teselas {z}/{x}/{y} (vacío = automático)", ""));
+    }
+
+    private TextView dlStatusTv;
+    private final Runnable dlTicker = new Runnable() { public void run() { refreshDownloadStatus(); } };
+
+    /** Muestra el avance de la descarga debajo de «Descargar un mapa» (se actualiza cada segundo). */
+    private void refreshDownloadStatus() {
+        h.removeCallbacks(dlTicker);
+        if (dlStatusTv == null || settingsView == null || dlStatusTv.getParent() == null) return;
+        String st = MapDownload.status(this);
+        dlStatusTv.setText(st == null ? "" : st);
+        dlStatusTv.setVisibility(st == null ? View.GONE : View.VISIBLE);
+        if (MapDownload.running) h.postDelayed(dlTicker, 1000);
+    }
+
+    /** Lista de continentes / países del servidor de mapas. */
+    private boolean askedWrite;
+
+    private void chooseMapToDownload(final String folder) {
+        // Android 6–9: permiso para guardar en Download/StradaOS (se pide una sola vez). Android 10+ no lo tiene para
+        // StradaOS: el mapa va a la carpeta propia de la app, sin pedir nada.
+        if (folder.length() == 0 && SDK >= 23 && SDK <= 28 && !askedWrite
+                && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            askedWrite = true;
+            requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE_W);
+            return;
+        }
+        toast("Cargando la lista de mapas…");
+        new Thread(new Runnable() { public void run() {
+            Net.init(Main.this);
+            java.util.List<MapDownload.Entry> list = null;
+            String err = null;
+            try { list = MapDownload.list(folder); } catch (Throwable e) { err = e instanceof java.net.UnknownHostException ? I18n.t("sin internet") : String.valueOf(e.getMessage()); }
+            final java.util.List<MapDownload.Entry> fl = list;
+            final String fe = err;
+            h.post(new Runnable() { public void run() {
+                if (isFinishing()) return;
+                if (fl == null) {
+                    new TB(Main.this, dlg()).setTitle("No se pudo cargar la lista de mapas")
+                        .setMessage(fe + "\n\n" + I18n.t("Revisa la conexión a internet e inténtalo de nuevo."))
+                        .setPositiveButton("OK", null).show();
+                    return;
+                }
+                showMapList(folder, fl);
+            }});
+        }}).start();
+    }
+
+    private void showMapList(final String folder, final java.util.List<MapDownload.Entry> list) {
+        String[] items = new String[list.size()];
+        java.text.DateFormat df = I18n.latin(java.text.DateFormat.getDateInstance(java.text.DateFormat.SHORT, I18n.loc));
+        for (int i = 0; i < items.length; i++) {
+            MapDownload.Entry e = list.get(i);
+            if (e.dir) items[i] = e.name + (folder.length() > 0 ? "  ·  " + I18n.t("por regiones") : "") + "  ›";
+            else {
+                String date = e.date;
+                try { date = df.format(new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(e.date)); } catch (Throwable ignored) { }
+                items[i] = e.name + "  ·  " + MapDownload.mb(e.size) + "  ·  " + date;
+            }
+        }
+        android.app.AlertDialog.Builder b = new TB(this, dlg()).setTitle(folder.length() == 0 ? "Elige el continente" : "Elige el mapa")
+            .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                MapDownload.Entry e = list.get(w);
+                if (e.dir) chooseMapToDownload(e.path); else confirmDownload(e);
+            }});
+        b.setNegativeButton("Cancelar", null);
+        b.show();
+    }
+
+    private void confirmDownload(final MapDownload.Entry e) {
+        File dir = MapDownload.folder(this);
+        long free = MapDownload.free(dir.getParentFile() != null && !dir.exists() ? dir.getParentFile() : dir);
+        String where = dir.getAbsolutePath().replace(android.os.Environment.getExternalStorageDirectory().getAbsolutePath(), I18n.t("memoria"));
+        String msg = I18n.t("Tamaño") + ": " + MapDownload.mb(e.size) + "\n" + I18n.t("Se guarda en") + ": " + where
+            + (free >= 0 ? "\n" + I18n.t("Espacio libre") + ": " + MapDownload.mb(free) : "")
+            + "\n\n" + I18n.t("Usa datos: mejor con WiFi o un plan amplio. Puedes seguir usando la pantalla; si se corta la señal o la apagas, la descarga continúa después.");
+        boolean noRoom = free >= 0 && free < e.size + 20L * 1024 * 1024;
+        android.app.AlertDialog.Builder b = new TB(this, dlg()).setTitle(I18n.t("Descargar") + " " + e.name).setMessage(noRoom ? msg + "\n\n⚠ " + I18n.t("No hay espacio suficiente en la memoria.") : msg)
+            .setNegativeButton("Cancelar", null);
+        if (!noRoom) b.setPositiveButton("Descargar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+            prefs.edit().putBoolean("map_dl_user_paused", false).apply();
+            MapDownload.start(Main.this, e.path, e.name);
+            toast("Descargando el mapa… puedes seguir usando la pantalla");
+            refreshDownloadStatus();
+        }});
+        b.show();
+    }
+
+    /** Descarga en curso o en pausa: pausar, continuar o cancelar. */
+    private void downloadOptions() {
+        final boolean run = MapDownload.running;
+        android.app.AlertDialog.Builder b = new TB(this, dlg()).setTitle(run ? "Descarga en curso" : "Descarga en pausa").setMessage(MapDownload.status(this));
+        if (run) b.setPositiveButton("Pausar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+            prefs.edit().putBoolean("map_dl_user_paused", true).apply();
+            MapDownload.stop(false);
+        }});
+        else b.setPositiveButton("Continuar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+            prefs.edit().putBoolean("map_dl_user_paused", false).apply();
+            MapDownload.resume(Main.this);
+            refreshDownloadStatus();
+        }});
+        b.setNeutralButton("Cancelar descarga", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+            if (MapDownload.running) MapDownload.stop(true);
+            else {
+                String dest = prefs.getString("map_dl_dest", "");
+                if (dest.length() > 0) new File(dest + ".part").delete();
+                prefs.edit().remove("map_dl_path").remove("map_dl_name").remove("map_dl_dest").remove("map_dl_etag").remove("map_dl_total").apply();
+                MapDownload.error = null;
+            }
+            toast("Descarga cancelada");
+            if (settingsView != null) { rebuild(); showSettings(settingsCat); }
+        }});
+        b.setNegativeButton("Cerrar", null);
+        b.show();
+    }
+
+    /** Mapa en uso: dejar de usarlo o, si lo descargó StradaOS, borrarlo. */
+    private void mapFileOptions() {
+        final File f = new File(prefs.getString("map_file", ""));
+        File dir = MapDownload.folder(this);
+        boolean ours = f.getParentFile() != null && f.getParentFile().equals(dir);
+        android.app.AlertDialog.Builder b = new TB(this, dlg()).setTitle(f.getName())
+            .setMessage(ours ? "Este mapa lo descargó StradaOS. Puedes dejar de usarlo o borrarlo para liberar espacio." : "Puedes dejar de usar este mapa (el archivo no se borra).")
+            .setPositiveButton("Dejar de usarlo", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                prefs.edit().remove("map_file").apply();
+                LiveMapView.loadFile(Main.this);
+                toast("Mapa sin conexión quitado");
+                rebuild(); showSettings(settingsCat);
+            }})
+            .setNegativeButton("Cancelar", null);
+        if (ours) b.setNeutralButton("Borrar el archivo", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+            prefs.edit().remove("map_file").apply();
+            LiveMapView.loadFile(Main.this);
+            f.delete();
+            toast("Mapa borrado");
+            rebuild(); showSettings(settingsCat);
+        }});
+        b.show();
+    }
+
+    /** Fin de una descarga (correcta o con error). */
+    private void onMapDownloadFinished() {
+        if (MapDownload.error != null) {
+            toast(I18n.t("Descarga en pausa") + ": " + MapDownload.error);
+        } else if (MapDownload.finishedOk && LiveMapView.fileMap != null) {
+            MapDownload.finishedOk = false;
+            toast("Mapa descargado y listo: " + LiveMapView.fileMap.file.getName());
+            rebuild();
+            if (settingsView != null) showSettings(settingsCat);
+            return;
+        }
+        refreshDownloadStatus();
+    }
+
+    /** Ayuda: de dónde bajar un mapa .map y dónde ponerlo. */
+    private void mapHowTo() {
+        new TB(this, dlg()).setTitle("Mapa sin conexión")
+            .setMessage("1. En un computador o celular, descarga el mapa de tu país (formato mapsforge, gratis):\ndownload.mapsforge.org/maps/v5\n\nColombia:\ndownload.mapsforge.org/maps/v5/south-america/colombia.map\n\n2. Cópialo a una memoria USB o a la carpeta Download de la pantalla.\n\n3. En Ajustes → Mapa y clima → Mapa sin conexión, toca «Archivo del mapa» y elígelo.\n\nEl mapa se usa en el inicio incluso con internet. Para actualizarlo, descarga uno nuevo y reemplaza el archivo.")
+            .setPositiveButton("OK", null).show();
+    }
+
+    private static final int REQ_STORAGE = 79, REQ_STORAGE_W = 80;
+
+    /** Busca archivos .map en la memoria y en las USB, y deja elegir uno. */
+    private void pickMapFile() {
+        if (SDK >= 23 && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
+            return;
+        }
+        toast("Buscando mapas…");
+        new Thread(new Runnable() { public void run() {
+            final java.util.List<File> found = findMapFiles();
+            h.post(new Runnable() { public void run() { showMapFiles(found); } });
+        }}).start();
+    }
+
+    private void showMapFiles(final java.util.List<File> found) {
+        if (isFinishing()) return;
+        if (found.isEmpty()) {
+            new TB(this, dlg()).setTitle("No se encontró ningún mapa")
+                .setMessage("No hay archivos .map en la memoria de la pantalla ni en las USB conectadas. Toca «Cómo conseguirlo» para ver de dónde bajarlo.")
+                .setPositiveButton("Cómo conseguirlo", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { mapHowTo(); } })
+                .setNegativeButton("Cerrar", null).show();
+            return;
+        }
+        String[] items = new String[found.size()];
+        for (int i = 0; i < items.length; i++) {
+            File f = found.get(i);
+            items[i] = f.getName() + "  ·  " + (f.length() / (1024 * 1024)) + " MB\n" + f.getParent();
+        }
+        new TB(this, dlg()).setTitle("Elige el mapa")
+            .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                File f = found.get(w);
+                prefs.edit().putString("map_file", f.getAbsolutePath()).apply();
+                LiveMapView.loadFile(Main.this);
+                if (LiveMapView.fileMap == null) {
+                    prefs.edit().remove("map_file").apply();
+                    new TB(Main.this, dlg()).setTitle("No se pudo usar este archivo")
+                        .setMessage(LiveMapView.fileErr + "\n\n" + I18n.t("Debe ser un mapa de mapsforge (.map) copiado completo."))
+                        .setPositiveButton("OK", null).show();
+                    return;
+                }
+                toast("Mapa sin conexión listo: " + f.getName());
+                rebuild();
+                if (settingsView != null) showSettings(settingsCat);
+            }})
+            .setNegativeButton("Cancelar", null).show();
+    }
+
+    /** Archivos .map de más de 1 MB en la memoria interna, tarjetas y USB (hasta 4 carpetas de profundidad). */
+    private java.util.List<File> findMapFiles() {
+        java.util.LinkedHashSet<String> roots = new java.util.LinkedHashSet<String>();
+        roots.add(android.os.Environment.getExternalStorageDirectory().getAbsolutePath());
+        String sec = System.getenv("SECONDARY_STORAGE");
+        if (sec != null) for (String r : sec.split(":")) if (r.length() > 0) roots.add(r);
+        roots.add("/storage");
+        roots.add("/mnt");
+        java.util.ArrayList<File> out = new java.util.ArrayList<File>();
+        java.util.HashSet<String> seen = new java.util.HashSet<String>();
+        int[] budget = {4000};
+        for (String r : roots) scanMaps(new File(r), 0, out, seen, budget);
+        java.util.Collections.sort(out, new java.util.Comparator<File>() {
+            public int compare(File a, File b) { return a.getName().compareToIgnoreCase(b.getName()); }
+        });
+        return out;
+    }
+
+    private void scanMaps(File d, int depth, java.util.List<File> out, java.util.Set<String> seen, int[] budget) {
+        if (depth > 4 || budget[0]-- <= 0) return;
+        String canon;
+        try { canon = d.getCanonicalPath(); } catch (Throwable e) { return; }
+        if (!seen.add(canon)) return;
+        File[] fs;
+        try { fs = d.listFiles(); } catch (Throwable e) { return; }
+        if (fs == null) return;
+        for (File f : fs) {
+            String n = f.getName();
+            if (n.startsWith(".")) continue;
+            if (f.isDirectory()) {
+                if (n.equals("Android") || n.equals("obb") || n.equals("asec") || n.equals("secure") || n.equals("runtime")) continue;
+                scanMaps(f, depth + 1, out, seen, budget);
+            } else if (n.toLowerCase(java.util.Locale.US).endsWith(".map") && f.length() > 1024 * 1024) {
+                String c;
+                try { c = f.getCanonicalPath(); } catch (Throwable e) { c = f.getAbsolutePath(); }
+                if (seen.add(c)) out.add(f);
+            }
+        }
+    }
+
+    private void catMusic(LinearLayout body) {
+        LinearLayout ma = section(body, "App de música");
+        row(ma, "App de música preferida", "Se abre al tocar el reproductor del inicio", autoLabel("music_app", MUSIC_PKGS, "Toca para elegir"),
+            new Runnable() { public void run() { pickFor("music_app", "Música"); } });
+        LinearLayout c = section(body, "Pista en reproducción");
+        row(c, "Carátula de Android Auto", "Lee la notificación de Open Headunit (accesibilidad)", NotifArt.running ? "Activada" : "Desactivada",
+            new Runnable() { public void run() { openAccessibility(); } });
+        if (SDK >= 18) row(c, "Música de cualquier app", "Android 5+: acceso a notificaciones", MediaListener.connected ? "Activado" : "Desactivado",
+            new Runnable() { public void run() {
+                try { startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+                catch (Throwable e) { toast("No se pudo abrir el ajuste"); }
+            }});
+        row(c, "Diagnóstico del reproductor", "Fuente activa, lector de notificaciones y Bluetooth", null, new Runnable() { public void run() { showPlayerDiag(); } });
+        LinearLayout b = section(body, "Audio Bluetooth");
+        row(b, "¿La música Bluetooth se corta o no aparece?", "Qué hacer en cada caso", null, new Runnable() { public void run() { btHelp(); } });
+        toggle(b, "Volver al Bluetooth al desconectar Android Auto", "Al quitar el cable, abre un instante la app de música Bluetooth para que el sonido siga por Bluetooth",
+            prefs.getBoolean("aa_off_bt", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("aa_off_bt", i == 1).apply(); showSettings(settingsCat);
+            }});
+        if (clwBt) {
+            row(b, "Escuchar el Bluetooth", "En esta pantalla, toca ▶ en el inicio: StradaOS pasa el sonido a Bluetooth (por ejemplo, si venías de la radio)", null, null);
+            toggle(b, "Pasar a Bluetooth al dar play en el celular (en prueba)", "Abre un instante «Audio Bluetooth» y vuelve. En algunas pantallas no detecta el play del celular",
+                prefs.getBoolean("bt_auto3", false), new IntCb() { public void on(int i) {
+                    prefs.edit().putBoolean("bt_auto3", i == 1).apply(); showSettings(settingsCat);
+                }});
+            row(b, "Probar ahora", "Abre «Audio Bluetooth» un instante y vuelve al inicio", null,
+                new Runnable() { public void run() { closeSettings(); openBtAudioApp(true); } });
+        } else {
+            toggle(b, "Abrir la app de música Bluetooth al conectar el celular", "Para pantallas que solo dejan sonar el Bluetooth con su app abierta: la abre un momento y vuelve al inicio",
+                prefs.getBoolean("bt_open_connect", false), new IntCb() { public void on(int i) {
+                    prefs.edit().putBoolean("bt_open_connect", i == 1).apply(); showSettings(settingsCat);
+                }});
+            ComponentName cn = btMusicApp();
+            row(b, "App de música Bluetooth", "La que hace sonar el Bluetooth en esta pantalla",
+                cn != null ? labelOf(cn.flattenToString()) : "No encontrada",
+                new Runnable() { public void run() { pickFor("btaudio", "Música Bluetooth"); } });
+            segmented(b, "Tiempo antes de volver al inicio", "Súbelo si el audio se corta al volver", new String[]{"1,5 s", "2,5 s", "4 s"},
+                prefs.getInt("bt_return_ms", 2500) <= 1500 ? 0 : prefs.getInt("bt_return_ms", 2500) >= 4000 ? 2 : 1, new IntCb() { public void on(int i) {
+                    prefs.edit().putInt("bt_return_ms", i == 0 ? 1500 : i == 2 ? 4000 : 2500).apply(); showSettings(settingsCat);
+                }});
+            row(b, "Probar ahora", "Abre la app de música Bluetooth y vuelve al inicio", null,
+                new Runnable() { public void run() { closeSettings(); openBtAudioApp(true); } });
+        }
+        LinearLayout a = section(body, "Avanzado");
+        row(a, "Avisos extra de música", "Nombres de avisos (broadcast) de otros equipos", prefs.getString("extra_actions", "").length() > 0 ? "Configurados" : "Ninguno",
+            edit("extra_actions", "Acciones de aviso extra (separadas por coma)", ""));
+    }
+
+    private void catSystem(LinearLayout body) {
+        LinearLayout lg = section(body, "Idioma");
+        String lpref = I18n.pref(prefs);
+        int li = java.util.Arrays.asList(I18n.CODES).indexOf(lpref);
+        row(lg, "Idioma", "Automático: el del sistema", li >= 0 ? I18n.NAMES[li] : I18n.t("Automático"), new Runnable() { public void run() {
+            final String[] opts = new String[I18n.NAMES.length + 1];
+            opts[0] = I18n.t("Automático");
+            System.arraycopy(I18n.NAMES, 0, opts, 1, I18n.NAMES.length);
+            int sel = java.util.Arrays.asList(I18n.CODES).indexOf(I18n.pref(prefs)) + 1;
+            new TB(Main.this, dlg()).raw()
+                .setTitle(I18n.t("Idioma"))
+                .setSingleChoiceItems(opts, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    d.dismiss();
+                    setLanguage(w == 0 ? "auto" : I18n.CODES[w - 1]);
+                    showSettings(settingsCat);
+                }})
+                .show();
+        }});
+        LinearLayout bk = section(body, "Copia de seguridad");
+        long lastBk = prefs.getLong("backup_last", 0);
+        row(bk, "Guardar una copia", "Ajustes, mantenimientos, kilometraje y la foto del vehículo en un archivo, en la pantalla o en una USB. Nada se sube a internet",
+            lastBk > 0 ? I18n.sdf("d MMM, HH:mm").format(new Date(lastBk)) : null, new Runnable() { public void run() { backupSave(); } });
+        row(bk, "Restaurar una copia", "Recupera todo después de restablecer la pantalla, o pásalo a otra pantalla", null, new Runnable() { public void run() { backupRestore(); } });
+        toggle(bk, "Copia automática", "Cada vez que cambias algo se actualiza una copia en la pantalla y en la USB que esté conectada", prefs.getBoolean("backup_auto", false), new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("backup_auto", i == 1).apply();
+            if (i == 1) { h.removeCallbacks(autoBackup); h.postDelayed(autoBackup, 500); }
+            showSettings(settingsCat);
+        }});
+        LinearLayout hm = section(body, "Al encender");
+        final boolean def = isDefaultHome();
+        row(hm, "Launcher predeterminado", "La que aparece al encender y al tocar Inicio", def ? "StradaOS ✓" : "Otra · toca para cambiar", new Runnable() { public void run() {
+            if (isDefaultHome()) homeHelp(); else makeDefaultHome();
+        }});
+        toggle(hm, "Abrir StradaOS al encender", "Para pantallas que siempre arrancan en su menú de fábrica (Android 4 a 9)", prefs.getBoolean("boot_open", false), new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("boot_open", i == 1).apply(); showSettings(settingsCat);
+        }});
+        // 2.21 (rvilonen-spec, #15): abrir una app al encender (la radio, para que empiece a sonar) y volver al inicio
+        String bootApp = prefs.getString("boot_app", "");
+        row(hm, "Abrir una app al encender", "StradaOS la abre un momento al arrancar (por ejemplo la radio, para que empiece a sonar) y vuelve al inicio",
+            bootApp.length() > 0 ? labelOf(bootApp) : I18n.t("Ninguna"), new Runnable() { public void run() {
+                List<String[]> extra = new ArrayList<String[]>();
+                extra.add(new String[]{"none", "Ninguna", null});
+                pickApp("Abrir una app al encender", extra, null, true, new TargetCb() { public void on(String t) {
+                    if (t.startsWith("app:")) prefs.edit().putString("boot_app", t.substring(4)).apply();
+                    else prefs.edit().remove("boot_app").apply();
+                    showSettings(settingsCat);
+                }});
+            }});
+        // Salidas (issue #9): una pantalla Android 11 quedó atrapada en StradaOS tras elegirlo como launcher desde su
+        // modo fábrica (toda app, incluso la ventana de desinstalar, se abría y volvía a StradaOS).
+        LinearLayout out = section(body, "Salir de StradaOS");
+        row(out, "Abrir el launcher de fábrica", "Sale de StradaOS sin desinstalarlo", null, new Runnable() { public void run() { openFactoryLauncher(); } });
+        row(out, "Desactivar StradaOS", "Si la pantalla quedó atrapada en StradaOS: se apaga solo, sin ventanas de Android", null, new Runnable() { public void run() { confirmDisableSelf(); } });
+        row(out, "Desinstalar StradaOS", "Android pide confirmar", null, new Runnable() { public void run() { uninstallSelf(); } });
+        if (getPackageName().endsWith(".debug")) {
+            LinearLayout sm = section(body, "Versión de prueba");
+            choice(sm, "Simular pantalla", "Para probar otros tamaños en una tablet o celular", new String[]{"Real", "1024×600", "1280×720", "1920×720", "2000×1200", "1280×480", "768×1024", "1080×1920"},
+                prefs.getInt("sim_screen", 0), new IntCb() { public void on(int i) {
+                    prefs.edit().putInt("sim_screen", i).apply(); rebuild(); showSettings(settingsCat);
+                }});
+        }
+        LinearLayout c = section(body, "Equipo");
+        row(c, "Ajustes del equipo", "Los ajustes de la pantalla (los de la marca si los tiene)", null, new Runnable() { public void run() {
+            openSystemSettings();
+        }});
+        row(c, "Asistente de configuración inicial", "Nombre, vehículo, color y foto", null, new Runnable() { public void run() { closeSettings(); wizard(); } });
+        LinearLayout k = section(body, "Compatibilidad");
+        row(k, "Qué funciona en esta pantalla", "Cada función, desde qué Android sirve y su estado aquí", null, new Runnable() { public void run() { showCompat(); } });
+        LinearLayout d = section(body, "Soporte");
+        row(d, "Exportar diagnóstico", "Guarda información de las apps de audio en la memoria interna", null, new Runnable() { public void run() { runDiag(); } });
+    }
+
+    // ───────────────────────── copia de seguridad (2.21) ─────────────────────────
+    // Idea de ashoksoft (Reddit): su pantalla hay que restablecerla de fábrica cada tanto y perdía el cambio de aceite,
+    // el seguro y los mantenimientos. Todo va a un archivo en la memoria de la pantalla o en una USB; nada a la nube.
+
+    private static final int REQ_BACKUP_W = 81, REQ_BACKUP_R = 82, REQ_BACKUP_CREATE = 83, REQ_BACKUP_OPEN = 84;
+    private boolean askedBackupRead;
+
+    /** Selector de archivos de Android (4.4+), para guardar o abrir la copia en cualquier carpeta o memoria. */
+    private Intent backupDocIntent(boolean create) {
+        if (SDK < 19) return null;
+        Intent i = new Intent(create ? "android.intent.action.CREATE_DOCUMENT" : "android.intent.action.OPEN_DOCUMENT");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType(create ? "application/json" : "*/*");
+        if (create) i.putExtra(Intent.EXTRA_TITLE, Backup.name());
+        try { return getPackageManager().resolveActivity(i, 0) != null ? i : null; } catch (Throwable e) { return null; }
+    }
+
+    private void backupSave() {
+        // Android 6 a 9: permiso para escribir en la memoria (en Android 10+ se usa el selector de archivos)
+        if (SDK >= 23 && SDK <= 28 && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_BACKUP_W);
+            return;
+        }
+        backupSave0();
+    }
+
+    private void backupSave0() {
+        if (isFinishing()) return;
+        final List<File> roots = new ArrayList<File>();
+        final List<String> items = new ArrayList<String>();
+        roots.add(Backup.primary());
+        items.add(I18n.t("Memoria de la pantalla") + "\n" + new File(Backup.primary(), "MyCar").getAbsolutePath());
+        for (File u : Backup.removable(this)) {
+            roots.add(u);
+            items.add(I18n.t("Memoria USB") + "  ·  " + u.getName() + "\n" + u.getAbsolutePath());
+        }
+        final Intent doc = backupDocIntent(true);
+        if (doc != null) items.add(I18n.t("Elegir otra carpeta…"));
+        if (items.size() == 1) { backupWrite(roots.get(0)); return; }
+        new TB(this, dlg()).raw().wide()
+            .setTitle(I18n.t("¿Dónde guardar la copia?"))
+            .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                if (w < roots.size()) backupWrite(roots.get(w));
+                else try { startActivityForResult(doc, REQ_BACKUP_CREATE); } catch (Throwable e) { toast("No se pudo abrir el selector de archivos"); }
+            }})
+            .setNegativeButton(I18n.t("Cancelar"), null)
+            .show();
+    }
+
+    private void backupWrite(final File root) {
+        new Thread(new Runnable() { public void run() {
+            File f = null;
+            String err = null;
+            try { f = Backup.save(Main.this, root, Backup.name(), Backup.build(Main.this)); }
+            catch (Throwable e) { err = String.valueOf(e.getMessage() != null ? e.getMessage() : e); }
+            final File ff = f;
+            final String fe = err;
+            h.post(new Runnable() { public void run() { backupSaved(ff != null ? ff.getAbsolutePath() : null, fe, root.equals(Backup.primary())); } });
+        }}).start();
+    }
+
+    private void backupSaved(String where, String err, boolean onScreen) {
+        if (isFinishing()) return;
+        if (where == null) {
+            new TB(this, dlg()).raw()
+                .setTitle(I18n.t("No se pudo guardar la copia"))
+                .setMessage(I18n.t("Esa memoria no dejó escribir el archivo. Prueba con otra memoria o con «Elegir otra carpeta…».") + "\n\n" + err)
+                .setPositiveButton("OK", null).show();
+            return;
+        }
+        prefs.edit().putLong("backup_last", System.currentTimeMillis()).apply();
+        new TB(this, dlg()).raw()
+            .setTitle(I18n.t("Copia guardada"))
+            .setMessage(I18n.t("Se guardó en:") + "\n" + where + (onScreen
+                ? "\n\n" + I18n.t("Al restablecer la pantalla de fábrica también se puede borrar su memoria: guarda otra copia en una USB para tenerla a salvo.")
+                : ""))
+            .setPositiveButton("OK", null).show();
+        if (settingsView != null) showSettings(settingsCat);
+    }
+
+    /** Guardar o abrir la copia con el selector de archivos de Android. */
+    private void backupDocument(final Uri uri, final boolean create) {
+        new Thread(new Runnable() { public void run() {
+            String text = null, err = null;
+            try {
+                if (create) Backup.write(getContentResolver().openOutputStream(uri), Backup.build(Main.this));
+                else text = new String(Backup.readAll(getContentResolver().openInputStream(uri)), "UTF-8");
+            } catch (Throwable e) { err = String.valueOf(e.getMessage() != null ? e.getMessage() : e); }
+            final String ft = text, fe = err;
+            h.post(new Runnable() { public void run() {
+                if (isFinishing()) return;
+                if (fe != null) {
+                    new TB(Main.this, dlg()).raw().setTitle(I18n.t(create ? "No se pudo guardar la copia" : "No se pudo leer el archivo"))
+                        .setMessage(fe).setPositiveButton("OK", null).show();
+                } else if (create) {
+                    prefs.edit().putLong("backup_last", System.currentTimeMillis()).apply();
+                    toast("Copia guardada");
+                    if (settingsView != null) showSettings(settingsCat);
+                } else confirmRestore(ft);
+            }});
+        }}).start();
+    }
+
+    private void backupRestore() {
+        if (SDK >= 23 && !askedBackupRead && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            askedBackupRead = true;
+            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_BACKUP_R);
+            return;
+        }
+        backupRestore0();
+    }
+
+    private void backupRestore0() {
+        if (isFinishing()) return;
+        toast("Buscando copias…");
+        new Thread(new Runnable() { public void run() {
+            final List<Backup.Info> found = Backup.find(Main.this);
+            h.post(new Runnable() { public void run() { showBackups(found); } });
+        }}).start();
+    }
+
+    private void showBackups(final List<Backup.Info> found) {
+        if (isFinishing()) return;
+        final Intent doc = backupDocIntent(false);
+        if (found.isEmpty() && doc == null) {
+            new TB(this, dlg())
+                .setTitle("No se encontró ninguna copia")
+                .setMessage("No hay copias de StradaOS en la memoria de la pantalla ni en las USB conectadas. El archivo se llama «StradaOS-backup» y termina en .json.")
+                .setPositiveButton("OK", null).show();
+            return;
+        }
+        List<String> items = new ArrayList<String>();
+        java.text.DateFormat df = I18n.sdf("d MMM yyyy, HH:mm");
+        for (Backup.Info i : found) {
+            items.add(df.format(new Date(i.created)) + "  ·  StradaOS " + i.version
+                + (Backup.AUTO.equals(i.file.getName()) ? "  ·  " + I18n.t("automática") : "") + "\n" + i.file.getParent());
+        }
+        if (doc != null) items.add(I18n.t("Buscar el archivo…"));
+        new TB(this, dlg()).raw().wide()
+            .setTitle(I18n.t(found.isEmpty() ? "No se encontró ninguna copia" : "Elige la copia"))
+            .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                if (w >= found.size()) {
+                    try { startActivityForResult(doc, REQ_BACKUP_OPEN); } catch (Throwable e) { toast("No se pudo abrir el selector de archivos"); }
+                    return;
+                }
+                try { confirmRestore(new String(Backup.readAll(new java.io.FileInputStream(found.get(w).file)), "UTF-8")); }
+                catch (Throwable e) { toast("No se pudo leer el archivo"); }
+            }})
+            .setNegativeButton(I18n.t("Cancelar"), null)
+            .show();
+    }
+
+    private void confirmRestore(final String json) {
+        Backup.Info i = json == null ? null : Backup.peek(json);
+        if (i == null) {
+            new TB(this, dlg()).setTitle("No se pudo restaurar")
+                .setMessage("Este archivo no es una copia de seguridad de StradaOS").setPositiveButton("OK", null).show();
+            return;
+        }
+        String when = i.created > 0 ? I18n.sdf("d MMM yyyy, HH:mm").format(new Date(i.created)) : "—";
+        String msg = I18n.t("Copia del") + " " + when + "  ·  StradaOS " + i.version
+            + (i.device.length() > 0 ? "\n" + I18n.t("Pantalla:") + " " + i.device : "")
+            + "\n" + I18n.t("Ajustes guardados:") + " " + i.settings + (i.photo ? "  ·  " + I18n.t("con la foto del vehículo") : "")
+            + "\n\n" + I18n.t("Se reemplaza toda la configuración actual de StradaOS por la de la copia.");
+        new TB(this, dlg()).raw()
+            .setTitle(I18n.t("¿Restaurar esta copia?"))
+            .setMessage(msg)
+            .setPositiveButton(I18n.t("Restaurar"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                String err = Backup.apply(Main.this, json);
+                if (err != null) {
+                    new TB(Main.this, dlg()).setTitle("No se pudo restaurar").setMessage(err).setPositiveButton("OK", null).show();
+                    return;
+                }
+                reloadAll();
+                toast("Copia restaurada");
+            }})
+            .setNegativeButton(I18n.t("Cancelar"), null)
+            .show();
+    }
+
+    /** Después de restaurar: idioma, tema, color, odómetro y pantalla se vuelven a armar con lo restaurado. */
+    private void reloadAll() {
+        I18n.init(this, prefs);
+        LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
+        applyTheme();
+        applyAccent();
+        try { lm.removeUpdates(odoListener); } catch (Throwable ignored) { }
+        odoRunning = false;
+        startOdo();
+        weatherAt = 0;
+        rebuild();
+        maybeWeather();
+    }
+
+    /** Copia automática: se actualiza poco después de cada cambio (y cada media hora si solo avanzó el kilometraje). */
+    private long backupDue;
+    private final Runnable autoBackup = new Runnable() { public void run() {
+        backupDue = 0;
+        if (!prefs.getBoolean("backup_auto", false)) return;
+        new Thread(new Runnable() { public void run() {
+            if (Backup.auto(Main.this) > 0) prefs.edit().putLong("backup_last", System.currentTimeMillis()).apply();
+        }}).start();
+    }};
+    private final SharedPreferences.OnSharedPreferenceChangeListener backupWatch = new SharedPreferences.OnSharedPreferenceChangeListener() {
+        public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+            if (key == null || Backup.skip(key) || !sp.getBoolean("backup_auto", false)) return;
+            long delay = "odo_gps_m".equals(key) ? 30 * 60000L : 8000L, due = SystemClock.uptimeMillis() + delay;
+            if (backupDue != 0 && backupDue <= due) return;   // ya hay una programada para antes
+            backupDue = due;
+            h.removeCallbacks(autoBackup);
+            h.postDelayed(autoBackup, delay);
+        }
+    };
+
+    // ───────────────────────── app al encender (2.21, #15) ─────────────────────────
+
+    private static boolean bootAppDone;
+
+    /**
+     * Abre la app elegida un momento y vuelve al inicio. Solo al encender la pantalla (los primeros minutos desde
+     * que arrancó Android): si StradaOS se reinicia más tarde (una actualización, un cierre) no se abre nada.
+     */
+    private void maybeBootApp() {
+        if (bootAppDone) return;
+        bootAppDone = true;
+        if (SystemClock.elapsedRealtime() > 4 * 60000L) return;
+        runBootApp(2000);
+    }
+
+    /**
+     * Muchas pantallas no se apagan del todo con el carro: se duermen. Al despertar después de un buen rato
+     * (el carro estuvo apagado) también cuenta como «encender», si StradaOS es lo que está a la vista.
+     */
+    private long screenOffAt;
+    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); return; }
+            if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 5 * 60000L && hasWindowFocus()) runBootApp(1500);
+            screenOffAt = 0;
+        }
+    };
+
+    private void runBootApp(long delay) {
+        final String comp = prefs.getString("boot_app", "");
+        if (comp.length() == 0 || !prefs.getBoolean("setup_done", false)) return;
+        h.postDelayed(new Runnable() { public void run() {
+            if (isFinishing()) return;
+            final ComponentName cn = ComponentName.unflattenFromString(comp);
+            if (cn == null || !launchComponent(cn)) return;
+            h.postDelayed(new Runnable() { public void run() {
+                // si el usuario ya abrió otra cosa, no se le quita
+                String now = topPackage();
+                if (now != null && !now.equals(cn.getPackageName()) && !now.equals(getPackageName())) return;
+                try {
+                    startActivity(new Intent(Main.this, Main.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+                } catch (Throwable ignored) { }
+            }}, 3500);
+        }}, delay);
+    }
+
+    /** Tabla de compatibilidad: qué función sirve desde qué Android o marca de pantalla, y cómo está aquí. */
+    private void showCompat() {
+        StringBuilder b = new StringBuilder();
+        b.append(I18n.t("Esta pantalla:")).append(" Android ").append(android.os.Build.VERSION.RELEASE).append(" (API ").append(SDK).append(")")
+         .append(" · ").append(android.os.Build.MANUFACTURER).append(" ").append(android.os.Build.MODEL).append("\n");
+        if (!android.os.Build.VERSION.RELEASE.startsWith(androidName(SDK).split(" ")[0]))
+            b.append(I18n.t("Ojo: la pantalla dice Android " + android.os.Build.VERSION.RELEASE + ", pero por dentro es " + androidName(SDK) + ".")).append("\n");
+        b.append("\n");
+        compatLine(b, "Inicio, mapa, clima, velocímetro", "Android 4.1+", true, null);
+        compatLine(b, "Pista y carátula por Bluetooth", "Android 4.1+", true, clwBt ? "app Bluetooth de fábrica detectada" : "depende de la marca");
+        compatLine(b, "Botón ▶ del inicio pasa el sonido a Bluetooth", "Pantallas Clinkway / Autochips", clwBt, clwBt ? "funciona aunque vengas de la radio" : "en otras marcas: «Abrir la app de música Bluetooth al conectar»");
+        compatLine(b, "Pasar a Bluetooth al dar play en el celular (en prueba)", "Pantallas Clinkway / Autochips", clwBt, clwBt ? (btAutoOn() ? "activado" : "desactivado; en algunas pantallas no detecta el play del celular") : null);
+        compatLine(b, "Carátula de Android Auto (Open Headunit)", "Android 4.1+ · accesibilidad", true, NotifArt.running ? "activada" : "falta activar la accesibilidad");
+        compatLine(b, "Música de cualquier app (Spotify, YouTube…)", "Android 5+", SDK >= 21, SDK >= 21 ? (MediaListener.connected ? "activada" : "falta dar acceso a notificaciones") : "no disponible en " + androidName(SDK));
+        compatLine(b, "Android Auto con Open Headunit", "Android 4.1+ · cable USB", true, installed(PKG_HUR) ? "Open Headunit instalado" : "falta instalar Open Headunit");
+        compatLine(b, "Android Auto / CarPlay de la pantalla", "Si la pantalla lo trae", nativeProjectionApp() != null, nativeProjectionApp() != null ? labelOf(nativeProjectionApp()) : "no detectado");
+        compatLine(b, "CarPlay", "Pantalla con CarPlay o adaptador USB", carPlayApp() != null, carPlayApp() != null ? labelOf(carPlayApp()) : "no detectado");
+        compatLine(b, "Mapa con internet seguro (TLS 1.2)", "Android 4.1+ (StradaOS lo activa)", true, SDK < 20 ? "en Android 4.x solo algunos servidores de mapas responden" : null);
+        compatLine(b, "Instalar actualizaciones desde la app", "Android 4.1+", true, SDK >= 26 ? "pide permiso «Instalar apps desconocidas»" : null);
+        compatLine(b, "Íconos de Wi-Fi y Bluetooth arriba", "Android 4.1+", true, clwBt ? "Bluetooth: estado del celular desde la app de fábrica; toca para abrirla" : null);
+        compatLine(b, "Tema según el modo oscuro del sistema", "Pantallas que lo cambian (p. ej. con las luces)", true,
+            systemNight() ? "el sistema está en modo oscuro" : "el sistema está en modo claro");
+        compatLine(b, "Copia de seguridad en un archivo (pantalla o USB)", "Android 4.1+", true, SDK >= 29 ? "en Android 10+ la carpeta se elige con el selector de archivos" : null);
+        compatLine(b, "Diseño vertical", "Pantallas en vertical (tipo Tesla)", true, vertical ? "en uso" : "esta pantalla es horizontal");
+        new TB(this, dlg()).diag().setTitle("Compatibilidad").setMessage(b.toString().trim()).setPositiveButton("OK", null).show();
+    }
+
+    private static void compatLine(StringBuilder b, String name, String needs, boolean ok, String note) {
+        b.append(ok ? "✓ " : "✗ ").append(I18n.t(name)).append("\n     ").append(I18n.t("Requiere:")).append(" ").append(I18n.t(needs));
+        if (note != null) b.append("\n     ").append(I18n.t("Aquí:")).append(" ").append(I18n.t(note));
+        b.append("\n\n");
+    }
+
+    static String androidName(int api) {
+        String[] n = {"4.1", "4.2", "4.3", "4.4", "4.4W", "5.0", "5.1", "6.0", "7.0", "7.1", "8.0", "8.1", "9", "10", "11", "12", "12L", "13", "14", "15", "16", "17"};
+        int i = api - 16;
+        return i >= 0 && i < n.length ? "Android " + n[i] : "API " + api;
+    }
+
+    private void btHelp() {
+        new TB(this, dlg())
+            .setTitle("Música Bluetooth")
+            .setMessage("• Se corta al salir de la app Bluetooth: sal con el botón Inicio (la casita), no con Atrás. Atrás cierra la app de fábrica y con ella la música.\n\n• No suena hasta abrir la app Bluetooth: activa «Abrir la app de música Bluetooth al conectar el celular» (aquí mismo). Abre la app un instante y vuelve al inicio.\n\n• La canción no aparece en el inicio (Android 5 o más nuevo): activa «Música de cualquier app» arriba y dale acceso a notificaciones a StradaOS.\n\n• Revisa en Ajustes → Accesos y apps que «Música Bluetooth» sea la app Bluetooth de tu pantalla.")
+            .setPositiveButton("Entendido", null)
+            .show();
+    }
+
+    private void showGuardLog() {
+        String t = Guard.read(this);
+        if (t == null) { toast("No hay fallos registrados"); return; }
+        if (t.length() > 6000) t = "…" + t.substring(t.length() - 6000);
+        // el registro es para quien desarrolla StradaOS: los avisos se guardan en español, sea cual sea el idioma elegido
+        TextView v = tv(I18n.t("Registro técnico para enviar al desarrollador (se guarda en español).") + "\n\n" + t, 12, TEXT, false);
+        v.setSingleLine(false);
+        v.setTextIsSelectable(true);
+        v.setPadding((int) (16 * s), (int) (8 * s), (int) (16 * s), (int) (8 * s));
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(v);
+        new TB(this, dlg())
+            .setTitle("Registro de fallos")
+            .setView(sv)
+            .setPositiveButton("OK", null)
+            .setNeutralButton("Borrar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                Guard.clear(Main.this); toast("Registro borrado"); if (settingsView != null) showSettings(settingsCat); } })
+            .show();
+    }
+
+    private void catAbout(LinearLayout body) {
+        LinearLayout c = section(body, "My Car");
+        LinearLayout r = rowBase(c, I18n.L("My Car · النسخة السورية", "My Car · Syrian edition"),
+            I18n.L("واجهة لشاشات السيارات بنظام أندرويد، مخصّصة لسوريا: مواقيت الصلاة، راديو عربي، OBD2 وخرائط سوريا بدون إنترنت.",
+                   "Android head unit launcher customised for Syria: prayer times, Arabic radio, OBD2 and offline Syria maps."));
+        ImageView logo = new ImageView(this);
+        logo.setImageBitmap(asset("logo.png"));
+        r.addView(logo, 0, new LinearLayout.LayoutParams((int) (56 * s), (int) (56 * s)));
+        ((LinearLayout.LayoutParams) r.getChildAt(1).getLayoutParams()).leftMargin = (int) (14 * s);
+        row(c, "Versión", null, Updates.currentVersion(this), null);
+        row(c, I18n.L("المطوّر", "Developer"), I18n.L("تطوير وتعديل النسخة السورية", "Syrian edition developer"), I18n.L("فراس", "Feras") + " · " + DEV_PHONE,
+            new Runnable() { public void run() { linkDialog(I18n.L("تواصل مع المطوّر", "Contact the developer"), I18n.L("فراس · ", "Feras · ") + DEV_PHONE, "https://wa.me/" + DEV_PHONE.replace("+", "")); } });
+        row(c, "Android de la pantalla", "Real: " + androidName(SDK) + " · ver qué funciona aquí", android.os.Build.VERSION.RELEASE + " (API " + SDK + ")", new Runnable() { public void run() { showCompat(); } });
+        row(c, "Registro de fallos", "Cierres inesperados o bloqueos de StradaOS en esta pantalla", Guard.read(this) == null ? "Sin fallos" : "Ver",
+            new Runnable() { public void run() { showGuardLog(); } });
+
+        LinearLayout u = section(body, "Actualizaciones");
+        toggle(u, "Comprobar actualizaciones automáticamente", "Al abrir StradaOS con internet, una vez al día",
+            prefs.getBoolean("auto_update", true), new IntCb() { public void on(final int i) {
+                prefs.edit().putBoolean("auto_update", i == 1).apply(); showSettings(settingsCat);
+            }});
+        row(u, "Canal de actualizaciones", null, "GitHub · " + Updates.OWNER + "/" + Updates.REPO, null);
+        long last = prefs.getLong("upd_last", 0);
+        row(u, "Buscar actualizaciones", last == 0 ? "Aún no se ha comprobado"
+                : "Última comprobación: " + new SimpleDateFormat("yyyy-MM-dd HH:mm", ES).format(new Date(last)), null,
+            new Runnable() { public void run() { checkUpdates(true); } });
+        row(u, "Código fuente", Updates.REPO_URL.replace("https://", ""), null,
+            new Runnable() { public void run() { linkDialog("Código fuente", "Licencia GPL-3.0", Updates.REPO_URL); } });
+
+        LinearLayout l = section(body, "Créditos y licencias");
+        row(l, I18n.L("مبني على StradaOS", "Based on StradaOS"), I18n.L("المشروع الأصلي مفتوح المصدر · lordnordic-debug · GPL-3.0", "Original open-source project · lordnordic-debug · GPL-3.0"), null,
+            new Runnable() { public void run() { linkDialog("StradaOS", "GPL-3.0", "https://github.com/lordnordic-debug/StradaOS"); } });
+        row(l, "Licencia", "GNU General Public License v3.0", null, null);
+        row(l, "Mapas", "© colaboradores de OpenStreetMap, OpenTopoMap, Esri", null, null);
+        row(l, "Clima", "Open-Meteo.com (CC BY 4.0)", null, null);
+        row(l, I18n.L("الراديو", "Radio"), I18n.L("دليل Radio-Browser.info المفتوح", "Radio-Browser.info open directory"), null, null);
+        row(l, I18n.L("مواقيت الصلاة", "Prayer times"), I18n.L("تُحسب على الجهاز (طريقة PrayTimes)", "Computed on the device (PrayTimes method)"), null, null);
+        row(l, "Android Auto", "Open Headunit (GPL-3.0) · Android Auto es marca de Google", null, null);
+        row(l, "Códigos QR", "QR Code generator library · Project Nayuki (MIT)", null, null);
+        row(l, "Íconos", "Material Symbols (Apache 2.0)", null, null);
+        row(l, "Certificados raíz", "Mozilla CA (certifi, MPL-2.0)", null, null);
+    }
+
+    static final String DEV_PHONE = "+963982424717";
+
+    /** My Car: إعدادات النسخة السورية في مكان واحد. */
+    private void catSyria(LinearLayout body) {
+        LinearLayout pr = section(body, I18n.L("مواقيت الصلاة", "Prayer times"));
+        Prayer.Place pl = Prayer.place(this);
+        rowIc(pr, "mosque", I18n.L("صفحة المواقيت والقبلة", "Prayer times & Qibla"), pl.name + " · " + Prayer.hijriText(this, Calendar.getInstance()), null,
+            new Runnable() { public void run() { openScreen(PrayerActivity.class); } });
+        row(pr, I18n.L("طريقة الحساب", "Calculation method"), Prayer.methodName(Prayer.methodIndex(prefs)), null,
+            new Runnable() { public void run() { openScreen(PrayerActivity.class); } });
+        toggle(pr, I18n.L("الصلاة القادمة في أعلى الشاشة", "Next prayer at the top of the home screen"), I18n.L("اضغطها لفتح المواقيت", "Tap it to open prayer times"),
+            prefs.getBoolean("pr_chip", true), new IntCb() { public void on(int i) { prefs.edit().putBoolean("pr_chip", i == 1).apply(); rebuild(); } });
+        toggle(pr, I18n.L("تنبيه الأذان", "Athan alert"), I18n.L("صوت وإشعار في وقت كل صلاة (اختر ملف الأذان من صفحة المواقيت)", "Sound and notification at each prayer (choose the athan file on the prayer page)"),
+            prefs.getBoolean("pr_alert", false), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("pr_alert", i == 1).apply(); Prayer.schedule(Main.this); showSettings(settingsCat);
+            }});
+
+        LinearLayout rd = section(body, I18n.L("الراديو", "Radio"));
+        rowIc(rd, "radio_tower", I18n.L("راديو الإنترنت العربي", "Arabic internet radio"), I18n.L("سوريا، القرآن الكريم، الدول العربية، والبحث", "Syria, Holy Quran, Arab countries, search"), null,
+            new Runnable() { public void run() { openScreen(RadioActivity.class); } });
+        rowIc(rd, "radio", I18n.L("راديو FM (تطبيق الشاشة)", "FM radio (screen's app)"), I18n.L("نصيحة: الضغط المطوّل على ⏩ أو ⏪ في تطبيق الراديو يبحث عن المحطة التالية", "Tip: long-press ⏩ or ⏪ in the radio app to seek the next station"), null,
+            new Runnable() { public void run() { openSlot(0); } });
+
+        LinearLayout ob = section(body, "OBD2");
+        String on = prefs.getString("obd_name", "");
+        rowIc(ob, "obd", I18n.L("حالة السيارة وأكواد الأعطال", "Car status & trouble codes"), on.length() > 0 ? on : I18n.L("لم تُختر وصلة بعد", "No adapter chosen yet"), null,
+            new Runnable() { public void run() { openScreen(ObdActivity.class); } });
+        toggle(ob, I18n.L("الاتصال بالوصلة تلقائياً", "Connect to the adapter automatically"), I18n.L("عند تشغيل الشاشة، بعد أول اتصال ناجح", "When the screen starts, after the first successful connection"),
+            prefs.getBoolean("obd_auto", true), new IntCb() { public void on(int i) { prefs.edit().putBoolean("obd_auto", i == 1).apply(); } });
+
+        LinearLayout mp = section(body, I18n.L("خريطة سوريا بدون إنترنت", "Offline Syria map"));
+        String mf = prefs.getString("map_file", "");
+        row(mp, I18n.L("تحميل خريطة سوريا كاملة", "Download the full Syria map"),
+            I18n.L("ملف واحد يشمل الرقة ودير الزور وكل المدن والطرق · من OpenStreetMap مجاناً", "One file with Raqqa, Deir ez-Zor and every city and road · free from OpenStreetMap"),
+            mf.toLowerCase(Locale.US).contains("syria") ? I18n.L("مثبّتة ✓", "Installed ✓") : null,
+            new Runnable() { public void run() { downloadSyriaMap(); } });
+        row(mp, I18n.L("تحميل خرائط دول أخرى", "Download other countries"), I18n.L("لبنان، العراق، تركيا، الأردن…", "Lebanon, Iraq, Türkiye, Jordan…"), null,
+            new Runnable() { public void run() {
+                if (MapDownload.running || MapDownload.paused(Main.this)) downloadOptions(); else chooseMapToDownload("asia/");
+            }});
+        dlStatusTv = tv("", 13, RED, true);
+        dlStatusTv.setPadding((int) (18 * s), (int) (4 * s), (int) (18 * s), (int) (12 * s));
+        mp.addView(dlStatusTv);
+        refreshDownloadStatus();
+
+        LinearLayout th = section(body, I18n.L("الثيمات", "Themes"));
+        row(th, I18n.L("ثيم My Car", "My Car theme"), I18n.L("لون، خلفية، وشكل العدّاد معاً", "Colour, background and speedometer together"),
+            Themes.presetName(Themes.presetIndex(prefs)), new Runnable() { public void run() { chooseThemePack(); } });
+        row(th, I18n.L("الخلفية", "Background"), null, Themes.wallName(Themes.wallIndex(prefs.getString("wallpaper", "none"))),
+            new Runnable() { public void run() { chooseWallpaper(); } });
+        row(th, I18n.L("شكل السيارة وشعار الماركة", "Car drawing & brand logo"), I18n.L("سيدان، جيب، تكسي، بيك أب… بألوان مختلفة", "Sedan, SUV, taxi, pickup… in many colours"),
+            CarArt.typeName(CarArt.typeIndex(prefs.getString("car_art", "suv"))), new Runnable() { public void run() { carLookMenu(); } });
+    }
+
+    private void chooseThemePack() {
+        String[] n = new String[Themes.PRESETS.length];
+        for (int i = 0; i < n.length; i++) n[i] = Themes.presetName(i);
+        new TB(this, dlg()).raw().setTitle(I18n.L("ثيم My Car", "My Car theme"))
+            .setSingleChoiceItems(n, Themes.presetIndex(prefs), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                d.dismiss();
+                Themes.applyPreset(prefs, w);
+                applyTheme(); applyAccent(); rebuild(); showSettings(settingsCat);
+            }}).show();
+    }
+
+    private void chooseWallpaper() {
+        String[] n = new String[Themes.WALLS.length];
+        for (int i = 0; i < n.length; i++) n[i] = Themes.wallName(i);
+        new TB(this, dlg()).raw().setTitle(I18n.L("الخلفية", "Background"))
+            .setSingleChoiceItems(n, Themes.wallIndex(prefs.getString("wallpaper", "none")), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                d.dismiss();
+                prefs.edit().putString("wallpaper", Themes.WALLS[w]).apply();
+                rebuild(); showSettings(settingsCat);
+            }}).show();
+    }
+
+    /** يحمّل ملف سوريا من خادم mapsforge مباشرة (قسم آسيا)؛ إن لم يجده يعرض قائمة آسيا. */
+    private void downloadSyriaMap() {
+        if (MapDownload.running || MapDownload.paused(this)) { downloadOptions(); return; }
+        if (SDK >= 23 && SDK <= 28 && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE_W);
+            toast(I18n.L("اسمح بالتخزين ثم اضغط مرة أخرى", "Allow storage, then tap again"));
+            return;
+        }
+        toast(I18n.L("جارِ البحث عن خريطة سوريا…", "Looking for the Syria map…"));
+        new Thread(new Runnable() { public void run() {
+            Net.init(Main.this);
+            java.util.List<MapDownload.Entry> list = null;
+            String err = null;
+            try { list = MapDownload.list("asia/"); } catch (Throwable e) { err = String.valueOf(e.getMessage()); }
+            final java.util.List<MapDownload.Entry> fl = list;
+            final String fe = err;
+            h.post(new Runnable() { public void run() {
+                if (isFinishing()) return;
+                if (fl == null) { toast(I18n.L("تعذّر الوصول لخادم الخرائط: ", "Could not reach the map server: ") + fe); return; }
+                for (MapDownload.Entry e : fl) {
+                    if (!e.dir && e.path.toLowerCase(Locale.US).endsWith("/syria.map")) { confirmDownload(e); return; }
+                }
+                showMapList("asia/", fl);
+            }});
+        }}).start();
+    }
+
+    // ───────────────────────── actualizaciones, estrella y donaciones ─────────────────────────
+
+    private boolean updBusy, promptShown;
+
+    /** Al volver al inicio: busca versión nueva (1 vez al día) o, si toca, el recuadro «¿Te gusta StradaOS?». */
+    private void autoChecks() {
+        if (!hasWindowFocus() || settingsView != null || drawer != null) return;
+        if (!homeAsked && prefs.getBoolean("setup_done", false) && !prefs.getBoolean("home_never", false) && askDefaultHome(null)) return;
+        if (oilAlert()) return;
+        if (maintAlert()) return;
+        long now = System.currentTimeMillis();
+        boolean auto = prefs.getBoolean("auto_update", !Updates.fromFdroid(this));
+        if (getPackageName().endsWith(".debug")) auto = false;   // la versión de prueba no ofrece actualizar a la normal
+        if (auto && now - prefs.getLong("upd_last", 0) > 20L * 3600 * 1000) { checkUpdates(false); return; }
+        // recuadro tipo SimpMusic: tras 5 días de uso y 15 aperturas, y luego cada 45 días si eligió «Más tarde»
+        int opens = prefs.getInt("opens", 0) + 1;
+        long first = prefs.getLong("first_use", 0);
+        SharedPreferences.Editor e = prefs.edit().putInt("opens", opens);
+        if (first == 0) e.putLong("first_use", first = now);
+        e.apply();
+        long next = prefs.getLong("enjoy_next", first + 5L * 24 * 3600 * 1000);
+        // My Car: بدون نافذة «هل يعجبك؟» ولا تبرعات
+        if (false && !promptShown && opens >= 15 && now >= next && !prefs.getBoolean("enjoy_done", false)) {
+            promptShown = true;
+            enjoyDialog();
+        }
+    }
+
+    private void checkUpdates(final boolean manual) {
+        if (updBusy) return;
+        updBusy = true;
+        if (manual) toast("Buscando actualizaciones…");
+        Updates.check(this, new Updates.Listener() {
+            public void onResult(final Updates.Release r, final String err) {
+                h.post(new Runnable() { public void run() {
+                    updBusy = false;
+                    if (settingsView != null && settingsCat == C_ABOUT) showSettings(C_ABOUT);
+                    if (r != null) {
+                        if (manual || !r.version.equals(prefs.getString("upd_skip", ""))) updateDialog(r);
+                    } else if (manual) {
+                        if (err != null) linkDialog("No se pudo comprobar", "Esta pantalla no logró conectarse con GitHub (" + shortNetErr(err) + "). Puedes revisar las versiones desde tu celular:", Updates.RELEASES_URL);
+                        else new TB(Main.this, dlg()).setTitle("Tienes la última versión (" + Updates.currentVersion(Main.this) + ")")
+                            .setMessage("Fuentes consultadas:\n" + Updates.lastReport).setPositiveButton("OK", null).show();
+                    }
+                }});
+            }
+        });
+    }
+
+    private static String shortNetErr(String e) {
+        if (e.contains("SSL") || e.contains("handshake")) return "cifrado no compatible";
+        if (e.contains("UnknownHost")) return "sin internet";
+        if (e.contains("Timeout")) return "tiempo agotado";
+        return "error de red";
+    }
+
+    private void updateDialog(final Updates.Release r) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * s);
+        box.setPadding(pad, pad / 2, pad, 0);
+        TextView v = tv("Tienes la " + Updates.currentVersion(this) + " · nueva: " + r.version, 13, MUTED, false);
+        box.addView(v);
+        android.widget.ScrollView sc = new android.widget.ScrollView(this);
+        TextView notes = tv(Updates.plain(r.notes).length() > 0 ? Updates.plain(r.notes) : "Mejoras y correcciones.", 14, TEXT, false);
+        notes.setSingleLine(false);
+        notes.setPadding(0, (int) (10 * s), 0, (int) (10 * s));
+        sc.addView(notes);
+        box.addView(sc, new LinearLayout.LayoutParams(-1, (int) (200 * s)));
+        AlertDialog.Builder b = new TB(this, dlg())
+            .setTitle("Nueva versión de StradaOS")
+            .setView(box);
+        if (Updates.fromFdroid(this) && !prefs.getBoolean("auto_update", false)) {
+            // instalada desde una tienda: se actualiza por ahí; GitHub queda como opción explícita
+            v.setText(I18n.t("Tienes la " + Updates.currentVersion(this) + " · en GitHub: " + r.version
+                + "\nActualiza desde " + Updates.storeName(this) + " cuando llegue. Descargar de GitHub omite la revisión de la tienda."));
+            b.setPositiveButton("Entendido", null)
+             .setNeutralButton("Ver en GitHub", new DialogInterface.OnClickListener() {
+                 public void onClick(DialogInterface d, int w) { linkDialog("StradaOS " + r.version, "Descarga desde GitHub:", r.pageUrl); } })
+             .show();
+            return;
+        }
+        b
+            .setPositiveButton(r.apkUrl != null ? "Descargar e instalar" : "Ver en GitHub", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (r.apkUrl != null) downloadUpdate(r); else linkDialog("StradaOS " + r.version, "Descarga la nueva versión desde:", r.pageUrl);
+                }
+            })
+            .setNeutralButton("Omitir esta versión", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { prefs.edit().putString("upd_skip", r.version).apply(); }
+            })
+            .setNegativeButton("Más tarde", null);
+        b.show();
+    }
+
+    /** Descarga el APK y abre el instalador; si esta pantalla no puede conectarse, muestra el código QR. */
+    private void downloadUpdate(final Updates.Release r) {
+        if (!unknownSourcesOk()) return;
+        final ProgressDialogLite pd = new ProgressDialogLite("Descargando StradaOS " + r.version + "…");
+        new Thread(new Runnable() { public void run() {
+            File out = null;
+            try {
+                if (r.apkUrl == null || !r.apkUrl.startsWith(Updates.APK_PREFIX)) throw new Exception("origen no permitido");
+                byte[] data = Net.get(r.apkUrl, 60000);
+                File dir = getExternalFilesDir(null);
+                if (dir == null) dir = getFilesDir();
+                dir.mkdirs();
+                out = new File(dir, "MyCar-" + r.version + ".apk");
+                java.io.FileOutputStream os = new java.io.FileOutputStream(out);
+                os.write(data);
+                os.close();
+                out.setReadable(true, false);
+                if (!verifyApk(out)) {
+                    Guard.log("Actualización rechazada: el APK descargado no es StradaOS firmado con la misma llave.");
+                    out.delete();
+                    out = null;
+                }
+            } catch (Throwable e) { out = null; }
+            final File f = out;
+            runOnUiThread(new Runnable() { public void run() {
+                pd.dismiss();
+                if (f != null) installFile(f, "StradaOS " + r.version);
+                else linkDialog("Descárgala desde tu celular", "Esta pantalla no pudo descargar el archivo. Escanea el código, descarga el APK y pásalo por USB.", r.pageUrl);
+            }});
+        }}).start();
+    }
+
+    private void enjoyDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        int pad = (int) (22 * s);
+        box.setPadding(pad, pad, pad, (int) (6 * s));
+        ImageView logo = new ImageView(this);
+        logo.setImageBitmap(asset("logo.png"));
+        box.addView(logo, new LinearLayout.LayoutParams((int) (64 * s), (int) (64 * s)));
+        TextView t = tv("¿Disfrutando StradaOS?", 20, TEXT, true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, (int) (14 * s), 0, (int) (8 * s));
+        box.addView(t);
+        TextView m = tv("Si te gusta usar StradaOS, dale una estrella en GitHub. Y si revivió tu pantalla, considera invitarme un café ☕", 14, SOFT, false);
+        m.setSingleLine(false);
+        m.setGravity(Gravity.CENTER);
+        box.addView(m);
+        new TB(this, dlg())
+            .setView(box)
+            .setPositiveButton("Dar una estrella", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putBoolean("enjoy_done", true).apply();
+                    linkDialog("Dar una estrella ⭐", "Abre el repositorio y toca «Star». ¡Gracias!", Updates.REPO_URL);
+                }
+            })
+            .setNeutralButton("Donar", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putBoolean("enjoy_done", true).apply();
+                    linkDialog("Apoya el proyecto ☕", "StradaOS es gratis. Las donaciones ayudan a mantenerlo.", Updates.donateUrl(Main.this));
+                }
+            })
+            .setNegativeButton("Más tarde", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    prefs.edit().putLong("enjoy_next", System.currentTimeMillis() + 45L * 24 * 3600 * 1000).apply();
+                }
+            })
+            .show();
+    }
+
+    /** Enlace con código QR: en pantallas viejas el navegador no abre GitHub, pero el celular sí. */
+    private void linkDialog(String title, String msg, final String url) {
+        LinearLayout box = new LinearLayout(this);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = (int) (20 * s);
+        box.setPadding(pad, pad, pad, (int) (6 * s));
+        ImageView qr = new ImageView(this);
+        qr.setImageBitmap(qrBitmap(url, (int) (200 * s)));
+        box.addView(qr, new LinearLayout.LayoutParams((int) (200 * s), (int) (200 * s)));
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding((int) (20 * s), 0, 0, 0);
+        TextView m = tv(msg, 14, SOFT, false);
+        m.setSingleLine(false);
+        col.addView(m);
+        TextView hint = tv("Escanéalo con la cámara de tu celular o entra a:", 12, MUTED, false);
+        hint.setSingleLine(false);
+        hint.setPadding(0, (int) (12 * s), 0, (int) (4 * s));
+        col.addView(hint);
+        TextView link = tv(url.replace("https://", ""), 13, RED, true);
+        link.setSingleLine(false);
+        col.addView(link);
+        box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
+        new TB(this, dlg())
+            .setTitle(title)
+            .setView(box)
+            .setPositiveButton("Abrir aquí", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+                    catch (Throwable e) { toast("No hay navegador disponible"); }
+                }
+            })
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    private static Bitmap qrBitmap(String text, int size) {
+        io.nayuki.qrcodegen.QrCode q = io.nayuki.qrcodegen.QrCode.encodeText(text, io.nayuki.qrcodegen.QrCode.Ecc.MEDIUM);
+        int border = 2, n = q.size + border * 2;
+        int scale = Math.max(1, size / n);
+        Bitmap b = Bitmap.createBitmap(n * scale, n * scale, Bitmap.Config.RGB_565);
+        b.eraseColor(Color.WHITE);
+        android.graphics.Canvas c = new android.graphics.Canvas(b);
+        android.graphics.Paint p = new android.graphics.Paint();
+        p.setColor(Color.BLACK);
+        for (int y = 0; y < q.size; y++)
+            for (int x = 0; x < q.size; x++)
+                if (q.getModule(x, y)) c.drawRect((x + border) * scale, (y + border) * scale, (x + border + 1) * scale, (y + border + 1) * scale, p);
+        return b;
+    }
+
+    // ───────────────────────── apps ─────────────────────────
+
+    private void loadApps() {
+        apps.clear();
+        Intent i = new Intent(Intent.ACTION_MAIN);
+        i.addCategory(Intent.CATEGORY_LAUNCHER);
+        final PackageManager pm = getPackageManager();
+        for (ResolveInfo r : pm.queryIntentActivities(i, 0)) {
+            if (!getPackageName().equals(r.activityInfo.packageName)) apps.add(r);
+        }
+        final HashMap<ResolveInfo, String> labels = new HashMap<ResolveInfo, String>();
+        for (ResolveInfo r : apps) labels.put(r, String.valueOf(r.loadLabel(pm)));
+        Collections.sort(apps, new Comparator<ResolveInfo>() {
+            public int compare(ResolveInfo a, ResolveInfo b) {
+                return labels.get(a).compareToIgnoreCase(labels.get(b));
+            }
+        });
+    }
+
+    private boolean installed(String pkg) {
+        try {
+            getPackageManager().getPackageInfo(pkg, 0);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void refreshStates() {
+        if (aaBtnTv == null && cpSubTv == null) return;
+        if (aaBtnTv != null) {   // 2.18: con «Solo CarPlay» no hay botón de Android Auto
+            String nat = nativeProjectionApp();
+            String aaSaved = prefs.getString("aa", null);
+            String chosen = prefs.getString("conn_app", null);
+            if (aaSaved != null) aaBtnTv.setText(labelOf(aaSaved));
+            else if (chosen != null && installed(chosen)) aaBtnTv.setText(labelOf(chosen));
+            else if (connCandidates().size() > 1) aaBtnTv.setText(I18n.t("Toca para elegir"));
+            else if (nat != null) aaBtnTv.setText(labelOf(nat));
+            else if (installed(PKG_HUR)) aaBtnTv.setText("Open Headunit · USB");
+            else aaBtnTv.setText(I18n.t("Toca para instalar"));
+        }
+        String cpApp = carPlayApp();
+        if (cpSubTv != null) cpSubTv.setText(cpApp != null ? labelOf(cpApp) : I18n.t("Pantalla o adaptador"));
+        updatePlayIcon();
+    }
+
+    private ResolveInfo find(String labelKeys, String pkgKeys) {
+        PackageManager pm = getPackageManager();
+        if (labelKeys.length() > 0) {
+            for (String k : labelKeys.split("\\|")) {
+                for (ResolveInfo r : apps) {
+                    String l = String.valueOf(r.loadLabel(pm)).toLowerCase(ES);
+                    if (k.length() <= 2 ? l.equals(k) || l.startsWith(k + " ") : l.contains(k)) return r;
+                }
+            }
+        }
+        if (pkgKeys.length() > 0) {
+            for (String k : pkgKeys.split("\\|")) {
+                for (ResolveInfo r : apps) {
+                    if (r.activityInfo.packageName.toLowerCase(ES).contains(k)) return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean launchSaved(String key) {
+        String c = prefs.getString(key, null);
+        if (c == null) return false;
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN);
+            i.addCategory(Intent.CATEGORY_LAUNCHER);
+            i.setComponent(ComponentName.unflattenFromString(c));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            startActivity(i);
+            return true;
+        } catch (Exception e) {
+            prefs.edit().remove(key).apply();
+            return false;
+        }
+    }
+
+    private void launch(ResolveInfo r) {
+        Intent i = new Intent(Intent.ACTION_MAIN);
+        i.addCategory(Intent.CATEGORY_LAUNCHER);
+        i.setComponent(new ComponentName(r.activityInfo.packageName, r.activityInfo.name));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        try {
+            startActivity(i);
+        } catch (Exception e) {
+            toast("No se pudo abrir la app");
+        }
+    }
+
+    private boolean launchPkg(String pkg) {
+        Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+        if (i == null) return false;
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        try {
+            startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Ajustes del equipo. En pantallas con Android 10 o más nuevo, la marca suele traer su propia app de ajustes
+     * (la que muestra su launcher) y deja los Ajustes de Android ocultos y sin adaptar. Abrir esos Ajustes ocultos
+     * dejó en negro una TS10 con Android 14 (todas las apps y la cámara en negro hasta reiniciar), así que en esas
+     * pantallas se abre la app de ajustes de la marca; los Ajustes de Android solo si el launcher de fábrica los
+     * muestra. En Android 4–9 se mantiene como siempre.
+     */
+    private void openSystemSettings() {
+        PackageManager pm = getPackageManager();
+        ResolveInfo vendor = null;
+        int best = 0;
+        boolean aospVisible = false;
+        for (ResolveInfo r : apps) {
+            String pkg = r.activityInfo.packageName;
+            if ("com.android.settings".equals(pkg)) { aospVisible = true; continue; }
+            String l = String.valueOf(r.loadLabel(pm)).toLowerCase(ES).trim();
+            String pl = pkg.toLowerCase(ES);
+            if (pl.contains("bluetooth") || l.contains("bluetooth") || l.contains("wifi") || l.contains("wi-fi")) continue;
+            int score = 0;
+            if (l.equals("ajustes") || l.equals("configuración") || l.equals("configuracion") || l.equals("settings")
+                    || l.equals("setting") || l.equals("设置") || l.equals("car settings") || l.equals("carsetting")
+                    || l.equals("ajustes del coche") || l.equals("ajustes del vehículo") || l.equals("ajustes del carro")) score = 3;
+            else if (pl.contains("carsetting") || pl.contains("car.setting") || pl.endsWith(".settings") || pl.endsWith(".setting")) score = 2;
+            else if (l.startsWith("ajustes") || l.startsWith("configuraci") || l.contains("settings") || pl.contains("setting")) score = 1;
+            if (score > best) { best = score; vendor = r; }
+        }
+        if (SDK >= 29) {
+            if (vendor != null) { launch(vendor); return; }
+            if (!aospVisible) {
+                toast("Elige la app de ajustes de tu pantalla");
+                pickFor("settings", "Ajustes");
+                return;
+            }
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Throwable e) {
+            toast("No se pudieron abrir los ajustes");
+        }
+    }
+
+    // ───────────────────────── pantalla de inicio predeterminada ─────────────────────────
+
+    static final int REQ_HOME = 77;
+    private boolean homeAsked, homeFixing;
+
+    /** Otras pantallas de inicio instaladas (el launcher de fábrica), sin StradaOS ni la de emergencia de Ajustes. */
+    private List<ResolveInfo> otherHomes() {
+        List<ResolveInfo> out = new ArrayList<ResolveInfo>();
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+            for (ResolveInfo r : getPackageManager().queryIntentActivities(i, 0)) {
+                String p = r.activityInfo.packageName, n = r.activityInfo.name;
+                if (getPackageName().equals(p) || p.startsWith("com.stradaos.") || n.endsWith("FallbackHome")
+                        || "com.android.provision".equals(p) || r.priority < 0) continue;
+                out.add(r);
+            }
+        } catch (Throwable ignored) { }
+        return out;
+    }
+
+    /** Abre el launcher de fábrica y deja de ser la elegida «Siempre» (si hay varias, pregunta cuál). */
+    private void openFactoryLauncher() {
+        final List<ResolveInfo> homes = otherHomes();
+        if (homes.isEmpty()) { toast("No encontré otra pantalla de inicio en este equipo"); return; }
+        if (homes.size() == 1) { goHome(homes.get(0)); return; }
+        PackageManager pm = getPackageManager();
+        String[] names = new String[homes.size()];
+        for (int k = 0; k < names.length; k++) names[k] = String.valueOf(homes.get(k).loadLabel(pm));
+        new TB(this, dlg()).setTitle("¿Cuál es el launcher de fábrica?")
+            .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { goHome(homes.get(w)); } })
+            .setNegativeButton("Cancelar", null).show();
+    }
+
+    private void goHome(ResolveInfo r) {
+        try { getPackageManager().clearPackagePreferredActivities(getPackageName()); } catch (Throwable ignored) { }
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                .setComponent(new ComponentName(r.activityInfo.packageName, r.activityInfo.name))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
+        } catch (Throwable e) { toast("No se pudo abrir"); }
+    }
+
+    private void confirmDisableSelf() {
+        final List<ResolveInfo> homes = otherHomes();
+        if (homes.isEmpty()) {
+            // sin otra pantalla de inicio, desactivar dejaría el equipo sin inicio
+            toast("No encontré otra pantalla de inicio: StradaOS no se puede desactivar en este equipo");
+            return;
+        }
+        new TB(this, dlg())
+            .setTitle("¿Desactivar StradaOS?")
+            .setMessage("StradaOS deja de ser la pantalla de inicio, ya no se abre al encender y vuelve el launcher de fábrica. No pide confirmaciones de Android, así que sirve aunque la pantalla haya quedado atrapada.\n\nPara volver a usarlo después: desinstálalo desde los ajustes de la pantalla e instálalo de nuevo.")
+            .setPositiveButton("Desactivar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { disableSelf(homes.get(0)); } })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    /**
+     * Apaga StradaOS sin ventanas del sistema: desactiva sus componentes (una app puede hacerlo con los suyos sin
+     * permisos) para que Android y el firmware ya no puedan abrirlo, borra la elección «Siempre» y abre el de fábrica.
+     */
+    private void disableSelf(ResolveInfo home) {
+        PackageManager pm = getPackageManager();
+        try { pm.clearPackagePreferredActivities(getPackageName()); } catch (Throwable ignored) { }
+        goHome(home);
+        for (Class<?> c : new Class<?>[]{BootReceiver.class, FakeHome.class, Main.class}) {
+            try {
+                pm.setComponentEnabledSetting(new ComponentName(this, c), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            } catch (Throwable ignored) { }
+        }
+        h.postDelayed(new Runnable() { public void run() { finish(); } }, 800);
+    }
+
+    private void uninstallSelf() {
+        try {
+            startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Throwable e) { toast("No se pudo abrir el ajuste"); }
+    }
+
+    /** true si StradaOS es la app que abre Android al encender y al tocar Inicio. */
+    private boolean isDefaultHome() {
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+            ResolveInfo r = getPackageManager().resolveActivity(i, PackageManager.MATCH_DEFAULT_ONLY);
+            return r != null && r.activityInfo != null && getPackageName().equals(r.activityInfo.packageName);
+        } catch (Throwable e) {
+            return true;
+        }
+    }
+
+    /** Aviso: StradaOS no es la pantalla de inicio (por eso al encender aparece el menú de fábrica). */
+    private boolean askDefaultHome(final Runnable after) {
+        if (isDefaultHome()) return false;
+        homeAsked = true;
+        new TB(this, dlg())
+            .setTitle("StradaOS aún no es tu pantalla de inicio")
+            .setMessage("Por eso al encender el carro o al tocar Inicio aparece el menú de fábrica.\n\nToca «Fijar ahora», elige StradaOS y luego «Siempre».")
+            .setPositiveButton("Fijar ahora", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { makeDefaultHome(); if (after != null) after.run(); } })
+            .setNegativeButton("Ahora no", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { if (after != null) after.run(); } })
+            .setNeutralButton("No volver a preguntar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                prefs.edit().putBoolean("home_never", true).apply(); if (after != null) after.run(); } })
+            .show();
+        return true;
+    }
+
+    /** Android 10+: ventana del sistema para elegir la app de inicio. Android 4–9: lista «¿Qué app usar?». */
+    private void makeDefaultHome() {
+        homeFixing = true;
+        if (SDK >= 29) {
+            try { if (Modern.requestHomeRole(this, REQ_HOME)) return; } catch (Throwable ignored) { }
+        }
+        toast("Elige StradaOS y toca «Siempre»");
+        PackageManager pm = getPackageManager();
+        ComponentName fake = new ComponentName(this, FakeHome.class);
+        try {
+            pm.setComponentEnabledSetting(fake, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Throwable e) {
+            homeFixing = false;
+            homeHelp();
+        } finally {
+            try { pm.setComponentEnabledSetting(fake, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP); } catch (Throwable ignored) { }
+        }
+    }
+
+    /** Al volver de elegir: confirma o explica cómo hacerlo a mano. */
+    private void homeResult() {
+        if (!homeFixing) return;
+        homeFixing = false;
+        if (isDefaultHome()) toast("Listo: StradaOS es tu pantalla de inicio");
+        else homeHelp();
+    }
+
+    private void homeHelp() {
+        new TB(this, dlg())
+            .setTitle("Fijar StradaOS a mano")
+            .setMessage("Algunas pantallas no muestran la lista para elegir. Prueba así:\n\n1. Toca el botón Inicio (la casita) de la pantalla. Si pregunta qué app usar, elige StradaOS → Siempre.\n2. Si no pregunta: en los ajustes de la pantalla busca Aplicaciones → Aplicaciones predeterminadas → Pantalla de inicio (o «App de inicio») y elige StradaOS.\n3. Con Android 10 o más nuevo, no lo elijas desde el modo fábrica de la pantalla («Launcher», «Interfaz» o «UI»): en algunas marcas eso deja las demás apps sin poder abrirse. En Android 4 a 9 sí puedes usar esa opción.\n\nSi tu pantalla siempre vuelve a su menú de fábrica al encender, activa «Abrir StradaOS al encender» en Ajustes → Sistema.")
+            .setPositiveButton("Entendido", null)
+            .show();
+    }
+
+    private void openSlot(int idx) {
+        String key = SLOTS[idx][0];
+        if (launchSaved(key)) return;
+        if ("settings".equals(key)) {
+            openSystemSettings();
+            return;
+        }
+        ResolveInfo r = find(SLOTS[idx][2], SLOTS[idx][3]);
+        if (r != null) {
+            launch(r);
+        } else {
+            toast("No encontré la app de " + SLOTS[idx][1] + ". Elígela de la lista.");
+            pickFor(key, SLOTS[idx][1]);
+        }
+    }
+
+    private void pickFor(final String key, String name) { pickFor(key, name, null); }
+
+    private void pickFor(final String key, String name, final Runnable after) {
+        List<String[]> extra = new ArrayList<String[]>();
+        extra.add(new String[]{"auto", "↺  Automático (por defecto)", "restart_alt"});
+        String[] pin = "nav_app".equals(key) ? NAV_PKGS : "music_app".equals(key) ? MUSIC_PKGS : null;
+        pickApp("¿Qué app abre «" + name + "»?", extra, pin, true, new TargetCb() { public void on(String target) {
+            if ("auto".equals(target)) {
+                prefs.edit().remove(key).apply();
+                toast("Restablecido");
+            } else {
+                String c = target.substring(4);
+                prefs.edit().putString(key, c).apply();
+                toast("Guardado: " + labelOf(c));
+            }
+            refreshStates();
+            if (after != null) after.run();
+            else if (settingsView != null) showSettings(settingsCat);
+        }});
+    }
+
+    private void openAndroidAuto() {
+        if (launchSaved("aa")) return;
+        String chosen = prefs.getString("conn_app", null);
+        if (chosen != null && launchPkg(chosen)) return;
+        List<String> c = connCandidates();
+        if (chosen == null && c.size() > 1) {
+            chooseConnection(new Runnable() { public void run() { openAndroidAuto(); } });
+            return;
+        }
+        if (c.size() == 1 && launchPkg(c.get(0))) return;
+        File apk = findApkOnUsb("revived");
+        if (apk != null && compatible(apk)) {
+            installFile(apk, "Open Headunit");
+            return;
+        }
+        new TB(this, dlg())
+            .setTitle("Android Auto")
+            .setMessage("Esta pantalla no trae Android Auto integrado.\n\nInstala la app gratuita «Open Headunit» (github.com/andreknieriem/headunit-revived): copia su APK en la memoria USB o en Download y vuelve a tocar el botón. Luego conecta el celular por cable USB.")
+            .setPositiveButton("Entendido", null)
+            .setNeutralButton("Elegir app", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { pickFor("aa", "Android Auto"); }
+            }).show();
+    }
+
+    // ── método de conexión del celular (lo elige el usuario) ──
+
+    /** Apps de esta pantalla que pueden conectar el celular, en orden sugerido. */
+    private List<String> connCandidates() {
+        List<String> out = new ArrayList<String>();
+        if (installed(PKG_HUR)) out.add(PKG_HUR);
+        String nat = nativeProjectionApp();
+        if (nat != null && !out.contains(nat)) out.add(nat);
+        for (String p : CARPLAY_PKGS) if (installed(p) && !out.contains(p)) out.add(p);
+        for (String p : USB_HOGS) if (installed(p) && !out.contains(p)) out.add(p);
+        return out;
+    }
+
+    private String connDescription(String pkg) {
+        if (PKG_HUR.equals(pkg)) return "Android Auto por cable USB (necesita la app Android Auto en el celular)";
+        if (pkg.startsWith("net.easyconn") || pkg.startsWith("com.carbit")) return "Espejo de pantalla (necesita la app CarbitLink en el celular)";
+        return "Android Auto / CarPlay integrados en la pantalla";
+    }
+
+    private void chooseConnection(final Runnable after) {
+        final List<String> c = connCandidates();
+        final List<String> items = new ArrayList<String>();
+        for (String p : c) items.add(labelOf(p) + "\n" + connDescription(p));
+        items.add("Otra app…");
+        new TB(this, dlg())
+            .setTitle("¿Cómo quieres conectar tu celular?")
+            .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    if (w == c.size()) { pickFor("aa", "Android Auto"); return; }
+                    prefs.edit().putString("conn_app", c.get(w)).remove("aa").apply();
+                    usbWarned = false;
+                    toast("Conexión: " + labelOf(c.get(w)) + ". Cámbiala dejando presionado el botón.");
+                    refreshStates();
+                    if (settingsView != null) showSettings(settingsCat);
+                    if (!USB_HOG_SET.contains(c.get(w))) guardUsb();
+                    if (after != null) after.run();
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+
+    private void openBrowser() {
+        if (launchSaved("web")) return;
+        for (String p : new String[]{"org.mozilla.firefox", "org.mozilla.fennec_fdroid", "com.opera.mini.native",
+                "com.opera.browser", PKG_WEB}) {
+            if (launchPkg(p)) return;
+        }
+        File apk = findApkOnUsb("firefox", "navegador", "browser", "opera");
+        if (apk != null && compatible(apk)) {
+            installFile(apk, "el navegador");
+            return;
+        }
+        if (apk != null) toast("«" + apk.getName() + "» necesita un Android más nuevo que el de esta pantalla. Abro el navegador de fábrica.");
+        if (launchPkg("com.android.browser")) return;
+        ResolveInfo r = find("navegador|browser|internet", "browser");
+        if (r != null) { launch(r); return; }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.google.com"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            toast("No encontré un navegador. Déjalo presionado para elegir uno.");
+        }
+    }
+
+    /** true si el APK se puede instalar en esta versión de Android. */
+    private boolean compatible(File apk) {
+        try {
+            return getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(), 0) != null;
+        } catch (Throwable e) {
+            return true;
+        }
+    }
+
+    private boolean unknownSourcesOk() {
+        if (SDK >= 26) {
+            try {
+                if (Modern.canInstall(this)) return true;
+                toast("Permite «Instalar apps desconocidas» para StradaOS y vuelve a tocar.");
+                return false;
+            } catch (Throwable e) { return true; }
+        }
+        try {
+            if (Settings.Secure.getInt(getContentResolver(), Settings.Secure.INSTALL_NON_MARKET_APPS) == 1) return true;
+        } catch (Exception e) {
+            return true; // si no se puede leer, deja que el instalador decida
+        }
+        toast("Activa «Orígenes desconocidos» y vuelve a tocar.");
+        try {
+            startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private void installFromAsset(final String asset, final String name) {
+        if (installing || !unknownSourcesOk()) return;
+        installing = true;
+        toast("Preparando " + name + "…");
+        new Thread(new Runnable() {
+            public void run() {
+                File out = null;
+                try {
+                    File dir = getExternalFilesDir(null);
+                    if (dir == null) dir = getFilesDir();
+                    dir.mkdirs();
+                    out = new File(dir, new File(asset).getName());
+                    InputStream in = getAssets().open(asset);
+                    OutputStream os = new FileOutputStream(out);
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                    os.close();
+                    in.close();
+                    out.setReadable(true, false);
+                    dir.setExecutable(true, false);
+                } catch (Exception e) {
+                    out = null;
+                }
+                final File f = out;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        installing = false;
+                        if (f == null) toast("No se pudo preparar " + name);
+                        else installFile(f, name);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * true si el APK es StradaOS (mismo paquete) y, cuando el equipo deja leer la firma, está firmado con la misma
+     * llave que la app instalada. Si la firma no se puede leer, Android igual exige la misma llave para actualizar
+     * un paquete ya instalado, así que basta con que el paquete coincida.
+     */
+    boolean verifyApk(File f) {
+        try {
+            PackageManager pm = getPackageManager();
+            android.content.pm.PackageInfo a = pm.getPackageArchiveInfo(f.getAbsolutePath(), PackageManager.GET_SIGNATURES);
+            if (a == null || !getPackageName().equals(a.packageName)) return false;
+            if (a.signatures == null || a.signatures.length == 0) return true;
+            android.content.pm.PackageInfo me = pm.getPackageInfo(getPackageName(), PackageManager.GET_SIGNATURES);
+            if (me.signatures == null || me.signatures.length == 0) return true;
+            java.util.HashSet<String> mine = new java.util.HashSet<String>();
+            for (android.content.pm.Signature sg : me.signatures) mine.add(sg.toCharsString());
+            java.util.HashSet<String> theirs = new java.util.HashSet<String>();
+            for (android.content.pm.Signature sg : a.signatures) theirs.add(sg.toCharsString());
+            return mine.equals(theirs);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private void installFile(File f, String name) {
+        if (!unknownSourcesOk()) return;
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            if (SDK >= 24) {
+                i.setDataAndType(ApkProvider.share(f), "application/vnd.android.package-archive");
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } else {
+                i.setDataAndType(Uri.fromFile(f), "application/vnd.android.package-archive");
+            }
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            toast("No se pudo abrir el instalador para " + name);
+        }
+    }
+
+    private File findApkOnUsb(String... keys) {
+        String[] roots = {"/storage", "/mnt", "/mnt/media_rw", "/mnt/usb_storage", "/udisk", "/sdcard"};
+        File dl = new File(android.os.Environment.getExternalStorageDirectory(), "Download");
+        File hit0 = scanDir(dl, keys, 0);
+        if (hit0 != null) return hit0;
+        for (String r : roots) {
+            File[] vols = new File(r).listFiles();
+            if (vols == null) continue;
+            for (File v : vols) {
+                File hit = scanDir(v, keys, 2);
+                if (hit != null) return hit;
+            }
+        }
+        return null;
+    }
+
+    private File scanDir(File dir, String[] keys, int depth) {
+        if (depth < 0 || dir == null || !dir.isDirectory()) return null;
+        File[] fs = dir.listFiles();
+        if (fs == null) return null;
+        for (File f : fs) {
+            String n = f.getName().toLowerCase(ES);
+            if (f.isFile() && n.endsWith(".apk")) {
+                for (String k : keys) if (n.contains(k)) return f;
+            }
+        }
+        for (File f : fs) {
+            if (f.isDirectory() && !f.getName().startsWith(".") && !"Android".equals(f.getName())) {
+                File hit = scanDir(f, keys, depth - 1);
+                if (hit != null) return hit;
+            }
+        }
+        return null;
+    }
+
+    // ───────────────────────── cajón de apps ─────────────────────────
+
+    private void openDrawer() {
+        float keep = s;
+        s = uiS;
+        try { openDrawer0(); } finally { s = keep; }
+    }
+
+    private void openDrawer0() {
+        if (drawer != null) return;
+        loadApps();
+        drawer = new FrameLayout(this);
+        drawer.setBackgroundColor((BG & 0x00FFFFFF) | 0xF5000000);
+        drawer.setClickable(true);
+
+        TextView title = tv("Aplicaciones  ·  Android " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")", 18, TEXT, true);
+        FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2);
+        tlp.leftMargin = (int) (28 * s);
+        tlp.topMargin = (int) (20 * s);
+        drawer.addView(title, tlp);
+
+        // Apps ocultas (issue #6): no se muestran aquí, pero siguen instaladas y se pueden elegir para los botones.
+        final java.util.HashSet<String> hidden = hiddenApps();
+        final List<ResolveInfo> shown = new ArrayList<ResolveInfo>();
+        for (ResolveInfo r : apps) if (!hidden.contains(compKey(r))) shown.add(r);
+        int nHidden = apps.size() - shown.size();
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        if (nHidden > 0) {
+            TextView hid = tv(I18n.t("Ocultas: " + nHidden), 15, SOFT, false);
+            hid.setGravity(Gravity.CENTER);
+            hid.setBackground(round(BTN, 18));
+            hid.setPadding((int) (16 * s), (int) (8 * s), (int) (16 * s), (int) (8 * s));
+            LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(-2, -2);
+            hlp.rightMargin = (int) (10 * s);
+            bar.addView(hid, hlp);
+            hid.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { manageHidden(new Runnable() { public void run() { closeDrawer(); openDrawer(); } }); }
+            });
+        }
+        TextView close = tv("Cerrar  ✕", 15, SOFT, false);
+        close.setGravity(Gravity.CENTER);
+        close.setBackground(round(BTN, 18));
+        close.setPadding((int) (16 * s), (int) (8 * s), (int) (16 * s), (int) (8 * s));
+        bar.addView(close, new LinearLayout.LayoutParams(-2, -2));
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(-2, -2);
+        clp.gravity = Gravity.TOP | Gravity.RIGHT;
+        clp.rightMargin = (int) (24 * s);
+        clp.topMargin = (int) (16 * s);
+        drawer.addView(bar, clp);
+        close.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { closeDrawer(); }
+        });
+
+        final PackageManager pm = getPackageManager();
+        GridView grid = new GridView(this);
+        grid.setNumColumns(vertical ? 4 : 6);
+        grid.setVerticalSpacing((int) (18 * s));
+        grid.setSelector(new ColorDrawable(Color.TRANSPARENT));
+        grid.setAdapter(new BaseAdapter() {
+            public int getCount() { return shown.size(); }
+            public Object getItem(int p) { return shown.get(p); }
+            public long getItemId(int p) { return p; }
+            public View getView(int p, View cv, ViewGroup parent) {
+                LinearLayout cell;
+                ImageView im;
+                TextView lb;
+                if (cv == null) {
+                    float keep = s;
+                    s = uiS;   // las celdas se crean después de abrir el cajón: mismo tamaño que el resto del cajón
+                    cell = new LinearLayout(Main.this);
+                    cell.setOrientation(LinearLayout.VERTICAL);
+                    cell.setGravity(Gravity.CENTER_HORIZONTAL);
+                    cell.setPadding(0, (int) (6 * s), 0, (int) (6 * s));
+                    im = new ImageView(Main.this);
+                    cell.addView(im, new LinearLayout.LayoutParams((int) (56 * s), (int) (56 * s)));
+                    lb = tv("", 13, SOFT, false);
+                    lb.setGravity(Gravity.CENTER);
+                    lb.setPadding((int) (4 * s), (int) (8 * s), (int) (4 * s), 0);
+                    cell.addView(lb, new LinearLayout.LayoutParams(-1, -2));
+                    s = keep;
+                } else {
+                    cell = (LinearLayout) cv;
+                    im = (ImageView) cell.getChildAt(0);
+                    lb = (TextView) cell.getChildAt(1);
+                }
+                ResolveInfo r = shown.get(p);
+                Drawable d = iconOf(r);
+                im.setImageDrawable(d);
+                lb.setText(r.loadLabel(pm));
+                return cell;
+            }
+        });
+        grid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            public void onItemClick(AdapterView<?> a, View v, int p, long id) {
+                launch(shown.get(p));
+            }
+        });
+        // Dejar presionada una app: ocultarla del cajón o abrir su información en Android.
+        grid.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(AdapterView<?> a, View v, int p, long id) {
+                final ResolveInfo r = shown.get(p);
+                new TB(Main.this, dlg())
+                    .setTitle(String.valueOf(r.loadLabel(pm)))
+                    .setItems(new String[]{"Ocultar del cajón", "Desinstalar", "Información de la app"}, new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) {
+                            if (w == 0) {
+                                java.util.HashSet<String> h = hiddenApps();
+                                h.add(compKey(r));
+                                saveHidden(h);
+                                toast("Oculta. Para volver a verla: Ajustes → Accesos y apps → Apps ocultas");
+                                closeDrawer();
+                                openDrawer();
+                            } else if (w == 1) {
+                                // Android pide confirmar; las apps del sistema no se pueden quitar (Android lo avisa)
+                                try {
+                                    startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + r.activityInfo.packageName))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                                    closeDrawer();
+                                } catch (Throwable e) { toast("No se pudo abrir el ajuste"); }
+                            } else {
+                                try {
+                                    startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:" + r.activityInfo.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                                } catch (Throwable e) { toast("No se pudo abrir el ajuste"); }
+                            }
+                        }
+                    })
+                    .setNegativeButton("Cancelar", null)
+                    .show();
+                return true;
+            }
+        });
+        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(-1, -1);
+        glp.topMargin = (int) (76 * s);
+        glp.leftMargin = (int) (16 * s);
+        glp.rightMargin = (int) (16 * s);
+        drawer.addView(grid, glp);
+
+        root.addView(drawer, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    // ── apps ocultas del cajón ──
+
+    /** Clave de una app del cajón: paquete/actividad (una app puede tener varios íconos). */
+    private static String compKey(ResolveInfo r) { return r.activityInfo.packageName + "/" + r.activityInfo.name; }
+
+    private java.util.HashSet<String> hiddenApps() {
+        java.util.HashSet<String> out = new java.util.HashSet<String>();
+        for (String k : prefs.getString("hidden_apps", "").split("\n")) if (k.length() > 0) out.add(k);
+        return out;
+    }
+
+    private void saveHidden(java.util.Set<String> set) {
+        StringBuilder b = new StringBuilder();
+        for (String k : set) { if (b.length() > 0) b.append('\n'); b.append(k); }
+        prefs.edit().putString("hidden_apps", b.toString()).apply();
+    }
+
+    /** Lista de todas las apps con casillas y buscador para elegir cuáles se ocultan del cajón. */
+    private void manageHidden(final Runnable after) {
+        float keep = s;
+        s = uiS;
+        try { manageHidden0(after); } finally { s = keep; }
+    }
+
+    private void manageHidden0(final Runnable after) {
+        loadApps();
+        final PackageManager pm = getPackageManager();
+        final java.util.HashSet<String> sel = hiddenApps();
+        final HashMap<ResolveInfo, String> labels = new HashMap<ResolveInfo, String>();
+        for (ResolveInfo r : apps) labels.put(r, String.valueOf(r.loadLabel(pm)));
+        // primero las que ya están ocultas, luego el resto (ya vienen en orden alfabético)
+        final List<ResolveInfo> all = new ArrayList<ResolveInfo>();
+        for (ResolveInfo r : apps) if (sel.contains(compKey(r))) all.add(r);
+        for (ResolveInfo r : apps) if (!sel.contains(compKey(r))) all.add(r);
+        final List<ResolveInfo> view = new ArrayList<ResolveInfo>(all);
+        final HashMap<String, Drawable> icons = new HashMap<String, Drawable>();
+        final int fg = LIGHT ? 0xFF1A1A1A : Color.WHITE;
+
+        final BaseAdapter ad = new BaseAdapter() {
+            public int getCount() { return view.size(); }
+            public Object getItem(int p) { return view.get(p); }
+            public long getItemId(int p) { return p; }
+            public View getView(int p, View cv, ViewGroup parent) {
+                float keep = s;
+                s = uiS;
+                try { return row(p); } finally { s = keep; }
+            }
+            private View row(int p) {
+                ResolveInfo r = view.get(p);
+                String k = compKey(r);
+                LinearLayout row = new LinearLayout(Main.this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding((int) (8 * s), (int) (8 * s), (int) (8 * s), (int) (8 * s));
+                Drawable d = icons.get(k);
+                if (d == null) { try { d = iconOf(r); } catch (Throwable e) { d = null; } if (d != null) icons.put(k, d); }
+                ImageView iv = new ImageView(Main.this);
+                iv.setImageDrawable(d);
+                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                row.addView(iv, new LinearLayout.LayoutParams((int) (34 * s), (int) (34 * s)));
+                TextView t = new TextView(Main.this);
+                t.setText(labels.get(r));
+                t.setTextColor(fg);
+                t.setTextSize(TypedValue.COMPLEX_UNIT_PX, 17 * s);
+                t.setSingleLine(true);
+                t.setPadding((int) (14 * s), 0, (int) (8 * s), 0);
+                row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                android.widget.CheckBox cb = new android.widget.CheckBox(Main.this);
+                cb.setChecked(sel.contains(k));
+                cb.setClickable(false);
+                cb.setFocusable(false);
+                row.addView(cb, new LinearLayout.LayoutParams(-2, -2));
+                return row;
+            }
+        };
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * s);
+        box.setPadding(pad, pad / 2, pad, 0);
+        final android.widget.EditText q = field();
+        q.setSingleLine(true);
+        q.setHint(I18n.t("Buscar app"));
+        box.addView(q, new LinearLayout.LayoutParams(-1, -2));
+        android.widget.ListView lv = new android.widget.ListView(this);
+        lv.setAdapter(ad);
+        lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            public void onItemClick(AdapterView<?> a, View v, int p, long id) {
+                String k = compKey(view.get(p));
+                if (!sel.remove(k)) sel.add(k);
+                ad.notifyDataSetChanged();
+            }
+        });
+        box.addView(lv, new LinearLayout.LayoutParams(-1, (int) (250 * s)));
+        q.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence c, int a, int b, int d) { }
+            public void onTextChanged(CharSequence c, int a, int b, int d) { }
+            public void afterTextChanged(android.text.Editable e) {
+                String f = e.toString().trim().toLowerCase(I18n.loc);
+                view.clear();
+                for (ResolveInfo r : all) if (f.length() == 0 || labels.get(r).toLowerCase(I18n.loc).contains(f)) view.add(r);
+                ad.notifyDataSetChanged();
+            }
+        });
+
+        new TB(this, dlg())
+            .setTitle("Apps ocultas en el cajón")
+            .setView(box)
+            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                // conserva las ocultas que ya no están instaladas (si se reinstalan, siguen ocultas)
+                saveHidden(sel);
+                toast(sel.isEmpty() ? I18n.t("Se muestran todas las apps") : I18n.t("Apps ocultas: " + sel.size()));
+                if (after != null) after.run();
+            }})
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void closeDrawer() {
+        if (drawer != null) {
+            root.removeView(drawer);
+            drawer = null;
+        }
+    }
+}

@@ -1,0 +1,107 @@
+name: نشر إصدار (Release)
+
+# يبني APK موقّعاً وينشره في Releases عندما يتغير versionName في app/build.gradle.
+# يحتاج سراً واحداً فقط في المستودع: SIGN_PASS (كلمة فك تشفير مفتاح التوقيع .github/signing/mycar.jks.enc).
+# التشغيل الدوري يلتقط أول إصدار تلقائياً بعد إضافة السر، ثم يتوقف عن العمل بعد ثوانٍ لأن الإصدار موجود.
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'app/**', '.github/workflows/release.yml', '.github/signing/**', 'changelogs/**' ]
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: هل يوجد إصدار جديد؟ (new version?)
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGN_PASS: ${{ secrets.SIGN_PASS }}
+        run: |
+          VN=$(grep -oP "versionName '\K[^']+" app/build.gradle)
+          echo "VERSION=$VN" >> "$GITHUB_ENV"
+          echo "TAG=v$VN" >> "$GITHUB_ENV"
+          if gh release view "v$VN" >/dev/null 2>&1; then
+            echo "v$VN already published."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$SIGN_PASS" ]; then
+            echo "::notice::SIGN_PASS secret is not set yet: add it in Settings → Secrets and variables → Actions."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.check.outputs.skip != 'true'
+
+      - name: فك تشفير مفتاح التوقيع (decrypt signing key)
+        if: steps.check.outputs.skip != 'true'
+        env:
+          SIGN_PASS: ${{ secrets.SIGN_PASS }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in .github/signing/mycar.jks.enc -out "$RUNNER_TEMP/mycar.jks" -pass env:SIGN_PASS
+          echo "STRADAOS_KEYSTORE=$RUNNER_TEMP/mycar.jks" >> "$GITHUB_ENV"
+
+      - name: بناء APK موقّع (build signed APK)
+        if: steps.check.outputs.skip != 'true'
+        env:
+          STRADAOS_KEYSTORE_PASSWORD: ${{ secrets.SIGN_PASS }}
+          STRADAOS_KEY_ALIAS: mycar
+          STRADAOS_KEY_PASSWORD: ${{ secrets.SIGN_PASS }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: ملاحظات الإصدار (notes)
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          F="changelogs/$VERSION.md"
+          if [ -f "$F" ]; then cp "$F" "$RUNNER_TEMP/notes.md"; else echo "تحسينات وإصلاحات." > "$RUNNER_TEMP/notes.md"; fi
+          {
+            echo ""
+            echo "---"
+            echo "**التثبيت:** حمّل \`MyCar-$VERSION.apk\` من الأسفل وافتحه على الشاشة (أو انسخه إلى فلاشة USB)."
+          } >> "$RUNNER_TEMP/notes.md"
+
+      - name: إنشاء الإصدار (create release)
+        if: steps.check.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: My Car ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/notes.md
+          files: app/build/outputs/apk/release/MyCar-*.apk
+
+      - name: تحديث update.json (in-app update notice)
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
+          NOTES=""
+          [ -f "changelogs/$VERSION.md" ] && NOTES=$(cat "changelogs/$VERSION.md")
+          jq -n --arg v "$VERSION" --arg n "$NOTES" --arg url "$REPO_URL/releases/tag/$TAG" \
+                --arg apk "$REPO_URL/releases/download/$TAG/MyCar-$VERSION.apk" \
+                '{version:$v, notes:$n, url:$url, apk:$apk}' > "$RUNNER_TEMP/update.json"
+          git fetch origin main
+          git checkout -B main origin/main
+          cp "$RUNNER_TEMP/update.json" update.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git diff --cached --quiet || git commit -m "update.json → $VERSION"
+          git push origin main

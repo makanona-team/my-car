@@ -1,0 +1,901 @@
+# StradaOS · traducción ar (árabe). Formato: español<TAB>traducción. Ver I18n.java. Números con dígitos latinos (0-9).
+Radio	الراديو
+Cámara	الكاميرا
+Archivos	الملفات
+Ajustes	الإعدادات
+Música	الموسيقى
+Navegación	الملاحة
+Navegador	المتصفح
+Navegador web	متصفح الويب
+Equipo	جهاز السيارة
+Elige primero la app de música Bluetooth	اختر أولاً تطبيق موسيقى البلوتوث
+Música Bluetooth	موسيقى البلوتوث
+No se pudo abrir la app	تعذّر فتح التطبيق
+Mi app	تطبيقي
+Mi vehículo	مركبتي
+Toca para poner la foto de tu vehículo	اضغط لإضافة صورة مركبتك
+Velocidad	السرعة
+Diagnóstico del mapa	تشخيص الخريطة
+Buscando GPS…	جارٍ البحث عن GPS…
+Buscando GPS	البحث عن GPS
+En vivo · sin internet	مباشر · بلا إنترنت
+Última posición · sin internet	آخر موقع · بلا إنترنت
+Mapa en vivo	خريطة مباشرة
+Última posición conocida	آخر موقع معروف
+Nada sonando	لا شيء قيد التشغيل
+Radio, Bluetooth o USB	راديو أو بلوتوث أو USB
+Internet desde la pantalla	الإنترنت على الشاشة
+No se pudo abrir «{}». Déjalo presionado para elegir otra app.	تعذّر فتح «{}». اضغط عليه مطولاً لاختيار تطبيق آخر.
+Botón {} · {}	الزر {} · {}
+Cambiar app o función	تغيير التطبيق أو الوظيفة
+Cambiar el nombre	إعادة التسمية
+Restablecer ({})	استعادة الافتراضي ({})
+Botón restablecido	تمت استعادة الزر
+Cerrar	إغلاق
+Cerrar  ✕	إغلاق  ✕
+★  Funciones de StradaOS (Música, Navegación, Android Auto…)	★  وظائف StradaOS (الموسيقى، الملاحة، Android Auto…)
+¿Qué abre el botón {}?	ماذا يفتح الزر {}؟
+Función del botón {}	وظيفة الزر {}
+Nombre del botón {} (vacío = el de la app)	اسم الزر {} (فارغ = اسم التطبيق)
+Guardar	حفظ
+Cancelar	إلغاء
+Guardado: {}	تم الحفظ: {}
+Elige tu app de música	اختر تطبيق الموسيقى
+Elige tu app de navegación	اختر تطبيق الملاحة
+Automático · {}	تلقائي · {}
+{}\n    → {}	{}\n    → {}
+Buenos días	صباح الخير
+Buenas tardes	مساء الخير
+Buenas noches	مساء الخير
+Diagnóstico del reproductor	تشخيص المشغّل
+Accesibilidad	إمكانية الوصول
+Activa «Carátula de Android Auto» (StradaOS)	فعّل «غلاف ألبوم Android Auto» (StradaOS)
+No se pudo abrir Accesibilidad	تعذّر فتح إعدادات إمكانية الوصول
+Activa «Pista actual de AA» en Open Headunit	فعّل «المقطع الحالي لـ AA» في Open Headunit
+«Ninguna aplic. funciona con este accesorio USB»	«لا توجد تطبيقات مثبّتة تعمل مع ملحق USB هذا»
+Ese aviso lo causa una app de espejo de fábrica (EasyConnection/CarbitLink) que toma el USB antes que la app que elegiste.\n\n1. Desconecta el celular.\n2. Ajustes → Aplicaciones → EasyConnection → «Borrar datos».\n3. Apaga y enciende el carro.\n4. En Open Headunit → USB, si tu celular aparece como «Ignorado», tócalo para permitirlo.	سبب هذه الرسالة تطبيق نسخ شاشة من المصنع (EasyConnection/CarbitLink) يستحوذ على USB قبل التطبيق الذي اخترته.\n\n1. افصل الهاتف.\n2. الإعدادات ← التطبيقات ← EasyConnection ← «مسح البيانات».\n3. أطفئ السيارة ثم شغّلها.\n4. في Open Headunit ← USB، إذا ظهر هاتفك كـ«متجاهَل»، اضغط عليه للسماح به.
+Abrir EasyConnection	فتح EasyConnection
+No hay apps de espejo instaladas	لا توجد تطبيقات نسخ شاشة مثبّتة
+Exportando… puede tardar un minuto	جارٍ التصدير… قد يستغرق دقيقة
+Diagnóstico listo	التشخيص جاهز
+Se guardó en:\n{}\n\nCopia la carpeta StradaDiag a una memoria USB y adjúntala en un «issue» del repositorio de StradaOS en GitHub.	تم الحفظ في:\n{}\n\nانسخ مجلد StradaDiag إلى ذاكرة USB وأرفقه في بلاغ (issue) في مستودع StradaOS على GitHub.
+12 horas	12 ساعة
+24 horas	24 ساعة
+Automático	تلقائي
+Automática	تلقائية
+Auto	تلقائي
+12 horas (a.m./p.m.)	12 ساعة (ص/م)
+Formato de hora	تنسيق الوقت
+Se aplicará al reiniciar StradaOS	يُطبَّق عند إعادة تشغيل StradaOS
+Rojo	أحمر
+Naranja	برتقالي
+Amarillo	أصفر
+Verde	أخضر
+Turquesa	فيروزي
+Azul	أزرق
+Morado	بنفسجي
+Rosa	وردي
+Plata	فضي
+Bienvenido a StradaOS	مرحباً بك في StradaOS
+Vamos a dejar el launcher a tu gusto: tu nombre, tu vehículo, el color y la foto. Toma menos de un minuto y lo puedes cambiar después en el engranaje ⚙.	لنضبط الواجهة على ذوقك: اسمك، مركبتك، اللون والصورة. يستغرق ذلك أقل من دقيقة ويمكنك تغييره لاحقاً من الترس ⚙.
+Empezar	ابدأ
+¿Cómo te llamas?	ما اسمك؟
+Nombre del vehículo (ej.: Mazda 2, Spark GT)	اسم المركبة (مثال: Mazda 2، Spark GT)
+Etiqueta corta (versión o placa). Déjalo vacío si no quieres	وسم قصير (الفئة أو رقم اللوحة). اتركه فارغاً إن لم ترغب
+Después	لاحقاً
+No encontrada	غير موجود
+¿Qué app abre cada botón?	ماذا يفتح كل زر؟
+Están bien	تبدو جيدة
+Siguiente	التالي
+Color de acento	لون التمييز
+Elegir otra foto	اختيار صورة أخرى
+Quitar la foto	إزالة الصورة
+Elegir foto	اختيار صورة
+Foto del vehículo	صورة المركبة
+¿De dónde sacamos la foto?	من أين نأخذ الصورة؟
+Consejo: usa una foto del carro de lado o de frente con fondo liso (blanco, gris o cielo). El fondo se quita solo.	نصيحة: استخدم صورة للسيارة من الجانب أو من الأمام على خلفية سادة (بيضاء أو رمادية أو سماء). تُزال الخلفية تلقائياً.
+Memoria / USB	الذاكرة / USB
+Galería	المعرض
+Elige la foto	اختر الصورة
+Buscando fotos…	جارٍ البحث عن الصور…
+No encontré fotos (.jpg/.png). Cópialas a la memoria USB o a Download.	لم أجد صوراً (.jpg/.png). انسخها إلى ذاكرة USB أو إلى مجلد Download.
+Quitando el fondo…	جارٍ إزالة الخلفية…
+No se pudo abrir la imagen	تعذّر فتح الصورة
+No se pudo abrir la imagen: {}	تعذّر فتح الصورة: {}
+La foto ya trae fondo transparente	الصورة ذات خلفية شفافة أصلاً
+No se detectó un fondo liso (se usará tal cual)	لم تُكتشف خلفية سادة (ستُستخدم كما هي)
+Vista previa · nivel {} de 4	معاينة · المستوى {} من 4
+Vista previa · nivel {} de 4 (también quita el reflejo del piso)	معاينة · المستوى {} من 4 (يزيل أيضاً انعكاس الأرضية)
+Usar esta	استخدم هذه
+Foto guardada	تم حفظ الصورة
+No se pudo guardar la foto	تعذّر حفظ الصورة
+Quitar más fondo	إزالة المزيد من الخلفية
+Quitando más fondo…	جارٍ إزالة المزيد من الخلفية…
+No es una imagen válida	ليست صورة صالحة
+App elegida	التطبيق المختار
+CarPlay necesita un chip de autenticación de Apple dentro del equipo, así que no se puede activar solo con una app.\n\n• Si tu pantalla trae CarPlay integrado, deja presionado este botón y elige su app (ZLink, CarLink, TLink…).\n• Si no, puedes usar un adaptador CarPlay USB para pantallas Android (tipo Carlinkit/AutoKit): instala su app y este botón la abrirá.	يحتاج CarPlay إلى شريحة مصادقة من Apple داخل جهاز السيارة، لذلك لا يمكن تفعيله بتطبيق فقط.\n\n• إذا كانت شاشتك تتضمن CarPlay مدمجاً، اضغط على هذا الزر مطولاً واختر تطبيقه (ZLink، CarLink، TLink…).\n• وإلا يمكنك استخدام محوّل CarPlay عبر USB لشاشات Android (مثل Carlinkit/AutoKit): ثبّت تطبيقه وسيفتحه هذا الزر.
+Entendido	فهمت
+Elegir app	اختيار تطبيق
+Volver al inicio	العودة إلى الرئيسية
+Tu vehículo	مركبتك
+Apariencia	المظهر
+Conexión	الاتصال
+Accesos y apps	الاختصارات والتطبيقات
+Mapa y clima	الخريطة والطقس
+Sistema	النظام
+Acerca de	حول
+Datos	التفاصيل
+Tu nombre	اسمك
+Aparece en el saludo de la pantalla de inicio	يظهر في التحية على الشاشة الرئيسية
+Nombre del vehículo	اسم المركبة
+Etiqueta	الوسم
+Versión o placa. Déjala vacía para ocultarla	الفئة أو رقم اللوحة. اتركه فارغاً لإخفائه
+Etiqueta (vacío para ocultarla)	الوسم (فارغ لإخفائه)
+Foto	الصورة
+Se recorta y se le quita el fondo automáticamente	تُقص وتُزال خلفيتها تلقائياً
+Configurada	مضبوطة
+Sin foto	بلا صورة
+Idioma	اللغة
+Automático: el del sistema	تلقائي: لغة النظام
+Tema	السمة
+Modo	الوضع
+Automático: claro de 6 a.m. a 6 p.m.	تلقائي: فاتح من 6 صباحاً إلى 6 مساءً
+Oscuro	داكن
+Claro	فاتح
+Color	اللون
+Botones, anillo del reproductor, ruta y etiquetas	الأزرار وحلقة المشغّل والمسار والوسوم
+Reloj	الساعة
+Celular	الهاتف
+Cómo conectar el celular	طريقة توصيل الهاتف
+La app que se abre al conectar por USB	التطبيق الذي يُفتح عند التوصيل عبر USB
+Preguntar	اسألني
+App de Android Auto	تطبيق Android Auto
+Botón naranja de la tarjeta central	الزر البرتقالي في البطاقة الوسطى
+App de CarPlay	تطبيق CarPlay
+Requiere pantalla con CarPlay o un adaptador	يتطلب شاشة تدعم CarPlay أو محوّلاً
+Ninguna	لا شيء
+Ninguno	لا شيء
+Ayuda	مساعدة
+El celular dice «Ninguna aplic. funciona…»	الهاتف يقول «لا توجد تطبيقات مثبّتة تعمل…»
+Cómo evitar que EasyConnection tome el USB	كيف تمنع EasyConnection من الاستحواذ على USB
+Barra inferior (déjalos presionados en el inicio para cambiarlos)	الشريط السفلي (اضغط عليها مطولاً في الرئيسية لتغييرها)
+App: {}	تطبيق: {}
+Función: {}	وظيفة: {}
+Apps preferidas	التطبيقات المفضلة
+Se abre al tocar el reproductor	يُفتح عند الضغط على المشغّل
+Toca para elegir	اضغط للاختيار
+Se abre con el botón del mapa	يُفتح بزر الخريطة
+Apps de cada función	تطبيق كل وظيفة
+La app que hace sonar el Bluetooth (se usa para pasar el sonido)	التطبيق الذي يشغّل صوت البلوتوث (يُستخدم لتحويل الصوت)
+Revisar todos los botones	مراجعة كل الأزرار
+Lista rápida de qué abre cada uno, como en el asistente	قائمة سريعة بما يفتحه كل زر، كما في معالج الإعداد
+Restablecer	استعادة الافتراضي
+Restablecer accesos	استعادة الاختصارات
+La barra vuelve a lo de siempre y se buscan las apps de fábrica	يعود الشريط إلى الوضع الافتراضي ويُعاد البحث عن تطبيقات المصنع
+Accesos restablecidos	تمت استعادة الاختصارات
+Clima	الطقس
+Mostrar el clima	إظهار الطقس
+Arriba, junto al saludo (necesita internet)	في الأعلى بجانب التحية (يحتاج إنترنت)
+Unidad	الوحدة
+Ciudad	المدينة
+Vacío = automática por GPS	فارغ = تلقائية عبر GPS
+{} (GPS)	{} (GPS)
+Ciudad (vacío = automática por GPS)	المدينة (فارغ = تلقائية عبر GPS)
+App de navegación preferida	تطبيق الملاحة المفضل
+Se abre con el botón del mapa (Waze, Maps, OsmAnd…)	يُفتح بزر الخريطة (Waze، Maps، OsmAnd…)
+Mapa	الخريطة
+Brillo del mapa	سطوع الخريطة
+Solo en modo oscuro	في الوضع الداكن فقط
+Bajo	منخفض
+Medio	متوسط
+Alto	مرتفع
+Fuentes probadas y errores	المصادر المجرّبة والأخطاء
+Mapa no disponible	الخريطة غير متاحة
+Fuente del mapa (avanzado)	مصدر الخريطة (متقدم)
+URL propia con {z}/{x}/{y}	رابط مخصص بصيغة {z}/{x}/{y}
+Personalizada	مخصص
+URL de teselas {z}/{x}/{y} (vacío = automático)	رابط البلاطات {z}/{x}/{y} (فارغ = تلقائي)
+© colaboradores de OpenStreetMap	© المساهمون في OpenStreetMap
+App de música	تطبيق الموسيقى
+App de música preferida	تطبيق الموسيقى المفضل
+Se abre al tocar el reproductor del inicio	يُفتح عند الضغط على المشغّل في الشاشة الرئيسية
+Pista en reproducción	قيد التشغيل الآن
+Carátula de Android Auto	غلاف ألبوم Android Auto
+Lee la notificación de Open Headunit (accesibilidad)	يقرأ إشعار Open Headunit (إمكانية الوصول)
+Activada	مفعّلة
+Desactivada	معطّلة
+Activado	مفعّل
+Desactivado	معطّل
+Música de cualquier app	موسيقى من أي تطبيق
+Android 5+: acceso a notificaciones	Android 5+: الوصول إلى الإشعارات
+No se pudo abrir el ajuste	تعذّر فتح الإعداد
+Fuente activa, lector de notificaciones y Bluetooth	المصدر النشط وقارئ الإشعارات والبلوتوث
+Audio Bluetooth	صوت البلوتوث
+Volver al Bluetooth al desconectar Android Auto	العودة إلى البلوتوث عند فصل Android Auto
+Al quitar el cable, abre un instante la app de música Bluetooth para que el sonido siga por Bluetooth	عند نزع الكابل، يفتح تطبيق موسيقى البلوتوث للحظة كي يستمر الصوت عبر البلوتوث
+Escuchar el Bluetooth	الاستماع إلى البلوتوث
+En esta pantalla, toca ▶ en el inicio: StradaOS pasa el sonido a Bluetooth (por ejemplo, si venías de la radio)	في هذه الشاشة، اضغط ▶ في الرئيسية: يحوّل StradaOS الصوت إلى البلوتوث (مثلاً إذا كنت تستمع إلى الراديو)
+Pasar a Bluetooth al dar play en el celular (en prueba)	التحويل إلى البلوتوث عند التشغيل من الهاتف (تجريبي)
+Abre un instante «Audio Bluetooth» y vuelve. En algunas pantallas no detecta el play del celular	يفتح «صوت البلوتوث» للحظة ثم يعود. بعض الشاشات لا تكتشف التشغيل من الهاتف
+Probar ahora	جرّب الآن
+Abre «Audio Bluetooth» un instante y vuelve al inicio	يفتح «صوت البلوتوث» للحظة ثم يعود إلى الرئيسية
+Abrir la app de música Bluetooth al conectar el celular	فتح تطبيق موسيقى البلوتوث عند توصيل الهاتف
+Para pantallas que solo dejan sonar el Bluetooth con su app abierta: la abre un momento y vuelve al inicio	للشاشات التي لا تشغّل البلوتوث إلا وتطبيقها مفتوح: يفتحه للحظة ثم يعود إلى الرئيسية
+App de música Bluetooth	تطبيق موسيقى البلوتوث
+La que hace sonar el Bluetooth en esta pantalla	التطبيق الذي يشغّل البلوتوث في هذه الشاشة
+Tiempo antes de volver al inicio	المدة قبل العودة إلى الرئيسية
+Súbelo si el audio se corta al volver	زِدها إذا انقطع الصوت عند العودة
+Abre la app de música Bluetooth y vuelve al inicio	يفتح تطبيق موسيقى البلوتوث ثم يعود إلى الرئيسية
+Avanzado	متقدم
+Avisos extra de música	بثّ موسيقى إضافي
+Nombres de avisos (broadcast) de otros equipos	أسماء البثّ (broadcast) من أجهزة أخرى
+Configurados	مضبوطة
+Acciones de aviso extra (separadas por coma)	إجراءات بثّ إضافية (مفصولة بفاصلة)
+Ajustes del equipo	إعدادات جهاز السيارة
+Los ajustes de la pantalla (los de la marca si los tiene)	إعدادات الشاشة (إعدادات الشركة المصنّعة إن وُجدت)
+Asistente de configuración inicial	معالج الإعداد الأولي
+Nombre, vehículo, color y foto	الاسم والمركبة واللون والصورة
+Compatibilidad	التوافق
+Qué funciona en esta pantalla	ما الذي يعمل على هذه الشاشة
+Cada función, desde qué Android sirve y su estado aquí	كل ميزة، وإصدار Android الذي تحتاجه، وحالتها هنا
+Soporte	الدعم
+Exportar diagnóstico	تصدير التشخيص
+Guarda información de las apps de audio en la memoria interna	يحفظ معلومات عن تطبيقات الصوت في الذاكرة الداخلية
+Esta pantalla:	هذه الشاشة:
+Ojo: la pantalla dice Android {}, pero por dentro es {}.	انتبه: الشاشة تقول Android {}، لكنها من الداخل {}.
+Requiere:	يتطلب:
+Aquí:	هنا:
+Inicio, mapa, clima, velocímetro	الرئيسية، الخريطة، الطقس، عدّاد السرعة
+Pista y carátula por Bluetooth	المقطع وغلاف الألبوم عبر البلوتوث
+app Bluetooth de fábrica detectada	تم اكتشاف تطبيق بلوتوث المصنع
+depende de la marca	يعتمد على الشركة المصنّعة
+Botón ▶ del inicio pasa el sonido a Bluetooth	زر ▶ في الرئيسية يحوّل الصوت إلى البلوتوث
+Pantallas Clinkway / Autochips	شاشات Clinkway / Autochips
+funciona aunque vengas de la radio	يعمل حتى لو كنت على الراديو
+en otras marcas: «Abrir la app de música Bluetooth al conectar»	في الشركات الأخرى: «فتح تطبيق موسيقى البلوتوث عند توصيل الهاتف»
+activado	مفعّل
+activada	مفعّلة
+desactivado; en algunas pantallas no detecta el play del celular	معطّل؛ بعض الشاشات لا تكتشف التشغيل من الهاتف
+Carátula de Android Auto (Open Headunit)	غلاف ألبوم Android Auto (Open Headunit)
+Android 4.1+ · accesibilidad	Android 4.1+ · إمكانية الوصول
+falta activar la accesibilidad	لم تُفعَّل إمكانية الوصول بعد
+Música de cualquier app (Spotify, YouTube…)	موسيقى من أي تطبيق (Spotify، YouTube…)
+falta dar acceso a notificaciones	لم يُمنح الوصول إلى الإشعارات بعد
+no disponible en {}	غير متاح على {}
+Android Auto con Open Headunit	Android Auto عبر Open Headunit
+Android 4.1+ · cable USB	Android 4.1+ · كابل USB
+Open Headunit instalado	Open Headunit مثبّت
+falta instalar Open Headunit	لم يُثبَّت Open Headunit بعد
+Android Auto / CarPlay de la pantalla	Android Auto / CarPlay الخاص بالشاشة
+Si la pantalla lo trae	إذا كانت الشاشة تتضمنه
+no detectado	لم يُكتشف
+Pantalla con CarPlay o adaptador USB	شاشة تدعم CarPlay أو محوّل USB
+Mapa con internet seguro (TLS 1.2)	خريطة عبر إنترنت آمن (TLS 1.2)
+Android 4.1+ (StradaOS lo activa)	Android 4.1+ (يفعّله StradaOS)
+en Android 4.x solo algunos servidores de mapas responden	على Android 4.x تستجيب بعض خوادم الخرائط فقط
+Instalar actualizaciones desde la app	تثبيت التحديثات من التطبيق
+pide permiso «Instalar apps desconocidas»	يطلب إذن «تثبيت تطبيقات غير معروفة»
+No hay fallos registrados	لا توجد أعطال مسجّلة
+Registro de fallos	سجل الأعطال
+Borrar	مسح
+Registro borrado	تم مسح السجل
+Gratis y de código abierto. Una nueva vida para las pantallas Android del carro.	مجاني ومفتوح المصدر. حياة جديدة لشاشات Android في السيارة.
+Versión	الإصدار
+Android de la pantalla	إصدار Android في الشاشة
+Real: {} · ver qué funciona aquí	الفعلي: {} · شاهد ما يعمل هنا
+Cierres inesperados o bloqueos de StradaOS en esta pantalla	الإغلاقات المفاجئة أو تجمّد StradaOS على هذه الشاشة
+Sin fallos	لا أعطال
+Ver	عرض
+Actualizaciones	التحديثات
+Instalado desde {}	مثبّت من {}
+Las actualizaciones llegan por esa app	تصل التحديثات عبر ذلك التطبيق
+Avisar también de versiones en GitHub	التنبيه أيضاً بالإصدارات على GitHub
+Comprobar actualizaciones automáticamente	التحقق من التحديثات تلقائياً
+Opcional: las descargas de GitHub no pasan por la revisión de la tienda	اختياري: تنزيلات GitHub لا تمر بمراجعة المتجر
+Al abrir StradaOS con internet, una vez al día	عند فتح StradaOS مع وجود إنترنت، مرة يومياً
+Actualizaciones desde GitHub	التحديثات من GitHub
+Instalaste StradaOS desde {}. Si activas esto, StradaOS revisará una vez al día las versiones publicadas en github.com/{} y te ofrecerá descargarlas desde ahí.\n\nEsas descargas no pasan por la revisión de la tienda. Puede que GitHub tenga una versión un poco antes que la tienda.	لقد ثبّت StradaOS من {}. إذا فعّلت هذا، سيتحقق StradaOS مرة يومياً من الإصدارات المنشورة على github.com/{} ويعرض عليك تنزيلها من هناك.\n\nهذه التنزيلات لا تمر بمراجعة المتجر. قد يتوفر الإصدار على GitHub قبل المتجر بقليل.
+Activar	تفعيل
+Canal de actualizaciones	قناة التحديثات
+Buscar actualizaciones	البحث عن تحديثات
+Aún no se ha comprobado	لم يتم التحقق بعد
+Última comprobación: {}	آخر تحقق: {}
+Comunidad	المجتمع
+Dar una estrella en GitHub	امنحه نجمة على GitHub
+Ayuda a que más personas encuentren StradaOS	يساعد المزيد من الناس على اكتشاف StradaOS
+Dar una estrella ⭐	امنحه نجمة ⭐
+Abre el repositorio y toca «Star». ¡Gracias!	افتح المستودع واضغط «Star». شكراً!
+Donar	تبرّع
+Si StradaOS revivió tu pantalla, invítame un café	إذا أعاد StradaOS الحياة إلى شاشتك، ادعُني على فنجان قهوة
+Apoya el proyecto ☕	ادعم المشروع ☕
+StradaOS es gratis. Las donaciones ayudan a mantenerlo y a probarlo en más pantallas.	StradaOS مجاني. التبرعات تساعد على صيانته وتجربته على المزيد من الشاشات.
+Reportar un problema o sugerir algo	الإبلاغ عن مشكلة أو اقتراح شيء
+Crea un «issue» en GitHub (adjunta el diagnóstico)	أنشئ بلاغاً (issue) على GitHub (أرفق التشخيص)
+Reportar un problema	الإبلاغ عن مشكلة
+Cuenta tu modelo de pantalla y su versión de Android. Puedes adjuntar la carpeta StradaDiag (Sistema → Exportar diagnóstico).	اذكر طراز شاشتك وإصدار Android فيها. يمكنك إرفاق مجلد StradaDiag (النظام ← تصدير التشخيص).
+Código fuente	الشيفرة المصدرية
+Licencia GPL-3.0	رخصة GPL-3.0
+Créditos y licencias	الشكر والتراخيص
+Licencia	الرخصة
+Mapas	الخرائط
+© colaboradores de OpenStreetMap, OpenTopoMap, Esri	© المساهمون في OpenStreetMap وOpenTopoMap وEsri
+Open Headunit (GPL-3.0) · Android Auto es marca de Google	Open Headunit (GPL-3.0) · Android Auto علامة تجارية لـ Google
+Códigos QR	رموز QR
+Íconos	الأيقونات
+Certificados raíz	شهادات الجذر
+Buscando actualizaciones…	جارٍ البحث عن تحديثات…
+No se pudo comprobar	تعذّر التحقق
+Esta pantalla no logró conectarse con GitHub ({}). Puedes revisar las versiones desde tu celular:	لم تتمكن هذه الشاشة من الاتصال بـ GitHub ({}). يمكنك مراجعة الإصدارات من هاتفك:
+Tienes la última versión ({})	لديك أحدث إصدار ({})
+Fuentes consultadas:\n{}	المصادر التي فُحصت:\n{}
+cifrado no compatible	تشفير غير متوافق
+sin internet	لا يوجد إنترنت
+sin internet / DNS	لا يوجد إنترنت / DNS
+tiempo agotado	انتهت المهلة
+error de red	خطأ في الشبكة
+tu tienda de apps	متجر التطبيقات لديك
+Tienes la {} · nueva: {}	لديك {} · الجديد: {}
+Mejoras y correcciones.	تحسينات وإصلاحات.
+Nueva versión de StradaOS	إصدار جديد من StradaOS
+Tienes la {} · en GitHub: {}\nActualiza desde {} cuando llegue. Descargar de GitHub omite la revisión de la tienda.	لديك {} · على GitHub: {}\nحدّث من {} عند وصوله. التنزيل من GitHub يتجاوز مراجعة المتجر.
+Ver en GitHub	عرض على GitHub
+Descarga desde GitHub:	التنزيل من GitHub:
+Descargar e instalar	تنزيل وتثبيت
+Descarga la nueva versión desde:	نزّل الإصدار الجديد من:
+Omitir esta versión	تخطّي هذا الإصدار
+Más tarde	لاحقاً
+Descargando StradaOS {}…	جارٍ تنزيل StradaOS {}…
+Descárgala desde tu celular	نزّله من هاتفك
+Esta pantalla no pudo descargar el archivo. Escanea el código, descarga el APK y pásalo por USB.	لم تتمكن هذه الشاشة من تنزيل الملف. امسح الرمز، ونزّل ملف APK، وانقله عبر USB.
+¿Disfrutando StradaOS?	هل يعجبك StradaOS؟
+Si te gusta usar StradaOS, dale una estrella en GitHub. Y si revivió tu pantalla, considera invitarme un café ☕	إذا أعجبك استخدام StradaOS، امنحه نجمة على GitHub. وإذا أعاد الحياة إلى شاشتك، فكّر في دعوتي على فنجان قهوة ☕
+Dar una estrella	امنحه نجمة
+StradaOS es gratis. Las donaciones ayudan a mantenerlo.	StradaOS مجاني. التبرعات تساعد على صيانته.
+Escanéalo con la cámara de tu celular o entra a:	امسحه بكاميرا هاتفك أو ادخل إلى:
+Abrir aquí	افتح هنا
+No hay navegador disponible	لا يوجد متصفح متاح
+Open Headunit · USB	Open Headunit · USB
+Toca para instalar	اضغط للتثبيت
+Pantalla o adaptador	الشاشة أو المحوّل
+Elige la app de ajustes de tu pantalla	اختر تطبيق إعدادات شاشتك
+No se pudieron abrir los ajustes	تعذّر فتح الإعدادات
+No encontré la app de {}. Elígela de la lista.	لم أجد تطبيق {}. اختره من القائمة.
+↺  Automático (por defecto)	↺  تلقائي (افتراضي)
+¿Qué app abre «{}»?	ما التطبيق الذي يفتح «{}»؟
+Restablecido	تمت الاستعادة
+Esta pantalla no trae Android Auto integrado.\n\nInstala la app gratuita «Open Headunit» (github.com/andreknieriem/headunit-revived): copia su APK en la memoria USB o en Download y vuelve a tocar el botón. Luego conecta el celular por cable USB.	هذه الشاشة لا تتضمن Android Auto مدمجاً.\n\nثبّت التطبيق المجاني «Open Headunit» (github.com/andreknieriem/headunit-revived): انسخ ملف APK الخاص به إلى ذاكرة USB أو إلى مجلد Download ثم اضغط الزر مجدداً. بعد ذلك صِل الهاتف بكابل USB.
+Android Auto por cable USB (necesita la app Android Auto en el celular)	Android Auto عبر كابل USB (يحتاج تطبيق Android Auto على الهاتف)
+Espejo de pantalla (necesita la app CarbitLink en el celular)	نسخ الشاشة (يحتاج تطبيق CarbitLink على الهاتف)
+Android Auto / CarPlay integrados en la pantalla	Android Auto / CarPlay مدمج في الشاشة
+Otra app…	تطبيق آخر…
+¿Cómo quieres conectar tu celular?	كيف تريد توصيل هاتفك؟
+Conexión: {}. Cámbiala dejando presionado el botón.	الاتصال: {}. غيّره بالضغط المطوّل على الزر.
+el navegador	المتصفح
+«{}» necesita un Android más nuevo que el de esta pantalla. Abro el navegador de fábrica.	«{}» يحتاج إصدار Android أحدث من الموجود في هذه الشاشة. سأفتح متصفح المصنع.
+No encontré un navegador. Déjalo presionado para elegir uno.	لم أجد متصفحاً. اضغط عليه مطولاً لاختيار واحد.
+Permite «Instalar apps desconocidas» para StradaOS y vuelve a tocar.	اسمح بـ«تثبيت تطبيقات غير معروفة» لـ StradaOS ثم اضغط مجدداً.
+Activa «Orígenes desconocidos» y vuelve a tocar.	فعّل «مصادر غير معروفة» ثم اضغط مجدداً.
+No se pudo preparar {}	تعذّر تجهيز {}
+No se pudo abrir el instalador para {}	تعذّر فتح المثبّت لـ {}
+Aplicaciones  ·  Android {} (API {})	التطبيقات  ·  Android {} (API {})
+Despejado	صافٍ
+Parcialmente nublado	غائم جزئياً
+Nublado	غائم
+Niebla	ضباب
+Llovizna	رذاذ
+Lluvia	مطر
+Nieve	ثلج
+Tormenta	عاصفة
+Mapa en vivo apagado	الخريطة المباشرة متوقفة
+Rendimiento	الأداء
+Apágalo si la pantalla va lenta: queda un mapa de adorno y el velocímetro sigue funcionando	أوقفها إذا كانت الشاشة بطيئة: تبقى خريطة للزينة ويستمر عدّاد السرعة في العمل
+StradaOS aún no es tu pantalla de inicio	StradaOS ليس شاشتك الرئيسية بعد
+Por eso al encender el carro o al tocar Inicio aparece el menú de fábrica.\n\nToca «Fijar ahora», elige StradaOS y luego «Siempre».	لهذا تظهر قائمة المصنع عند تشغيل السيارة أو الضغط على زر الرئيسية.\n\nاضغط «تعيين الآن»، واختر StradaOS ثم «دائماً».
+Fijar ahora	تعيين الآن
+Ahora no	ليس الآن
+No volver a preguntar	لا تسألني مرة أخرى
+Elige StradaOS y toca «Siempre»	اختر StradaOS واضغط «دائماً»
+Listo: StradaOS es tu pantalla de inicio	تم: StradaOS هو شاشتك الرئيسية
+Fijar StradaOS a mano	تعيين StradaOS يدوياً
+Algunas pantallas no muestran la lista para elegir. Prueba así:\n\n1. Toca el botón Inicio (la casita) de la pantalla. Si pregunta qué app usar, elige StradaOS → Siempre.\n2. Si no pregunta: en los ajustes de la pantalla busca Aplicaciones → Aplicaciones predeterminadas → Pantalla de inicio (o «App de inicio») y elige StradaOS.\n3. Con Android 10 o más nuevo, no lo elijas desde el modo fábrica de la pantalla («Launcher», «Interfaz» o «UI»): en algunas marcas eso deja las demás apps sin poder abrirse. En Android 4 a 9 sí puedes usar esa opción.\n\nSi tu pantalla siempre vuelve a su menú de fábrica al encender, activa «Abrir StradaOS al encender» en Ajustes → Sistema.	بعض الشاشات لا تعرض قائمة الاختيار. جرّب ما يلي:\n\n1. اضغط زر الرئيسية (البيت) في الشاشة. إذا سألك أي تطبيق تستخدم، اختر StradaOS ← دائماً.\n2. إذا لم يسأل: في إعدادات الشاشة ابحث عن التطبيقات ← التطبيقات الافتراضية ← الشاشة الرئيسية (أو «تطبيق الرئيسية») واختر StradaOS.\n3. على Android 10 أو أحدث، لا تختره من وضع المصنع في الشاشة («Launcher» أو «Interface» أو «UI»): في بعض الشركات يمنع ذلك باقي التطبيقات من الفتح. على Android 4 إلى 9 يمكنك استخدام هذا الخيار.\n\nإذا كانت شاشتك تعود دائماً إلى قائمة المصنع عند التشغيل، فعّل «فتح StradaOS عند التشغيل» في الإعدادات ← النظام.
+Pantalla de inicio	الشاشة الرئيسية
+La que aparece al encender y al tocar Inicio	التي تظهر عند التشغيل وعند الضغط على زر الرئيسية
+StradaOS ✓	StradaOS ✓
+Otra · toca para cambiar	أخرى · اضغط للتغيير
+Abrir StradaOS al encender	فتح StradaOS عند التشغيل
+Para pantallas que siempre arrancan en su menú de fábrica (Android 4 a 9)	للشاشات التي تبدأ دائماً بقائمة المصنع (Android 4 إلى 9)
+¿La música Bluetooth se corta o no aparece?	هل تنقطع موسيقى البلوتوث أو لا تظهر؟
+Qué hacer en cada caso	ماذا تفعل في كل حالة
+• Se corta al salir de la app Bluetooth: sal con el botón Inicio (la casita), no con Atrás. Atrás cierra la app de fábrica y con ella la música.\n\n• No suena hasta abrir la app Bluetooth: activa «Abrir la app de música Bluetooth al conectar el celular» (aquí mismo). Abre la app un instante y vuelve al inicio.\n\n• La canción no aparece en el inicio (Android 5 o más nuevo): activa «Música de cualquier app» arriba y dale acceso a notificaciones a StradaOS.\n\n• Revisa en Ajustes → Accesos y apps que «Música Bluetooth» sea la app Bluetooth de tu pantalla.	• تنقطع عند الخروج من تطبيق البلوتوث: اخرج بزر الرئيسية (البيت)، لا بزر الرجوع. زر الرجوع يغلق تطبيق المصنع ومعه الموسيقى.\n\n• لا يعمل الصوت حتى تفتح تطبيق البلوتوث: فعّل «فتح تطبيق موسيقى البلوتوث عند توصيل الهاتف» (هنا مباشرة). يفتح التطبيق للحظة ثم يعود إلى الرئيسية.\n\n• الأغنية لا تظهر في الرئيسية (Android 5 أو أحدث): فعّل «موسيقى من أي تطبيق» في الأعلى وامنح StradaOS الوصول إلى الإشعارات.\n\n• تحقق في الإعدادات ← الاختصارات والتطبيقات أن «موسيقى البلوتوث» هو تطبيق البلوتوث الخاص بشاشتك.
+Sin permiso	بلا إذن
+GPS apagado	GPS متوقف
+Unidades	الوحدات
+Automático: mph en EE. UU. y Reino Unido	تلقائي: mph في الولايات المتحدة والمملكة المتحدة
+Permisos → Ubicación → Permitir	الأذونات ← الموقع ← السماح
+Activa la ubicación para StradaOS en los ajustes de la pantalla	فعّل الموقع لـ StradaOS في إعدادات الشاشة
+Activa la ubicación (GPS)	فعّل الموقع (GPS)
+Activa la ubicación (GPS) en los ajustes de la pantalla	فعّل الموقع (GPS) في إعدادات الشاشة
+Sin permiso de ubicación · toca aquí	لا يوجد إذن الموقع · اضغط هنا
+Ubicación apagada · toca aquí	الموقع متوقف · اضغط هنا
+Sin señal GPS · toca aquí	لا توجد إشارة GPS · اضغط هنا
+Versión de prueba	نسخة تجريبية
+Simular pantalla	محاكاة الشاشة
+Para probar otros tamaños en una tablet o celular	لتجربة مقاسات أخرى على جهاز لوحي أو هاتف
+Real	الفعلي
+Aceite	الزيت
+Configurar	إعداد
+¡Cambiar!	غيّره!
+Kilometraje estimado	عدّاد المسافة التقديري
+Próximo cambio	التغيير القادم
+Faltan {}	متبقٍ {}
+¡Ya toca!	حان الوقت!
+Cambio de aceite	تغيير الزيت
+Ya hice el cambio de aceite	لقد غيّرت الزيت
+Corregir el kilometraje actual	تصحيح عدّاد المسافة الحالي
+Cambiar cada cuánto se hace	تغيير عدد مرات التغيير
+Desactivar el recordatorio	إيقاف التذكير
+Recordatorio de cambio de aceite	تذكير تغيير الزيت
+StradaOS no puede leer el kilometraje del tablero del carro. Escríbelo una vez y StradaOS le irá sumando lo que recorras con el GPS, para avisarte cuando toque el cambio.\n\nDe vez en cuando puedes corregirlo con el valor real del tablero.	لا يستطيع StradaOS قراءة عدّاد المسافة في لوحة عدادات السيارة. أدخله مرة واحدة وسيضيف StradaOS إليه المسافة التي تقطعها عبر GPS، لينبّهك عندما يحين موعد التغيير.\n\nيمكنك تصحيحه من حين لآخر بالقراءة الفعلية من لوحة العدادات.
+¿A cuántos {} fue el último cambio de aceite?	عدّاد المسافة عند آخر تغيير زيت ({})
+Kilometraje actual del tablero	عدّاد المسافة الحالي في لوحة العدادات
+¿Cada cuántos {} cambias el aceite?	كل كم {} تغيّر الزيت؟
+Escribe un número válido	أدخل رقماً صالحاً
+Kilometraje del tablero al hacer el cambio	عدّاد المسافة عند التغيير
+Es hora del cambio de aceite	حان وقت تغيير الزيت
+El kilometraje estimado es ≈ {} y ya toca el cambio de aceite (cada {}).	عدّاد المسافة التقديري ≈ {} وقد حان وقت تغيير الزيت (كل {}).
+¿Ya lo hiciste?	هل غيّرته؟
+Ya lo hice	نعم، غيّرته
+Aún no	ليس بعد
+Se muestra al lado de la velocidad y avisa cuando toca	يظهر بجانب السرعة وينبّهك عند حلول الموعد
+Kilometraje actual	عدّاد المسافة الحالي
+Estimado con el GPS. Corrígelo con el del tablero cuando quieras	تقديري عبر GPS. صحّحه بقراءة لوحة العدادات متى شئت
+Cada cuánto	كل كم
+Orientación del mapa	اتجاه الخريطة
+El mapa apunta	اتجاه الخريطة
+Según tu dirección: gira con el carro mientras te mueves	حسب اتجاهك: تدور مع السيارة أثناء القيادة
+Norte arriba	الشمال للأعلى
+Según tu dirección	حسب اتجاهك
+# 2.13: aceite (último cambio, unidad) y apps ocultas del cajón
+Último cambio	آخر تغيير
+Corregir el último cambio	تصحيح آخر تغيير
+¿Tu tablero marca kilómetros o millas?	هل تعرض لوحة عداداتك الكيلومترات أم الأميال؟
+Kilómetros (km)	كيلومترات (km)
+Millas (mi)	أميال (mi)
+Revisa el último cambio	راجع آخر تغيير
+El último cambio ({}) queda por encima del kilometraje actual ({}). ¿Lo escribiste en otra unidad?	آخر تغيير ({}) أعلى من عدّاد المسافة الحالي ({}). هل أدخلته بوحدة مختلفة؟
+Corregir	تصحيح
+Guardar igual	احفظ على أي حال
+Kilometraje del tablero cuando se hizo	عدّاد المسافة عند إجرائه
+Ocultas: {}	مخفية: {}
+Ocultar del cajón	إخفاء من الدرج
+Información de la app	معلومات التطبيق
+Oculta. Para volver a verla: Ajustes → Accesos y apps → Apps ocultas	مخفي. لإظهاره مجدداً: الإعدادات ← الاختصارات والتطبيقات ← التطبيقات المخفية
+Cajón de apps	درج التطبيقات
+Apps ocultas	التطبيقات المخفية
+No se ven en el cajón, pero siguen instaladas y se pueden poner en los botones	لا تظهر في الدرج، لكنها ما زالت مثبّتة ويمكن وضعها في الأزرار
+Buscar app	البحث عن تطبيق
+Apps ocultas en el cajón	التطبيقات المخفية من الدرج
+Se muestran todas las apps	تظهر كل التطبيقات
+Apps ocultas: {}	التطبيقات المخفية: {}
+# 2.14: desinstalar desde el cajón
+Desinstalar	إلغاء التثبيت
+# 2.14: salir de StradaOS (issue #9)
+Salir de StradaOS	الخروج من StradaOS
+Abrir el launcher de fábrica	فتح واجهة المصنع
+Sale de StradaOS sin desinstalarlo	يخرج من StradaOS دون إلغاء تثبيته
+Desactivar StradaOS	تعطيل StradaOS
+Si la pantalla quedó atrapada en StradaOS: se apaga solo, sin ventanas de Android	إذا علقت الشاشة في StradaOS: يتعطل تلقائياً دون نوافذ Android
+Desinstalar StradaOS	إلغاء تثبيت StradaOS
+Android pide confirmar	سيطلب Android التأكيد
+No encontré otra pantalla de inicio en este equipo	لم أجد شاشة رئيسية أخرى على هذا الجهاز
+¿Cuál es el launcher de fábrica?	ما هي واجهة المصنع؟
+No se pudo abrir	تعذّر الفتح
+No encontré otra pantalla de inicio: StradaOS no se puede desactivar en este equipo	لم أجد شاشة رئيسية أخرى: لا يمكن تعطيل StradaOS على هذا الجهاز
+¿Desactivar StradaOS?	تعطيل StradaOS؟
+StradaOS deja de ser la pantalla de inicio, ya no se abre al encender y vuelve el launcher de fábrica. No pide confirmaciones de Android, así que sirve aunque la pantalla haya quedado atrapada.\n\nPara volver a usarlo después: desinstálalo desde los ajustes de la pantalla e instálalo de nuevo.	يتوقف StradaOS عن كونه الشاشة الرئيسية، ولا يُفتح عند التشغيل، وتعود واجهة المصنع. لا يحتاج إلى تأكيدات Android، لذلك يعمل حتى لو علقت الشاشة.\n\nلاستخدامه مجدداً لاحقاً: ألغِ تثبيته من إعدادات الشاشة ثم ثبّته من جديد.
+Desactivar	تعطيل
+# 2.15: diseño del inicio
+Diseño del inicio	تخطيط الرئيسية
+Reproductor de música	مشغّل الموسيقى
+Ponlo del lado del conductor para tenerlo a la mano	ضعه في جهة السائق ليكون في متناول يدك
+Derecha	يمين
+Izquierda	يسار
+Tarjeta del vehículo	بطاقة المركبة
+Si la ocultas, la velocidad pasa arriba y el mapa y el reproductor ganan espacio	إذا أخفيتها، تنتقل السرعة إلى الأعلى وتحصل الخريطة والمشغّل على مساحة أكبر
+Barra de botones	شريط الأزرار
+Lateral: los botones van al costado y todo se ve más grande en pantallas bajas como 1280×480	جانبي: تنتقل الأزرار إلى الجانب ويبدو كل شيء أكبر في الشاشات القصيرة مثل 1280×480
+Normal	عادي
+Compacta	مضغوط
+Lateral	جانبي
+Aceite: configurar	الزيت: إعداد
+¡Cambiar aceite!	غيّر الزيت!
+Aceite: {}	الزيت: {}
+Mapa sin conexión	خريطة بلا اتصال
+Archivo del mapa	ملف الخريطة
+Un archivo .map (p. ej. colombia.map) en la memoria de la pantalla o en una USB: el mapa se ve sin internet	ملف بصيغة map (مثل colombia.map) في ذاكرة الشاشة أو على ذاكرة USB: تعمل الخريطة دون إنترنت
+Error	خطأ
+No se pudo abrir: {}	تعذّر الفتح: {}
+Toca para dejar de usarlo	اضغط لإيقاف استخدامه
+Mapa sin conexión quitado	تمت إزالة الخريطة بلا اتصال
+¿Dónde consigo el mapa?	من أين أحصل على الخريطة؟
+Mapas gratis de OpenStreetMap por país	خرائط OpenStreetMap مجانية حسب الدولة
+Buscando mapas…	جارٍ البحث عن الخرائط…
+No se encontró ningún mapa	لم يُعثر على أي خريطة
+No hay archivos .map en la memoria de la pantalla ni en las USB conectadas. Toca «Cómo conseguirlo» para ver de dónde bajarlo.	لا توجد ملفات بصيغة map في ذاكرة الشاشة ولا على ذواكر USB الموصولة. اضغط «طريقة الحصول عليها» لمعرفة مصدر تنزيلها.
+Cómo conseguirlo	طريقة الحصول عليها
+Elige el mapa	اختر الخريطة
+No se pudo usar este archivo	لا يمكن استخدام هذا الملف
+Debe ser un mapa de mapsforge (.map) copiado completo.	يجب أن تكون خريطة mapsforge بصيغة map منسوخة بالكامل.
+Mapa sin conexión listo: {}	الخريطة بلا اتصال جاهزة: {}
+Sin permiso de almacenamiento no se pueden buscar mapas	لا يمكن البحث عن الخرائط دون إذن التخزين
+Última posición · mapa sin conexión	آخر موقع · خريطة بلا اتصال
+no se encuentra el archivo	الملف غير موجود
+sin permiso para leer el archivo	لا يوجد إذن لقراءة الملف
+no es un mapa de mapsforge (.map)	ليست خريطة mapsforge بصيغة map
+el archivo está incompleto (¿se copió entero?)	الملف غير مكتمل (هل نُسخ بالكامل؟)
+1. En un computador o celular, descarga el mapa de tu país (formato mapsforge, gratis):\ndownload.mapsforge.org/maps/v5\n\nColombia:\ndownload.mapsforge.org/maps/v5/south-america/colombia.map\n\n2. Cópialo a una memoria USB o a la carpeta Download de la pantalla.\n\n3. En Ajustes → Mapa y clima → Mapa sin conexión, toca «Archivo del mapa» y elígelo.\n\nEl mapa se usa en el inicio incluso con internet. Para actualizarlo, descarga uno nuevo y reemplaza el archivo.	1. من حاسوب أو هاتف، نزّل خريطة بلدك (بصيغة mapsforge، مجاناً):\ndownload.mapsforge.org/maps/v5\n\nكولومبيا:\ndownload.mapsforge.org/maps/v5/south-america/colombia.map\n\n2. انسخها إلى ذاكرة USB أو إلى مجلد Download في الشاشة.\n\n3. في الإعدادات ← الخريطة والطقس ← خريطة بلا اتصال، اضغط «ملف الخريطة» واخترها.\n\nتُستخدم الخريطة في الرئيسية حتى مع وجود إنترنت. لتحديثها، نزّل خريطة جديدة واستبدل الملف.
+Toca para dejar de usarlo o borrarlo	اضغط لإيقاف استخدامه أو حذفه
+Descargar un mapa	تنزيل خريطة
+Elige tu país: se descarga gratis de OpenStreetMap (mapsforge) y se usa sin internet	اختر بلدك: تُنزَّل مجاناً من OpenStreetMap (mapsforge) وتعمل دون إنترنت
+Cargando la lista de mapas…	جارٍ تحميل قائمة الخرائط…
+No se pudo cargar la lista de mapas	تعذّر تحميل قائمة الخرائط
+Revisa la conexión a internet e inténtalo de nuevo.	تحقق من اتصالك بالإنترنت وحاول مجدداً.
+por regiones	حسب المناطق
+Elige el continente	اختر القارة
+Tamaño	الحجم
+Se guarda en	يُحفظ في
+Espacio libre	المساحة الفارغة
+memoria	الذاكرة
+Usa datos: mejor con WiFi o un plan amplio. Puedes seguir usando la pantalla; si se corta la señal o la apagas, la descarga continúa después.	يستهلك البيانات: الأفضل عبر WiFi أو باقة كبيرة. يمكنك مواصلة استخدام الشاشة؛ إذا انقطعت الإشارة أو أطفأتها، يستأنف التنزيل لاحقاً.
+No hay espacio suficiente en la memoria.	لا توجد مساحة كافية في الذاكرة.
+Descargar	تنزيل
+Descargando el mapa… puedes seguir usando la pantalla	جارٍ تنزيل الخريطة… يمكنك مواصلة استخدام الشاشة
+Descarga en curso	التنزيل جارٍ
+Descarga en pausa	التنزيل متوقف مؤقتاً
+Pausar	إيقاف مؤقت
+Continuar	استئناف
+Cancelar descarga	إلغاء التنزيل
+Descarga cancelada	تم إلغاء التنزيل
+Este mapa lo descargó StradaOS. Puedes dejar de usarlo o borrarlo para liberar espacio.	نزّل StradaOS هذه الخريطة. يمكنك إيقاف استخدامها أو حذفها لتحرير المساحة.
+Puedes dejar de usar este mapa (el archivo no se borra).	يمكنك إيقاف استخدام هذه الخريطة (لن يُحذف الملف).
+Dejar de usarlo	إيقاف استخدامها
+Borrar el archivo	حذف الملف
+Mapa borrado	تم حذف الخريطة
+Mapa descargado y listo: {}	تم تنزيل الخريطة وهي جاهزة: {}
+Descargando	جارٍ التنزيل
+África	أفريقيا
+Australia y Oceanía	أستراليا وأوقيانوسيا
+Centroamérica y el Caribe	أمريكا الوسطى والكاريبي
+Europa	أوروبا
+Norteamérica	أمريكا الشمالية
+Rusia	روسيا
+Sudamérica	أمريكا الجنوبية
+sin conexión, reintentando…	لا يوجد اتصال، جارٍ إعادة المحاولة…
+el archivo quedó incompleto	الملف غير مكتمل
+no se pudo guardar el archivo	تعذّر حفظ الملف
+no hay espacio suficiente	لا توجد مساحة كافية
+se cortó la descarga	انقطع التنزيل
+Sin señal GPS · mapa sin conexión	لا توجد إشارة GPS · خريطة بلا اتصال
+Sin señal GPS ni internet	لا توجد إشارة GPS ولا إنترنت
+Sin señal GPS · última posición	لا توجد إشارة GPS · آخر موقع
+# 2.17: tema por horario o del sistema, íconos de Wi-Fi y Bluetooth, barra, diagnóstico del mapa
+Auto: por horario. Sistema: sigue el modo oscuro de la pantalla (algunas lo cambian al encender las luces)	تلقائي: حسب الجدول. النظام: يتبع الوضع الداكن للشاشة (بعض الشاشات تغيّره عند تشغيل الأضواء)
+Oscuro desde	داكن من
+Claro desde	فاتح من
+Íconos de Wi-Fi y Bluetooth	أيقونات Wi-Fi والبلوتوث
+Arriba, junto al clima. Toca para encender o apagar; déjalo presionado para abrir sus ajustes	في الأعلى بجانب الطقس. اضغط للتشغيل أو الإيقاف؛ اضغط مطولاً لفتح الإعدادات
+¿Apagar el Wi-Fi?	إيقاف Wi-Fi؟
+La pantalla se queda sin internet (mapa en vivo, clima y actualizaciones).	ستفقد الشاشة الاتصال بالإنترنت (الخريطة المباشرة والطقس والتحديثات).
+Apagar	إيقاف
+Esta pantalla no deja cambiar el Wi-Fi desde otra app: abre sus ajustes	هذه الشاشة لا تسمح لتطبيق آخر بتغيير Wi-Fi: سيتم فتح الإعدادات
+Encendiendo el Wi-Fi…	جارٍ تشغيل Wi-Fi…
+Wi-Fi apagado	تم إيقاف Wi-Fi
+¿Apagar el Bluetooth?	إيقاف البلوتوث؟
+Se desconecta el celular (música y llamadas).	سينقطع اتصال الهاتف (الموسيقى والمكالمات).
+Esta pantalla no deja cambiar el Bluetooth desde otra app: abre sus ajustes	هذه الشاشة لا تسمح لتطبيق آخر بتغيير البلوتوث: سيتم فتح الإعدادات
+Encendiendo el Bluetooth…	جارٍ تشغيل البلوتوث…
+Bluetooth apagado	تم إيقاف البلوتوث
+Lado de la barra lateral	جانب الشريط الجانبي
+Automático: del lado del reproductor	تلقائي: في جهة المشغّل
+Nombres de los botones	أسماء الأزرار
+Debajo de cada ícono de la barra	أسفل كل أيقونة في الشريط
+Permiso de ubicación: {}	إذن الموقع: {}
+NO (toca el letrero del mapa)	لا (اضغط على شارة الخريطة)
+sí	نعم
+GPS del equipo: {} · ubicación por red: {}	GPS الجهاز: {} · الموقع عبر الشبكة: {}
+no encontrado	غير موجود
+encendido	مفعّل
+apagado	معطّل
+encendida	مفعّلة
+apagada	معطّلة
+Última señal: {}	آخر إشارة: {}
+ninguna desde que abrió StradaOS	لا شيء منذ فتح StradaOS
+hace {} s	منذ {} ث
+hace {} min	منذ {} د
+Buscando desde hace {} min	جارٍ البحث منذ {} د
+Posición: {}	الموقع: {}
+sin GPS	بدون GPS
+Zoom: {}	التكبير: {}
+Mapa sin conexión: {}	الخريطة بلا اتصال: {}
+ninguno	لا يوجد
+error: {}	خطأ: {}
+{} · en uso	{} · قيد الاستخدام
+{} · fuera del área del archivo	{} · خارج منطقة الملف
+Teselas dibujadas desde el archivo: {} · {} ms cada una	بلاطات مرسومة من الملف: {} · {} ms لكل منها
+Proveedor: {}	المزوّد: {}
+{} · ninguna fuente respondió ({} vueltas)	{} · لم يستجب أي مصدر ({} جولات)
+Teselas descargadas: {} · en caché: {}	بلاطات تم تنزيلها: {} · في الذاكرة المؤقتة: {}
+Errores seguidos: {}	أخطاء متتالية: {}
+Último error: {}	آخر خطأ: {}
+Fuentes probadas:	المصادر المجرّبة:
+• {}: {}	• {}: {}
+sin probar	لم يُجرَّب
+certificado	الشهادة
+OSM Alemania	OSM ألمانيا
+OSM Francia	OSM فرنسا
+OSM Humanitario	OSM الإنساني
+Esri gris oscuro	Esri رمادي داكن
+sin iniciar	لم يبدأ
+TLS listo ({}), {} raíces	TLS جاهز ({})، {} جذور
+TLS listo ({}), {} raíces, {} omitidas	TLS جاهز ({})، {} جذور، {} متخطّاة
+TLS no disponible: {}	TLS غير متاح: {}
+Íconos de Wi-Fi y Bluetooth arriba	أيقونات Wi-Fi والبلوتوث في الأعلى
+Bluetooth: estado del celular desde la app de fábrica; toca para abrirla	البلوتوث: حالة الهاتف من تطبيق المصنع؛ اضغط لفتحه
+Tema según el modo oscuro del sistema	سمة تتبع الوضع الداكن للنظام
+Pantallas que lo cambian (p. ej. con las luces)	الشاشات التي تغيّره (مثلًا مع الأضواء)
+el sistema está en modo oscuro	النظام في الوضع الداكن
+el sistema está en modo claro	النظام في الوضع الفاتح
+# 2.18: botones de conexión, clima detallado, ocultar velocidad/aceite/reproductor, botón del navegador, foto tal cual
+Cargando…	جارٍ التحميل…
+Esperando la ubicación…	في انتظار الموقع…
+Máx {} · Mín {}	العظمى {} · الصغرى {}
+Sensación {}	المحسوسة {}
+Humedad {}	الرطوبة {}
+Viento {}	الرياح {}
+PRÓXIMAS HORAS	الساعات القادمة
+PRÓXIMOS DÍAS	الأيام القادمة
+Ahora	الآن
+Hoy	اليوم
+El clima está apagado en Ajustes → Mapa y clima	الطقس متوقف في الإعدادات ← الخريطة والطقس
+Esperando la ubicación para el clima…	في انتظار الموقع لعرض الطقس…
+Cargando el clima…	جارٍ تحميل الطقس…
+Velocidad y servicio	السرعة والصيانة
+En la tarjeta del vehículo (o arriba si la ocultas). Apágalo si tu carro o pantalla no tiene GPS: la foto ocupa ese espacio	في بطاقة المركبة (أو في الأعلى إذا أخفيتها). أوقفه إذا لم يكن في سيارتك أو شاشتك GPS: ستشغل الصورة تلك المساحة
+Aceite en el inicio	الزيت في الشاشة الرئيسية
+Junto a la velocidad. Aunque lo ocultes, el aviso del cambio de aceite sigue saliendo	بجانب السرعة. حتى لو أخفيته، سيظل تنبيه تغيير الزيت يظهر
+Tarjeta del reproductor	بطاقة المشغّل
+Si la ocultas, el mapa gana espacio	إذا أخفيتها، تحصل الخريطة على مساحة أكبر
+Botones de conexión	أزرار الاتصال
+Con uno o ninguno, el clima ocupa el espacio libre del mapa	مع زر واحد أو بدون أزرار، يملأ الطقس المساحة الفارغة في الخريطة
+Android Auto y CarPlay	Android Auto وCarPlay
+Solo Android Auto	Android Auto فقط
+Solo CarPlay	CarPlay فقط
+Botón del navegador	زر الملاحة
+El botón redondo del mapa que abre tu app de navegación	زر الخريطة الدائري الذي يفتح تطبيق الملاحة
+Grande	كبير
+Muy grande	كبير جدًا
+Oculto	مخفي
+Lado del botón del navegador	جانب زر الملاحة
+Automático: del lado del reproductor (el del conductor)	تلقائي: في جهة المشغّل (جهة السائق)
+Usar la foto original, sin recortar ni quitar el fondo	استخدم الصورة الأصلية دون قص أو إزالة الخلفية
+Se le quita el fondo automáticamente, o la puedes usar tal cual	تتم إزالة الخلفية تلقائيًا، أو يمكنك استخدامها كما هي
+Lluvia {}	مطر {}
+Abriendo la foto…	جارٍ فتح الصورة…
+Vista previa	معاينة
+Sin fondo · nivel {} de 4	بدون خلفية · المستوى {} من 4
+Sin fondo · nivel {} de 4 (también quita el reflejo del piso)	بدون خلفية · المستوى {} من 4 (يزيل أيضًا انعكاس الأرضية)
+Usar la foto original, con fondo	استخدم الصورة الأصلية مع الخلفية
+Quitar el fondo	إزالة الخلفية
+No se detectó un fondo liso: se usa la foto tal cual	لم يتم العثور على خلفية سادة: ستُستخدم الصورة كما هي
+Se usa tal cual; si quieres, le puedes quitar el fondo	تُستخدم كما هي؛ ويمكنك إزالة الخلفية إن أردت
+# 2.19: cantidad y tamaño de los botones, íconos de apps, packs de íconos, barra oculta, tamaño de la letra
+Cantidad de botones	عدد الأزرار
+«Apps» siempre queda al final	يبقى «التطبيقات» دائمًا في النهاية
+Tamaño de los íconos	حجم الأيقونات
+Pequeño	صغير
+Pequeña	صغير
+Íconos de la barra	أيقونات الشريط
+Apps: el ícono de la app que abre cada botón (radio, cámara…)	التطبيقات: أيقونة التطبيق الذي يفتحه كل زر (الراديو، الكاميرا…)
+Pack de íconos	حزمة الأيقونات
+Instala uno (los de Nova o ADW sirven) y elígelo aquí	ثبّت حزمة (حزم Nova أو ADW تعمل) واخترها هنا
+Cambia los íconos de la barra y del cajón de apps	يغيّر أيقونات الشريط ودرج التطبيقات
+Ninguno (íconos de siempre)	لا شيء (الأيقونات المعتادة)
+No hay packs de íconos instalados	لا توجد حزم أيقونات مثبتة
+Ese pack no trae la lista de íconos (appfilter)	هذه الحزمة لا تحتوي على قائمة الأيقونات (appfilter)
+Pack listo: {} íconos	الحزمة جاهزة: {} أيقونة
+Lateral: los botones van al costado y todo se ve más grande en pantallas bajas como 1280×480. Oculta: el botón Apps va arriba	جانبي: تنتقل الأزرار إلى الجانب ويبدو كل شيء أكبر في الشاشات المنخفضة مثل 1280×480. مخفي: ينتقل زر التطبيقات إلى الأعلى
+Oculta	مخفي
+Tamaño de la letra	حجم الخط
+Para leer mejor de lejos o que quepa más	للقراءة بشكل أفضل من بعيد أو لاحتواء المزيد
+# 2.20: velocímetro analógico, velocímetro sobre el mapa, mantenimientos a medida
+Velocímetro	عداد السرعة
+En la tarjeta del vehículo. Toma el color de acento	في بطاقة المركبة. يستخدم لون التمييز
+Digital	رقمي
+Analógico	تناظري
+Mixto	مختلط
+Velocímetro sobre el mapa	عداد السرعة على الخريطة
+Redondo, en una esquina del mapa (en vez de la velocidad de arriba)	دائري، في زاوية الخريطة (بدلًا من السرعة في الأعلى)
+Mantenimiento	صيانة
+Otros mantenimientos	صيانة أخرى
+Agregar mantenimiento	إضافة صيانة
+Filtros, bujías, frenos, correa, SOAT… Avisa por kilómetros, por tiempo o lo que llegue primero	فلاتر، شمعات، فرامل، سير، تأمين… يذكّرك حسب المسافة أو الوقت أو أيهما أقرب
+Filtro de aire	فلتر الهواء
+Bujías	شمعات الإشعال
+Pastillas de freno	فحمات الفرامل
+Líquido de frenos	سائل الفرامل
+Refrigerante	سائل التبريد
+Correa de distribución	سير التوقيت
+Rotación de llantas	تدوير الإطارات
+Alineación y balanceo	الترصيص والموازنة
+Revisión de la batería	فحص البطارية
+Seguro obligatorio (SOAT)	التأمين الإلزامي
+Revisión técnico-mecánica	الفحص الفني للمركبة
+Otro (escribe el nombre)	أخرى (اكتب الاسم)
+Nombre del mantenimiento	اسم الصيانة
+Por kilómetros	حسب المسافة
+Por tiempo	حسب الوقت
+Lo que llegue primero	أيهما أقرب
+¿Cada cuántos meses?	كل كم شهرًا؟
+¿Cada cuántos {}?	كل كم {}؟
+¿A cuántos {} fue la última vez?	عند كم {} كانت آخر مرة؟
+¿Cuándo fue la última vez?	متى كانت آخر مرة؟
+Kilometraje del tablero	عداد المسافة في لوحة القيادة
+StradaOS no puede leer el kilometraje del carro. Escríbelo una vez y StradaOS le suma lo que recorras con el GPS.	لا يستطيع StradaOS قراءة عداد السيارة. اكتبه مرة واحدة وسيضيف StradaOS ما تقطعه عبر GPS.
+Escribirlo	اكتبه
+Última vez	آخر مرة
+Cambiar cada cuánto	تغيير المدة
+Corregir la última vez	تصحيح آخر مرة
+¿Borrar «{}»?	حذف «{}»؟
+Kilometraje del tablero al hacerlo	عداد المسافة عند التنفيذ
+Es hora de: {}	حان وقت: {}
+¡Toca: {}!	مستحق: {}!
+Cada {}	كل {}
+cada {} mes	كل {} شهر
+cada {} meses	كل {} أشهر
+¿Cada cuánto tiempo?	كل كم من الوقت؟
+Días	أيام
+Semanas	أسابيع
+Meses	أشهر
+cada día	كل يوم
+cada semana	كل أسبوع
+cada mes	كل شهر
+cada {} días	كل {} أيام
+cada {} semanas	كل {} أسابيع
+(lo primero)	(أيهما أقرب)
+{} meses	{} أشهر
+{} día	{} يوم
+{} días	{} أيام
+# 2.20: Ajustes reordenados, sección Mantenimientos, íconos, velocímetro del mapa
+Mantenimientos	الصيانة
+Barra de apps	شريط التطبيقات
+Tarjetas	البطاقات
+Barra de arriba	الشريط العلوي
+Diseño de la barra	تصميم الشريط
+Botones (déjalos presionados en el inicio para cambiarlos)	الأزرار (اضغط عليها مطولًا في الشاشة الرئيسية لتغييرها)
+Texto	النص
+Kilometraje	عداد المسافة
+Escríbelo una vez y StradaOS le suma lo que recorras con el GPS	اكتبه مرة واحدة وسيضيف StradaOS ما تقطعه عبر GPS
+Avisa cuando toca el cambio	ينبهك عندما يحين وقت التغيير
+En el inicio	في الشاشة الرئيسية
+Mantenimiento en el inicio	الصيانة في الشاشة الرئيسية
+Junto a la velocidad se ve el más próximo (el aceite u otro). Los avisos siguen saliendo aunque lo ocultes	بجانب السرعة يظهر الأقرب (الزيت أو غيره). تستمر التنبيهات حتى لو أخفيته
+Se muestra junto a la velocidad: activa «Velocidad y servicio» en Pantalla de inicio	يظهر بجانب السرعة: فعّل «السرعة والصيانة» في الشاشة الرئيسية
+Aceite, filtros, SOAT y más	الزيت والفلاتر والتأمين والمزيد
+Ahora están en su propia sección	أصبح لها قسم خاص الآن
+Al encender	عند التشغيل
+Launcher predeterminado	المشغّل الافتراضي
+Esquina del velocímetro	زاوية عداد السرعة
+Automático: arriba, en el lado contrario al botón del navegador	تلقائي: في الأعلى، عكس جهة زر الملاحة
+Arriba a la izquierda	أعلى اليسار
+Arriba a la derecha	أعلى اليمين
+Abajo a la izquierda	أسفل اليسار
+Abajo a la derecha	أسفل اليمين
+Tamaño del velocímetro	حجم عداد السرعة
+En pantallas bajas se limita para no tapar el mapa	في الشاشات المنخفضة يُحدّ حتى لا يغطي الخريطة
+Elige un ícono	اختر أيقونة
+Cambiar el ícono	تغيير الأيقونة
+Filtro de combustible	فلتر الوقود
+Aire acondicionado	التكييف
+Lavado	غسيل السيارة
+# 2.21: ventanas propias, diagnósticos traducidos, copia de seguridad, app al encender, diseño vertical
+Fuente: {}	المصدر: {}
+Pista: {}	المقطع: {}
+Carátula: {}	غلاف الألبوم: {}
+Lector de notificaciones (accesibilidad): {}	قارئ الإشعارات (إمكانية الوصول): {}
+ACTIVO	مفعّل
+Última notificación de Open Headunit: {}	آخر إشعار من Open Headunit: {}
+ninguna	لا شيء
+{} s, carátula {}, textos {}	{} ث، غلاف الألبوم {}، النصوص {}
+Open Headunit corriendo: {} · celular por USB en modo Android Auto: {}	Open Headunit يعمل: {} · الهاتف عبر USB في وضع Android Auto: {}
+no se sabe	غير معروف
+Android Auto conectado (para StradaOS): {}	Android Auto متصل (بالنسبة إلى StradaOS): {}
+App Bluetooth conectada: {}	تطبيق البلوتوث متصل: {}
+Audio Bluetooth automático: {}	صوت البلوتوث التلقائي: {}
+desactivado	معطّل
+no aplica (otra marca)	لا ينطبق (علامة تجارية أخرى)
+App de música Bluetooth: {} · abrir al conectar: {}	تطبيق موسيقى البلوتوث: {} · الفتح عند الاتصال: {}
+no encontrada	غير موجود
+Sonido en Bluetooth (estimado): {} · app al frente: {}	الصوت على البلوتوث (تقديري): {} · التطبيق في الواجهة: {}
+Activaciones: {}	مرات التفعيل: {}
+Eventos Bluetooth:	أحداث البلوتوث:
+(sin eventos)	(لا توجد أحداث)
+no	لا
+conectado a la app Bluetooth	تم الاتصال بتطبيق البلوتوث
+la app Bluetooth se cerró	أُغلق تطبيق البلوتوث
+se reinicia muy seguido: pausa de 15 min	يُعاد تشغيله كثيرًا: توقف لمدة 15 دقيقة
+activar audio: el celular no está conectado por Bluetooth	تفعيل الصوت: الهاتف غير متصل عبر البلوتوث
+activar audio: el celular está en pausa	تفعيل الصوت: الهاتف متوقف مؤقتًا
+modo de audio Bluetooth solicitado	تم طلب وضع صوت البلوتوث
+activar audio falló: {}	فشل تفعيل الصوت: {}
+el celular empezó a sonar	بدأ الهاتف بالتشغيل
+revisión falló: {}	فشل الفحص: {}
+otra fuente al frente: {}	مصدر آخر في الواجهة: {}
+no se cambió: StradaOS acaba de arrancar	لم يتم التبديل: StradaOS بدأ للتو
+no se cambió: llamada en curso	لم يتم التبديل: مكالمة جارية
+no se cambió: Android Auto tiene el sonido	لم يتم التبديل: الصوت لدى Android Auto
+el sonido ya es Bluetooth	الصوت على البلوتوث بالفعل
+celular conectado por Bluetooth	الهاتف متصل عبر البلوتوث
+no se abrió la app BT: cámara de reversa al frente	لم يُفتح تطبيق البلوتوث: كاميرا الرجوع للخلف في الواجهة
+no se abrió la app BT: no sé qué app está al frente	لم يُفتح تطبيق البلوتوث: لا يُعرف أي تطبيق في الواجهة
+no se abrió la app BT: ajustes abiertos	لم يُفتح تطبيق البلوتوث: الإعدادات مفتوحة
+abierta {} para tomar el sonido (luego vuelve a {})	تم فتح {} لأخذ الصوت (ثم العودة إلى {})
+abierta {} para tomar el sonido	تم فتح {} لأخذ الصوت
+no se volvió: el usuario abrió {}	لم تتم العودة: المستخدم فتح {}
+Android Auto se desconectó	انقطع اتصال Android Auto
+Registro técnico para enviar al desarrollador (se guarda en español).	سجل تقني لإرساله إلى المطوّر (يُحفظ بالإسبانية).
+Preparando {}…	جارٍ تجهيز {}…
+Copia de seguridad	النسخ الاحتياطي
+Guardar una copia	حفظ نسخة احتياطية
+Ajustes, mantenimientos, kilometraje y la foto del vehículo en un archivo, en la pantalla o en una USB. Nada se sube a internet	الإعدادات والصيانة وعداد المسافة وصورة المركبة في ملف واحد، على الشاشة أو على ذاكرة USB. لا يُرفع أي شيء إلى الإنترنت
+Restaurar una copia	استعادة نسخة احتياطية
+Recupera todo después de restablecer la pantalla, o pásalo a otra pantalla	استرجع كل شيء بعد إعادة ضبط الشاشة، أو انقله إلى شاشة أخرى
+Copia automática	نسخ احتياطي تلقائي
+Cada vez que cambias algo se actualiza una copia en la pantalla y en la USB que esté conectada	في كل مرة تغيّر شيئًا، تُحدَّث نسخة احتياطية على الشاشة وعلى ذاكرة USB المتصلة
+Memoria de la pantalla	ذاكرة الشاشة
+Memoria USB	ذاكرة USB
+Elegir otra carpeta…	اختيار مجلد آخر…
+¿Dónde guardar la copia?	أين تريد حفظ النسخة الاحتياطية؟
+No se pudo abrir el selector de archivos	تعذّر فتح منتقي الملفات
+No se pudo guardar la copia	تعذّر حفظ النسخة الاحتياطية
+Esa memoria no dejó escribir el archivo. Prueba con otra memoria o con «Elegir otra carpeta…».	هذه الذاكرة لم تسمح بكتابة الملف. جرّب ذاكرة أخرى أو «اختيار مجلد آخر…».
+Copia guardada	تم حفظ النسخة الاحتياطية
+Se guardó en:	تم الحفظ في:
+Al restablecer la pantalla de fábrica también se puede borrar su memoria: guarda otra copia en una USB para tenerla a salvo.	إعادة ضبط المصنع للشاشة قد تمسح ذاكرتها أيضًا: احتفظ بنسخة احتياطية أخرى على ذاكرة USB للأمان.
+No se pudo leer el archivo	تعذّرت قراءة الملف
+Buscando copias…	جارٍ البحث عن النسخ الاحتياطية…
+No se encontró ninguna copia	لم يُعثر على أي نسخة احتياطية
+No hay copias de StradaOS en la memoria de la pantalla ni en las USB conectadas. El archivo se llama «StradaOS-backup» y termina en .json.	لا توجد نسخ احتياطية لـ StradaOS في ذاكرة الشاشة ولا على ذواكر USB المتصلة. اسم الملف «StradaOS-backup» وينتهي بـ .json.
+automática	تلقائية
+Buscar el archivo…	البحث عن الملف…
+Elige la copia	اختر النسخة الاحتياطية
+No se pudo restaurar	تعذّرت الاستعادة
+Este archivo no es una copia de seguridad de StradaOS	هذا الملف ليس نسخة احتياطية من StradaOS
+Copia del	نسخة بتاريخ
+Pantalla:	الشاشة:
+Ajustes guardados:	الإعدادات المحفوظة:
+con la foto del vehículo	مع صورة المركبة
+Se reemplaza toda la configuración actual de StradaOS por la de la copia.	تُستبدل جميع إعدادات StradaOS الحالية بإعدادات النسخة الاحتياطية.
+¿Restaurar esta copia?	هل تريد استعادة هذه النسخة؟
+Restaurar	استعادة
+Copia restaurada	تمت استعادة النسخة الاحتياطية
+Esta copia se hizo con una versión más nueva de StradaOS. Actualiza StradaOS y vuelve a intentarlo	أُنشئت هذه النسخة بإصدار أحدث من StradaOS. حدّث StradaOS ثم حاول مجددًا
+No se pudo guardar la configuración	تعذّر حفظ الإعدادات
+La copia está dañada o incompleta	النسخة الاحتياطية تالفة أو غير مكتملة
+Abrir una app al encender	فتح تطبيق عند التشغيل
+StradaOS la abre un momento al arrancar (por ejemplo la radio, para que empiece a sonar) y vuelve al inicio	يفتحه StradaOS للحظة عند بدء التشغيل (مثل الراديو ليبدأ بالتشغيل) ثم يعود إلى الشاشة الرئيسية
+Copia de seguridad en un archivo (pantalla o USB)	نسخ احتياطي إلى ملف (الشاشة أو USB)
+en Android 10+ la carpeta se elige con el selector de archivos	في Android 10+ يُختار المجلد عبر منتقي الملفات
+Diseño vertical	التخطيط العمودي
+Pantallas en vertical (tipo Tesla)	الشاشات العمودية (على غرار Tesla)
+en uso	قيد الاستخدام
+esta pantalla es horizontal	هذه الشاشة أفقية
+# 2.21.1: PR #26 (wsx79)
+Pantalla completa	ملء الشاشة
+Ocultar la barra del sistema	إخفاء شريط النظام
+Esconde también la barra de navegación de tu pantalla (abajo o al costado). Desliza desde el borde para verla un momento	يخفي أيضًا شريط التنقل في شاشتك (في الأسفل أو على الجانب). اسحب من الحافة لرؤيته للحظة
+Corrección del velocímetro	تصحيح عداد السرعة
+Suma o resta a la velocidad del GPS para que coincida con el tablero de tu carro	يضيف إلى سرعة GPS أو يطرح منها لتطابق لوحة عدادات سيارتك
+Radio por internet	راديو إنترنت
+Oración	الصلاة
+Agregar app	إضافة تطبيق
+Siria · My Car	سوريا · My Car
