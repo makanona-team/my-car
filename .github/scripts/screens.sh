@@ -8,6 +8,7 @@ for i in $(seq 1 100); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r'
 sleep 15
 adb shell input keyevent 82 || true
 adb shell wm size; adb shell wm density
+adb shell "setprop persist.sys.timezone Asia/Damascus; cmd alarm set-timezone Asia/Damascus" || true
 APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
 adb install -r -g "$APK" | tail -1
 adb shell appops set $PKG android:mock_location allow >/dev/null 2>&1 || true
@@ -18,10 +19,13 @@ gps 35
 shot() { adb shell screencap -p /data/local/tmp/s.png && adb pull /data/local/tmp/s.png $OUT/$1.png >/dev/null; echo "shot $1"; }
 go() { adb shell am start -n $ACT --es prueba "$1" >/dev/null; sleep "${2:-6}"; }
 back() { adb shell input keyevent 4; sleep 3; }
+go unidad:kmh 6
 n=10
 for L in garage center main modes tesla drive classic; do
   go mycar-dash:$L 9; gps 35; sleep 3; shot ${n}_$L; n=$((n+1))
 done
+go "mycar-sayara:sedan:4" 5; go mycar-dash:garage 8; shot 17_garage_red
+go mycar-dash:tesla 8; shot 18_tesla_red; go "mycar-sayara:suv:0" 5
 go mycar-dash:modes 6; go mycar-mode:sport 6; shot 20_modes_sport
 go mycar-mode:calm 6; shot 21_modes_calm; go mycar-mode:night 4
 go mycar-dash:garage 6

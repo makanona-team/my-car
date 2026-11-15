@@ -237,8 +237,13 @@ public class Dash implements Obd.Listener {
         }
         x = circleBtn(x + 4, "settings", 0xFF5B6B7A, 0xFFFFFFFF, new Runnable() { public void run() { m.showSettingsPublic(Main.C_SYRIA); } });
         x = circleBtn(x + 6, "directions_car", 0xFFF2F4F7, 0xFF20242C, new Runnable() { public void run() { enterDrive(); } });
-        weatherTv = tv("", 19, GOLD, false);
-        place(weatherTv, x + 12, 20, 230, 34);
+        float ww = Math.min(230, 910 - (x + 12));
+        if (ww >= 110) {   // في «أوضاع القيادة» أزرار الأوضاع تأخذ مكان الطقس
+            weatherTv = tv("", 19, GOLD, false);
+            weatherTv.setSingleLine(true);
+            weatherTv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            place(weatherTv, x + 12, 20, ww, 34);
+        } else weatherTv = null;
 
         // يمين: GPS / بلوتوث / واي فاي + الاسم
         TextView brand = tv("My Car", 22, 0xFFFFFFFF, true);
@@ -574,8 +579,11 @@ public class Dash implements Obd.Listener {
         FrameLayout c = card(x, y, w, hh);
         clockTv = rtext("", 46, 0xFFFFFFFF, true);
         in(c, clockTv, 10, 14, w - 20, 64);
-        dateTv = rtext("", 15, GOLD, true);
-        in(c, dateTv, 10, 86, w - 20, 26);
+        dateTv = rtext("", 14, GOLD, true);
+        dateTv.setSingleLine(false);
+        dateTv.setMaxLines(2);
+        dateTv.setEllipsize(null);
+        in(c, dateTv, 10, 82, w - 20, 48);
     }
 
     void buildTripCard(float x, float y, float w, float hh) {
