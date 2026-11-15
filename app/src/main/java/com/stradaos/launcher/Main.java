@@ -437,6 +437,7 @@ public class Main extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (dash != null) dash.resume();
         if (homeFixing && SDK < 29) h.postDelayed(new Runnable() { public void run() { homeResult(); } }, 700);
         immersive();
         if (SDK >= 23 && !askedPerms) {
@@ -482,6 +483,7 @@ public class Main extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (dash != null) dash.pause();
         stopGps();
         h.removeCallbacks(ticker);
         h.removeCallbacks(progressTick);
@@ -541,6 +543,11 @@ public class Main extends Activity {
                     prefs.edit().putString("car_art", a2[0]).putInt("car_art_color", CarArt.COLORS[Integer.parseInt(a2[1])]).apply(); rebuild();
                 }
                 else if ("mycar-salat".equals(v)) openScreen(PrayerActivity.class);
+                else if (v.startsWith("mycar-dash:")) { prefs.edit().putString("dash_layout", v.substring(11)).apply(); rebuild(); }
+                else if (v.startsWith("mycar-wall:")) { prefs.edit().putString("dash_wall", v.substring(11)).apply(); rebuild(); }
+                else if (v.startsWith("mycar-mode:")) { prefs.edit().putString("dash_mode", v.substring(11)).apply(); rebuild(); }
+                else if ("mycar-themes".equals(v)) Dash.chooseLayout(Main.this);
+                else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
                 else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
                 else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
                 else if ("mycar-lang-en".equals(v)) setLanguage("en");
@@ -1009,8 +1016,47 @@ public class Main extends Activity {
         refreshStates();
         updateStatusIcons();
         showWeather();
+        // My Car 1.1: التصاميم الجديدة فوق الشاشة الكلاسيكية (التي تبقى مخفية وتعمل كالمعتاد)
+        if (dash != null) { dash.destroy(); dash = null; }
+        String dl = prefs.getString("dash_layout", "garage");
+        if (sim == 0 && !"classic".equals(dl)) {
+            try {
+                dash = new Dash(this, root, W, H, dl);
+                board.setVisibility(View.INVISIBLE);
+                for (int i = 0; i < root.getChildCount(); i++) {
+                    View c = root.getChildAt(i);
+                    if (c != board && c != dash.view) c.setVisibility(View.INVISIBLE);
+                }
+                if (lastGpsKmh >= 0) dash.onSpeed(lastFix > 0, lastGpsKmh);
+            } catch (Throwable e) {
+                Guard.log("Dash: " + e);
+                dash = null;
+                board.setVisibility(View.VISIBLE);
+            }
+        }
         if (settingsCat >= 0) showSettings(settingsCat);
     }
+
+    Dash dash;
+    private float lastGpsKmh = -1;
+
+    // ── واجهات لـ Dash (My Car 1.1) ──
+    void runFnPublic(String id) { runFn(id); }
+    void rebuildPublic() { rebuild(); }
+    void showSettingsPublic(int c) { showSettings(c); }
+    View.OnClickListener mediaClickPublic(int code) { return mediaClick(code); }
+    void toastPublic(String t) { toast(t); }
+    Weather.Now weatherNowPublic() { return weatherNow; }
+    String[] mediaInfoPublic() { return new String[]{curTitle, curArtist != null && curArtist.length() > 0 ? curArtist : curSource}; }
+    boolean mediaPlayingPublic() {
+        try { return playingState != null ? playingState : ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive(); } catch (Throwable e) { return false; }
+    }
+    boolean use24h() {
+        String fmt = prefs.getString("clock", "auto");
+        return "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+    }
+    void pickPhotoPublic() { pickPhoto(); }
+    void chooseCarColorPublic() { chooseCarColor(); }
 
     /**
      * Columnas del inicio: tarjeta del vehículo (300), mapa (lo que sobra) y reproductor (248; 300 si no hay tarjeta
@@ -2729,6 +2775,7 @@ public class Main extends Activity {
 
     private void feedMap(Location l) {
         if (l != null) { wLat = l.getLatitude(); wLon = l.getLongitude(); }
+        if (dash != null && l != null) dash.onLocation(l);
         if (liveMap == null || l == null) return;
         float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0;
         liveMap.setPosition(l.getLatitude(), l.getLongitude(), l.hasBearing() && kmh > 4 ? l.getBearing() : Float.NaN, kmh);
@@ -2737,7 +2784,7 @@ public class Main extends Activity {
     }
 
     /** km/h o mph: lo elegido, o mph en EE. UU., Reino Unido, Liberia y Birmania. */
-    private boolean useMph() {
+    boolean useMph() {
         String u = prefs.getString("speed_unit", "auto");
         if ("mph".equals(u)) return true;
         if ("kmh".equals(u)) return false;
@@ -3419,7 +3466,7 @@ public class Main extends Activity {
         return f;
     }
 
-    private Bitmap asset(String path) {
+    Bitmap asset(String path) {
         Bitmap b = iconCache.get(path);
         if (b != null) return b;
         try {
@@ -3530,6 +3577,8 @@ public class Main extends Activity {
     }
 
     private void setGps(boolean ok, float kmh) {
+        lastGpsKmh = kmh;
+        if (dash != null) dash.onSpeed(ok, kmh);
         if (speedTv == null) return;
         if (!ok) lastFix = 0;
         float v = speedFix(useMph() ? kmh * 0.621371f : kmh);
@@ -6227,6 +6276,11 @@ public class Main extends Activity {
         row(l, "Clima", "Open-Meteo.com (CC BY 4.0)", null, null);
         row(l, I18n.L("الراديو", "Radio"), I18n.L("دليل Radio-Browser.info المفتوح", "Radio-Browser.info open directory"), null, null);
         row(l, I18n.L("مواقيت الصلاة", "Prayer times"), I18n.L("تُحسب على الجهاز (طريقة PrayTimes)", "Computed on the device (PrayTimes method)"), null, null);
+        row(l, I18n.L("صورة السيارة", "Car picture"), "Car Concept · Khronos Group · CC-BY 4.0 (" + I18n.L("مبني على نموذج CC0 من Unity Fan", "based on a CC0 model by Unity Fan") + ")", null,
+            new Runnable() { public void run() { linkDialog("Car Concept", "CC-BY 4.0", "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept"); } });
+        row(l, I18n.L("الخلفيات", "Wallpapers"), "Unsplash: David Becker, NASA, TEDDY2 H, Andrew Svk, Darwin Vegher, Jakub Kriz, Patrick Schöpflin, Wietse Jongsma", null,
+            new Runnable() { public void run() { linkDialog("Unsplash", "Unsplash License", "https://unsplash.com/license"); } });
+        row(l, I18n.L("الخط", "Font"), "Cairo · SIL Open Font License", null, null);
         row(l, "Android Auto", "Open Headunit (GPL-3.0) · Android Auto es marca de Google", null, null);
         row(l, "Códigos QR", "QR Code generator library · Project Nayuki (MIT)", null, null);
         row(l, "Íconos", "Material Symbols (Apache 2.0)", null, null);
@@ -6279,9 +6333,15 @@ public class Main extends Activity {
         refreshDownloadStatus();
 
         LinearLayout th = section(body, I18n.L("الثيمات", "Themes"));
-        row(th, I18n.L("ثيم My Car", "My Car theme"), I18n.L("لون، خلفية، وشكل العدّاد معاً", "Colour, background and speedometer together"),
+        rowIc(th, "palette", I18n.L("ثيم الشاشة (التصميم)", "Screen theme (layout)"), I18n.L("الدائرة المركزية، القيادة، جراج 3D، الرئيسي، أوضاع القيادة، تيسلا", "Centre circle, Drive, Garage 3D, Main, Drive modes, Tesla"),
+            Dash.layoutName(Dash.layoutIndex(prefs.getString("dash_layout", "garage"))), new Runnable() { public void run() { Dash.chooseLayout(Main.this); } });
+        rowIc(th, "image", I18n.L("الخلفية", "Background"), I18n.L("صور حقيقية، أو صورة من الشاشة أو USB", "Real photos, or a picture from the screen or USB"), null,
+            new Runnable() { public void run() { Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage")); } });
+        rowIc(th, "directions_car", I18n.L("صورة السيارة", "Car picture"), I18n.L("صورتك من الخلف أو الجانب، أو لون المجسّم", "Your photo from behind or the side, or the 3D car colour"), null,
+            new Runnable() { public void run() { Dash.carMenu(Main.this); } });
+        row(th, I18n.L("ألوان التصميم الكلاسيكي", "Classic layout colours"), I18n.L("للتصميم الكلاسيكي فقط", "Classic layout only"),
             Themes.presetName(Themes.presetIndex(prefs)), new Runnable() { public void run() { chooseThemePack(); } });
-        row(th, I18n.L("الخلفية", "Background"), null, Themes.wallName(Themes.wallIndex(prefs.getString("wallpaper", "none"))),
+        row(th, I18n.L("خلفية التصميم الكلاسيكي", "Classic layout background"), null, Themes.wallName(Themes.wallIndex(prefs.getString("wallpaper", "none"))),
             new Runnable() { public void run() { chooseWallpaper(); } });
         row(th, I18n.L("شكل السيارة وشعار الماركة", "Car drawing & brand logo"), I18n.L("سيدان، جيب، تكسي، بيك أب… بألوان مختلفة", "Sedan, SUV, taxi, pickup… in many colours"),
             CarArt.typeName(CarArt.typeIndex(prefs.getString("car_art", "suv"))), new Runnable() { public void run() { carLookMenu(); } });

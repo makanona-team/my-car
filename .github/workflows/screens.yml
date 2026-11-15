@@ -1,6 +1,6 @@
 name: صور من المحاكي (Emulator screenshots)
 
-# يدوي: يبني نسخة التجربة ويشغّلها على محاكي 1024x600 ويحفظ الصور في الفرع «screens».
+# يدوي: يبني نسخة التجربة ويشغّلها على محاكي 1280x720 ويحفظ الصور في الفرع «screens».
 on:
   workflow_dispatch:
 
@@ -32,7 +32,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1024x600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1280x720
           emulator-boot-timeout: 900
           script: bash .github/scripts/screens.sh
       - name: Push screenshots
