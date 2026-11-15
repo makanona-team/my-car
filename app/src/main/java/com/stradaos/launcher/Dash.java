@@ -1103,15 +1103,20 @@ public class Dash implements Obd.Listener {
             }}).setNegativeButton(I18n.L("إلغاء", "Cancel"), null).show();
     }
 
-    static boolean isPrimary(File r, File primary) {
+    /** هل هذا المجلد فلاشة/بطاقة خارجية؟ (رقم وحدة مثل 1A2B-3C4D أو usb/udisk/extsd… أو تحت media_rw / usb_storage) */
+    static boolean isRemovable(File r, File primary) {
         try {
             String c = r.getCanonicalPath(), p = primary.getCanonicalPath();
-            if (c.equals(p) || c.startsWith(p + "/") || p.startsWith(c + "/") || c.startsWith("/storage/emulated") || c.startsWith("/mnt/runtime")) return true;
+            if (c.equals(p) || c.startsWith(p + "/") || p.startsWith(c + "/") || c.startsWith("/storage/emulated") || c.startsWith("/mnt/runtime")) return false;
         } catch (Throwable ignored) { }
         String n = r.getName().toLowerCase(java.util.Locale.US);
-        return n.equals("sdcard") || n.equals("sdcard0") || n.equals("emulated") || n.equals("shell") || n.equals("obb") || n.equals("user")
-            || n.equals("asec") || n.equals("secure") || n.equals("default") || n.equals("knox-emulated") || n.equals("runtime") || n.equals("self");
+        String parent = r.getParent() == null ? "" : r.getParent();
+        return n.matches("[0-9a-f]{4}-[0-9a-f]{4}") || n.startsWith("usb") || n.startsWith("udisk") || n.startsWith("uhost")
+            || n.startsWith("extsd") || n.startsWith("external_sd") || n.startsWith("sdcard1") || n.startsWith("ext_sd") || n.equals("card")
+            || n.startsWith("tf") || parent.startsWith("/mnt/media_rw") || parent.startsWith("/mnt/usb_storage");
     }
+
+    static boolean isPrimary(File r, File primary) { return !isRemovable(r, primary); }
 
     /** يعرض صور المصدر المختار بصور مصغّرة (الأحدث أولاً). */
     static void browse(final Main m, final String what, final boolean usb) {
@@ -1119,7 +1124,17 @@ public class Dash implements Obd.Listener {
         new Thread(new Runnable() { public void run() {
             final List<File> found = new ArrayList<File>();
             File primary = android.os.Environment.getExternalStorageDirectory();
-            if (usb) { for (File r : PrayerActivity.AudioFiles.roots()) if (!isPrimary(r, primary)) scanImages(r, 5, found); }
+            if (usb) {
+                java.util.Set<String> seen = new java.util.HashSet<String>();
+                List<File> rs = new ArrayList<File>(PrayerActivity.AudioFiles.roots());
+                for (String extra : new String[]{"/mnt/usb_storage", "/mnt/media_rw"}) { File[] fs = new File(extra).listFiles(); if (fs != null) for (File f : fs) rs.add(f); }
+                rs.add(new File("/udisk"));
+                for (File r : rs) {
+                    if (!isRemovable(r, primary) && !"/udisk".equals(r.getPath())) continue;
+                    try { if (!seen.add(r.getCanonicalPath())) continue; } catch (Throwable ignored) { }
+                    scanImages(r, 5, found);
+                }
+            }
             else scanImages(primary, 5, found);
             Collections.sort(found, new Comparator<File>() { public int compare(File a, File b) { return Long.valueOf(b.lastModified()).compareTo(a.lastModified()); } });
             while (found.size() > 80) found.remove(found.size() - 1);

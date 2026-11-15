@@ -83,8 +83,8 @@ go mycar-diag 25; shot 86_diag
 adb shell input swipe 640 600 640 150 300; sleep 2; shot 87_diag_scroll
 back
 go ajustes:11 6
-for i in 1 2 3; do adb shell input swipe 760 620 760 160 400; sleep 2; done; shot 88_settings_trips
-for i in 1 2; do adb shell input swipe 760 620 760 160 400; sleep 2; done; shot 89_settings_screen
+adb shell input swipe 760 600 760 250 500; sleep 2; shot 88_settings_trips
+adb shell input swipe 760 600 760 250 500; sleep 2; shot 89_settings_screen
 back
 adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|MyCar|Dash" | tail -120 > $OUT/logcat.txt
 ls -l $OUT

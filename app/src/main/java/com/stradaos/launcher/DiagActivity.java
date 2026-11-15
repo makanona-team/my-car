@@ -133,12 +133,16 @@ public class DiagActivity extends Screen {
             b.append("── ").append(I18n.L("مصادر الصور", "Picture sources")).append(" ──\n");
             File primary = Environment.getExternalStorageDirectory();
             b.append(I18n.L("ذاكرة الشاشة: ", "Screen storage: ")).append(primary).append(" · ").append(count(primary)).append(I18n.L(" صورة", " pictures")).append('\n');
-            for (File r : PrayerActivity.AudioFiles.roots()) {
-                boolean pr = Dash.isPrimary(r, primary);
-                b.append(pr ? "   [" + I18n.L("ذاكرة", "internal") + "] " : "   [USB] ").append(r.getAbsolutePath());
-                if (!pr) b.append(" · ").append(count(r)).append(I18n.L(" صورة", " pictures"));
-                b.append('\n');
+            List<File> rs = new ArrayList<File>(PrayerActivity.AudioFiles.roots());
+            for (String extra : new String[]{"/mnt/usb_storage", "/mnt/media_rw"}) { File[] fs = new File(extra).listFiles(); if (fs != null) for (File f : fs) rs.add(f); }
+            int usb = 0;
+            for (File r : rs) {
+                if (!Dash.isRemovable(r, primary)) continue;
+                usb++;
+                b.append("   [USB] ").append(r.getAbsolutePath()).append(r.canRead() ? "" : I18n.L(" (غير مقروء)", " (not readable)"))
+                 .append(" · ").append(count(r)).append(I18n.L(" صورة", " pictures")).append('\n');
             }
+            if (usb == 0) b.append(I18n.L("   لا توجد فلاشة موصولة الآن", "   No USB stick plugged in now")).append('\n');
             b.append('\n');
 
             b.append("── ").append(I18n.L("تطبيقات وخدمات الشاشة", "Screen apps & services")).append(" ──\n");
