@@ -144,6 +144,27 @@ public class DriveView extends View {
                 c.drawLine(x0, y0, x1, y1, p);
             }
         }
+        // أعمدة إنارة ولوحات عاكسة على حافتي الطريق تمرّ مع السرعة
+        final int M = 6;
+        for (int i = 0; i < M; i++) {
+            float t = (i + offset) / M;
+            float e = t * t;
+            if (e < 0.02f) continue;
+            float y = hz + (h - hz) * e;
+            float hw = (topW + (botW - topW) * e) / 2f;
+            float ph = h * 0.30f * e, off = w * 0.05f * e + 3;
+            for (int sd = -1; sd <= 1; sd += 2) {
+                float x = cx + sd * (hw + off);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(1.5f, h * 0.010f * e + 1));
+                p.setColor(0xAA8E9AB4);
+                c.drawLine(x, y, x, y - ph, p);
+                c.drawLine(x, y - ph, x - sd * w * 0.025f * e, y - ph - h * 0.01f * e, p);
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(0xFFFFD27A);
+                c.drawCircle(x - sd * w * 0.025f * e, y - ph - h * 0.01f * e, Math.max(2f, h * 0.018f * e + 1), p);
+            }
+        }
         // سيارتان أمامنا (ظل داكن وأضواء خلفية)
         drawLead(c, cx - botW * 0.30f, hz + (h - hz) * 0.38f, w * 0.09f);
         drawLead(c, cx + botW * 0.30f, hz + (h - hz) * 0.26f, w * 0.075f);

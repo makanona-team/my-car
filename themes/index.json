@@ -3,8 +3,8 @@
  "themes": [
   {"id": "palmyra_gold", "ar": "تدمر الذهبي", "en": "Palmyra gold", "layout": "garage", "accent": "#E8B04B", "mode": "calm", "wall": "asset:palmyra"},
   {"id": "neon_city", "ar": "نيون المدينة", "en": "Neon city", "layout": "center", "accent": "#21D4FD", "mode": "night", "wall": "asset:neon"},
-  {"id": "desert_drive", "ar": "طريق البادية", "en": "Desert road", "layout": "main", "accent": "#F28C28", "mode": "calm", "wall": "asset:desert_road"},
-  {"id": "sport_red", "ar": "رياضي أحمر", "en": "Sport red", "layout": "modes", "accent": "#FF3B3B", "mode": "sport", "wall": "asset:night_road"},
+  {"id": "desert_drive", "ar": "طريق البادية", "en": "Desert road", "layout": "tesla", "accent": "#F28C28", "mode": "calm", "wall": "asset:desert_road"},
+  {"id": "sport_red", "ar": "رياضي أحمر", "en": "Sport red", "layout": "modes", "accent": "#FF3B3B", "mode": "sport", "wall": "asset:city_night"},
   {"id": "tesla_ocean", "ar": "تيسلا القمر", "en": "Tesla moon", "layout": "tesla", "accent": "#3DA5FF", "mode": "night", "wall": "asset:ocean_night"},
   {"id": "forest_green", "ar": "الغابة", "en": "Forest", "layout": "garage", "accent": "#5BD16A", "mode": "calm", "wall": "asset:forest"}
  ]

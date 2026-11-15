@@ -102,25 +102,7 @@ public class Speedo extends View {
             }
         }
 
-        // الطريق الصغير تحت السيارة
-        float carW = r * 2 * carScale;
-        if (road) {
-            p.setStyle(Paint.Style.FILL);
-            p.setShader(new LinearGradient(0, cy + r * 0.25f, 0, cy + r * 0.95f, 0x00101418, 0xEE15181D, Shader.TileMode.CLAMP));
-            path.reset();
-            path.moveTo(cx - carW * 0.18f, cy + r * 0.25f);
-            path.lineTo(cx + carW * 0.18f, cy + r * 0.25f);
-            path.lineTo(cx + carW * 0.95f, cy + r * 0.95f);
-            path.lineTo(cx - carW * 0.95f, cy + r * 0.95f);
-            path.close();
-            c.drawPath(path, p);
-            p.setShader(null);
-            p.setColor(0xCCFFFFFF);
-            for (int i = 0; i < 5; i++) {
-                float y0 = cy + r * (0.42f + i * 0.11f), len = r * 0.05f * (1 + i * 0.25f), wd = r * 0.012f * (1 + i * 0.4f);
-                c.drawRect(cx - wd, y0, cx + wd, y0 + len, p);
-            }
-        }
+        float carW = r * 2 * carScale;   // الطريق الصغير يرسمه RoadView تحت العدّاد
 
         // السيارة
         if (car != null) {

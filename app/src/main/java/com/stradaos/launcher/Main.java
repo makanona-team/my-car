@@ -499,6 +499,13 @@ public class Main extends Activity {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration c) {
         super.onConfigurationChanged(c);
+        try {   // My Car: تشغيل الأضواء يحوّل الشاشة لليلي ← تبديل صور السيارة المضاءة
+            boolean nightNow = (c.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            if (nightNow != lastNightUi) {
+                lastNightUi = nightNow;
+                if (root != null && prefs != null && "auto".equals(prefs.getString("car_lit", "auto"))) rebuild();
+            }
+        } catch (Throwable e) { Guard.log("Night: " + e); }
         try {
             if (prefs == null || !"system".equals(prefs.getString("theme", "dark")) || root == null) return;
             boolean was = LIGHT;
@@ -552,6 +559,7 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-browse:")) { String[] pp = v.substring(13).split(":"); Dash.browse(Main.this, pp[0], "usb".equals(pp[1])); }
                 else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
                 else if ("mycar-picclear".equals(v)) { CarImg.clearAll(Main.this); rebuild(); }
+                else if (v.startsWith("mycar-lit:")) { prefs.edit().putString("car_lit", v.substring(10)).apply(); rebuild(); }
                 else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
                 else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
                 else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
@@ -1032,6 +1040,7 @@ public class Main extends Activity {
                     View c = root.getChildAt(i);
                     if (c != board && c != dash.view) c.setVisibility(View.INVISIBLE);
                 }
+                lastNightUi = systemNight();
                 if (lastGpsKmh >= 0) dash.onSpeed(lastFix > 0, lastGpsKmh);
             } catch (Throwable e) {
                 Guard.log("Dash: " + e);
@@ -1413,7 +1422,7 @@ public class Main extends Activity {
         chip.setVisibility(prefs.getString("car_tag", "").trim().length() == 0 ? View.GONE : View.VISIBLE);
         placeWrap(card, chip, 20, 46);
 
-        Bitmap photo = CarImg.hasAny(this) ? CarImg.side(this) : null;
+        Bitmap photo = CarImg.hasAny(this) ? CarImg.side(this, Dash.litNow(this)) : null;
         if (photo != null) {
             ImageView car = new ImageView(this);
             // 2.18: una foto con fondo (sin recortar) llena el recuadro con esquinas redondas; la recortada, como siempre
@@ -4719,6 +4728,8 @@ public class Main extends Activity {
     }
 
     /** Modo «Sistema»: sigue el modo oscuro de la pantalla (algunas lo activan al encender las luces del carro). */
+    private boolean lastNightUi = false;
+
     private boolean systemNight() {
         try {
             return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)

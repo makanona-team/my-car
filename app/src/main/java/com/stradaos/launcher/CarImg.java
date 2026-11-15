@@ -15,7 +15,7 @@ import java.io.InputStream;
  */
 public class CarImg {
 
-    static final String[] SLOTS = {"rear", "top", "side"};
+    static final String[] SLOTS = {"rear", "top", "side", "rear_lit", "top_lit", "side_lit"};
 
     static File slotFile(Context c, String slot) { return new File(c.getFilesDir(), "car_" + slot + ".png"); }
 
@@ -33,19 +33,27 @@ public class CarImg {
         return slotFile(c, slot).exists() || ("side".equals(slot) && new File(c.getFilesDir(), CarPhoto.FILE).exists());
     }
 
-    static boolean hasAny(Context c) { return has(c, "rear") || has(c, "top") || has(c, "side"); }
+    static boolean hasAny(Context c) {
+        for (String s : SLOTS) if (has(c, s)) return true;
+        return false;
+    }
 
-    static Bitmap first(Context c, String... order) {
-        for (String s : order) { Bitmap b = user(c, s); if (b != null) return b; }
+    /** أول صورة متاحة بالترتيب؛ في الوضع المضاء تُفضَّل الصورة المضاءة لكل خانة، وإلا العادية. */
+    static Bitmap first(Context c, boolean lit, String... order) {
+        for (String s : order) {
+            if (lit) { Bitmap l = user(c, s + "_lit"); if (l != null) return l; }
+            Bitmap b = user(c, s);
+            if (b != null) return b;
+        }
         return art(c);
     }
 
     /** للعدّاد: الخلفية، وإلا الأقرب لها. */
-    public static Bitmap rear(Context c) { return first(c, "rear", "top", "side"); }
+    public static Bitmap rear(Context c, boolean lit) { return first(c, lit, "rear", "top", "side"); }
     /** لوضع القيادة على الطريق: من فوق وخلف. */
-    public static Bitmap top(Context c) { return first(c, "top", "rear", "side"); }
+    public static Bitmap top(Context c, boolean lit) { return first(c, lit, "top", "rear", "side"); }
     /** لبطاقة السيارة (تيسلا والكلاسيكي): الجانبية. */
-    public static Bitmap side(Context c) { return first(c, "side", "top", "rear"); }
+    public static Bitmap side(Context c, boolean lit) { return first(c, lit, "side", "top", "rear"); }
 
     /** رسم السيارة بالنوع واللون المختارين (عند عدم وجود صورة). */
     static Bitmap art(Context c) {
@@ -75,15 +83,11 @@ public class CarImg {
     }
 
 
-    /** يحفظ صورة خانة (rear/top/side): إن كانت بخلفية واضحة تُزال، ثم قصّ ما حول السيارة. */
+    /** يحفظ صورة خانة (rear/top/side وكل واحدة ومعها _lit): بدون أي إزالة للخلفية. */
     public static boolean saveSlot(Context c, String slot, Bitmap src) {
         try {
-            Bitmap b = CarPhoto.scaled(src, CarPhoto.MAX);
-            if (!CarPhoto.hasTransparency(b)) {
-                Bitmap cut = CarPhoto.removeBackground(b, c.getSharedPreferences("launcher", 0).getInt("photo_cut", 1));
-                if (cut != null) b = cut;
-            }
-            b = trim(b);
+            // الصورة تُستعمل كما هي (المستخدم يزيل الخلفية مسبقاً): تصغير وقصّ الأطراف الشفافة فقط
+            Bitmap b = trim(CarPhoto.scaled(src, CarPhoto.MAX));
             java.io.FileOutputStream os = new java.io.FileOutputStream(slotFile(c, slot));
             b.compress(Bitmap.CompressFormat.PNG, 100, os);
             os.close();

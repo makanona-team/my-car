@@ -30,8 +30,8 @@ public class Walls {
 
     /** الخلفية الافتراضية لكل تصميم («تبع الثيم»). */
     public static String forLayout(String layout) {
-        if ("center".equals(layout)) return "night_road";
-        if ("main".equals(layout)) return "desert_road";
+        if ("center".equals(layout)) return "city_night";
+        if ("main".equals(layout)) return "palmyra";
         if ("tesla".equals(layout)) return "night_road";
         if ("drive".equals(layout)) return "none";
         return "nebula";   // garage, modes

@@ -79,6 +79,7 @@ public class Dash implements Obd.Listener {
 
     // عناصر تتحدث
     private Speedo speedo;
+    private RoadView road;
     private DriveView drive;
     private TextView clockTv, dateTv, weatherTv, locTv, tripDist, tripDur, tripLast, mediaTitle, mediaSub, prayerBanner;
     private TextView obdState, obdRpm, obdTemp, obdFuel, obdVolt, obdThr, limitTv;
@@ -205,6 +206,19 @@ public class Dash implements Obd.Listener {
 
     boolean ar() { return !"en".equals(I18n.lang); }
 
+    /** هل تُعرض صور السيارة «المضاءة»؟ تلقائي = الشاشة في الوضع الليلي (عند تشغيل الأضواء)، أو يدوي. */
+    boolean lit() { return litNow(m); }
+
+    static boolean litNow(Main m) {
+        String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
+        if ("on".equals(md)) return true;
+        if ("off".equals(md)) return false;
+        try {
+            return (m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable e) { return false; }
+    }
+
     int accent() {
         if ("modes".equals(layout)) return MODE_COL[modeIndex()];
         return prefs.getInt("dash_accent", 0xFFFF3B30);
@@ -313,7 +327,8 @@ public class Dash implements Obd.Listener {
         locTv.setPadding(px(12), px(4), px(12), px(4));
         in(mid, locTv, 20, 6, -1, -1);
         speedo = new Speedo(m);
-        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m), small ? 0.2f : 0.36f, small, font, black);
+        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), small ? 0.2f : 0.36f, small, font, black);
+        if (small) { road = new RoadView(m); road.setup(small ? 0.2f : 0.36f); in(mid, road, 30, 40, 540, 508); }
         in(mid, speedo, 30, 40, 540, 508);
         // اليمين
         buildClock(1090, 72, 170, 140);
@@ -337,7 +352,7 @@ public class Dash implements Obd.Listener {
         locTv.setPadding(px(12), px(4), px(12), px(4));
         in(mid, locTv, 18, 14, -1, -1);
         speedo = new Speedo(m);
-        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m), 0.2f, false, font, black);
+        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), 0.2f, false, font, black);
         in(mid, speedo, 80, 50, 500, 500);
         buildMiniPlayer(20, 646, 1240, 66, false);
     }
@@ -379,7 +394,7 @@ public class Dash implements Obd.Listener {
         TextView name = rtext(prefs.getString("car_name", "My Car"), 34, 0xFFFFFFFF, true);
         in(rc, name, 20, 16, 570, 54);
         ImageView car = new ImageView(m);
-        car.setImageBitmap(CarImg.side(m));
+        car.setImageBitmap(CarImg.side(m, lit()));
         car.setScaleType(ImageView.ScaleType.FIT_CENTER);
         in(rc, car, 40, 70, 530, 310);
         car.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { carMenu(); } });
@@ -420,7 +435,7 @@ public class Dash implements Obd.Listener {
 
     void buildDrive() {
         drive = new DriveView(m);
-        drive.setup(mph() ? 130 : 200, mph() ? "mph" : I18n.L("كم/س", "km/h"), GOLD, CarImg.top(m), font, black);
+        drive.setup(mph() ? 130 : 200, mph() ? "mph" : I18n.L("كم/س", "km/h"), GOLD, CarImg.top(m, lit()), font, black);
         view.addView(drive, 0, new FrameLayout.LayoutParams(-1, -1));
         // أزرار علوية
         TextView exit = tv(I18n.L("خروج من وضع القيادة ✕", "Exit drive mode ✕"), 18, 0xFFFFFFFF, true);
@@ -579,8 +594,9 @@ public class Dash implements Obd.Listener {
 
     void buildClock(float x, float y, float w, float hh) {
         FrameLayout c = card(x, y, w, hh);
-        clockTv = rtext("", ar() ? 46 : 38, 0xFFFFFFFF, true);
-        clockTv.setSingleLine(true);
+        clockTv = rtext("", 36, 0xFFFFFFFF, true);
+        clockTv.setMaxLines(1);
+        clockTv.setEllipsize(null);
         in(c, clockTv, 10, 14, w - 20, 64);
         dateTv = rtext("", 14, GOLD, true);
         dateTv.setSingleLine(false);
@@ -891,6 +907,7 @@ public class Dash implements Obd.Listener {
         float v = mph() ? kmh * 0.621371f : kmh;
         if (kmh < 2) v = 0;
         if (speedo != null) speedo.setSpeed(v, ok);
+        if (road != null) road.setSpeed(v);
         if (drive != null) drive.setSpeed(v, ok);
         if (mapSpeed != null) mapSpeed.setText((ok ? String.valueOf(Math.round(v)) : "--") + (mph() ? " mph" : I18n.L(" كم/س", " km/h")));
         int lim = prefs.getInt("speed_limit", 120);
@@ -937,12 +954,14 @@ public class Dash implements Obd.Listener {
         paused = true;
         h.removeCallbacks(tick);
         if (drive != null) drive.setRunning(false);
+        if (road != null) road.setRunning(false);
     }
 
     public void resume() {
         if (!paused) return;
         paused = false;
         if (drive != null) drive.setRunning(true);
+        if (road != null) road.setRunning(true);
         h.removeCallbacks(tick);
         tick.run();
     }
@@ -1120,9 +1139,10 @@ public class Dash implements Obd.Listener {
     }
 
     static String titleFor(String what) {
-        if ("rear".equals(what)) return I18n.L("صورة السيارة من الخلف", "Car photo from behind");
-        if ("top".equals(what)) return I18n.L("صورة السيارة من فوق وخلف", "Car photo from above-behind");
-        if ("side".equals(what)) return I18n.L("صورة السيارة الجانبية", "Car side photo");
+        String lit = what.endsWith("_lit") ? I18n.L(" (والأضواء مضاءة)", " (lights on)") : "";
+        if (what.startsWith("rear")) return I18n.L("صورة السيارة من الخلف", "Car photo from behind") + lit;
+        if (what.startsWith("top")) return I18n.L("صورة السيارة من فوق وخلف", "Car photo from above-behind") + lit;
+        if (what.startsWith("side")) return I18n.L("صورة السيارة الجانبية", "Car side photo") + lit;
         return I18n.L("صورة الخلفية", "Background picture");
     }
 
@@ -1192,15 +1212,21 @@ public class Dash implements Obd.Listener {
     void carMenu() { carMenu(m); }
 
     public static void carMenu(final Main m) {
-        final String[] slots = {"rear", "top", "side"};
+        final String[] slots = {"rear", "rear_lit", "top", "top_lit", "side", "side_lit"};
         String[] names = {
             I18n.L("صورة من الخلف (داخل العدّاد)", "From behind (in the speedometer)"),
+            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
             I18n.L("صورة من فوق وخلف (وضع القيادة)", "From above-behind (drive mode)"),
+            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
             I18n.L("صورة جانبية (تيسلا والكلاسيكي)", "Side photo (Tesla & Classic)"),
+            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
         };
         final List<String> list = new ArrayList<String>();
         final List<String> act = new ArrayList<String>();
-        for (int i = 0; i < 3; i++) { list.add((CarImg.has(m, slots[i]) ? "✓  " : "") + names[i]); act.add(slots[i]); }
+        for (int i = 0; i < slots.length; i++) { list.add((CarImg.has(m, slots[i]) ? "✓  " : "") + names[i]); act.add(slots[i]); }
+        String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
+        list.add(I18n.L("الإضاءة: ", "Lights: ") + ("on".equals(md) ? I18n.L("مضاءة دائماً", "always on") : "off".equals(md) ? I18n.L("عادية دائماً", "always off")
+            : I18n.L("تلقائي (مع الوضع الليلي للشاشة)", "auto (with the screen's night mode)"))); act.add("lit");
         list.add(I18n.L("نوع السيارة المرسومة ولونها (عند عدم وجود صورة)", "Drawn car type & colour (when no photo)")); act.add("art");
         if (CarImg.hasAny(m)) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
         new TB(m, Main.dlg()).raw().setTitle(I18n.L("صورة السيارة", "Car picture"))
@@ -1208,6 +1234,13 @@ public class Dash implements Obd.Listener {
                 String a = act.get(w);
                 if ("art".equals(a)) m.carLookPublic();
                 else if ("clear".equals(a)) { CarImg.clearAll(m); m.rebuildPublic(); }
+                else if ("lit".equals(a)) {
+                    SharedPreferences p = m.getSharedPreferences("launcher", 0);
+                    String cur = p.getString("car_lit", "auto");
+                    p.edit().putString("car_lit", "auto".equals(cur) ? "on" : "on".equals(cur) ? "off" : "auto").apply();
+                    m.rebuildPublic();
+                    carMenu(m);
+                }
                 else pickSource(m, a);
             }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
     }

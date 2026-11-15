@@ -24,6 +24,7 @@ go unidad:kmh 6
 adb push .github/testdata/rear.png /sdcard/Download/car_rear.png >/dev/null
 adb push .github/testdata/top.png /sdcard/Download/car_top.png >/dev/null
 adb push .github/testdata/side.png /sdcard/Download/car_side.png >/dev/null
+for n in rear_lit top_lit side_lit; do adb push .github/testdata/$n.png /sdcard/Download/car_$n.png >/dev/null; done
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download >/dev/null 2>&1 || true
 n=10
 for L in garage center main modes tesla drive classic; do
@@ -42,8 +43,19 @@ go mycar-pic:rear:/sdcard/Download/car_rear.png 8
 go mycar-pic:top:/sdcard/Download/car_top.png 8
 go mycar-pic:side:/sdcard/Download/car_side.png 8
 for L in garage center main modes tesla drive classic; do go mycar-dash:$L 8; shot 6_$L; done
+go mycar-dash:drive 8; shot 70_drive_a; sleep 1; shot 70_drive_b
+go mycar-dash:garage 6
+go mycar-pic:rear_lit:/sdcard/Download/car_rear_lit.png 6
+go mycar-pic:top_lit:/sdcard/Download/car_top_lit.png 6
+go mycar-pic:side_lit:/sdcard/Download/car_side_lit.png 6
+adb shell cmd uimode night yes; sleep 12; shot 71_night_auto_garage
+go mycar-dash:drive 8; shot 72_night_drive
+go mycar-dash:tesla 8; shot 73_night_tesla
+adb shell cmd uimode night no; sleep 8
+go mycar-dash:garage 8; shot 74_day_garage_back
 go mycar-carmenu 5; shot 54_carmenu_checked
 back
+go mycar-lit:auto 3
 go mycar-picclear 5
 go mycar-dash:tesla 8; shot 18_tesla_art; go "mycar-sayara:suv:0" 5
 go mycar-dash:modes 6; go mycar-mode:sport 6; shot 20_modes_sport
