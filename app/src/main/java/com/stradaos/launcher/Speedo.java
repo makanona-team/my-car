@@ -96,7 +96,7 @@ public class Speedo extends View {
             c.drawLine(cx + (float) Math.cos(a) * r1, cy + (float) Math.sin(a) * r1, cx + (float) Math.cos(a) * r2, cy + (float) Math.sin(a) * r2, p);
             if (major && v > 0) {
                 p.setStyle(Paint.Style.FILL);
-                p.setTextSize(r * 0.105f);
+                p.setTextSize(r * 0.092f);
                 float rl = r * 0.66f;
                 c.drawText(String.valueOf(v), cx + (float) Math.cos(a) * rl, cy + (float) Math.sin(a) * rl + r * 0.04f, p);
             }
@@ -124,9 +124,12 @@ public class Speedo extends View {
 
         // السيارة
         if (car != null) {
-            float ch = carW * car.getHeight() / (float) car.getWidth();
-            float bottom = cy + r * (road ? 0.92f : 0.98f);
-            oval.set(cx - carW / 2, bottom - ch, cx + carW / 2, bottom);
+            // تحت رقم السرعة وداخل حدود العدّاد (لا تُقصّ من الأسفل)
+            float bottom = Math.min(cy + r * (road ? 0.92f : 0.95f), getHeight() - 2);
+            float top = cy + r * 0.34f;
+            float cw = carW, ch = cw * car.getHeight() / (float) car.getWidth();
+            if (ch > bottom - top) { ch = Math.max(bottom - top, r * 0.2f); cw = ch * car.getWidth() / (float) car.getHeight(); }
+            oval.set(cx - cw / 2, bottom - ch, cx + cw / 2, bottom);
             p.setStyle(Paint.Style.FILL);
             p.setFilterBitmap(true);
             c.drawBitmap(car, null, oval, p);
@@ -134,7 +137,7 @@ public class Speedo extends View {
 
         // المؤشر
         double a = Math.toRadians(START + SWEEP * shown / max);
-        float n1 = r * 0.55f, n2 = r * 0.93f;
+        float n1 = r * 0.75f, n2 = r * 0.95f;
         float x1 = cx + (float) Math.cos(a) * n1, y1 = cy + (float) Math.sin(a) * n1;
         float x2 = cx + (float) Math.cos(a) * n2, y2 = cy + (float) Math.sin(a) * n2;
         glow.setColor(accent);

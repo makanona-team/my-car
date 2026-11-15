@@ -577,7 +577,8 @@ public class Dash implements Obd.Listener {
 
     void buildClock(float x, float y, float w, float hh) {
         FrameLayout c = card(x, y, w, hh);
-        clockTv = rtext("", 46, 0xFFFFFFFF, true);
+        clockTv = rtext("", ar() ? 46 : 38, 0xFFFFFFFF, true);
+        clockTv.setSingleLine(true);
         in(c, clockTv, 10, 14, w - 20, 64);
         dateTv = rtext("", 14, GOLD, true);
         dateTv.setSingleLine(false);
