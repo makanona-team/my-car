@@ -94,7 +94,7 @@ public class ObdActivity extends Screen implements Obd.Listener {
         content.addView(col, new FrameLayout.LayoutParams(-1, -1));
 
         // ── شريط الحالة ──
-        LinearLayout st = new LinearLayout(this);
+        LinearLayout st = hbox();
         st.setGravity(Gravity.CENTER_VERTICAL);
         st.setBackground(round(Main.CARD, 16));
         st.setPadding(px(14), px(8), px(10), px(8));
@@ -128,7 +128,7 @@ public class ObdActivity extends Screen implements Obd.Listener {
         tiles[6] = new Tile(I18n.L("حرارة الهواء الداخل", "Intake air temp"), "°C", 0);
         tiles[7] = new Tile(I18n.L("تصحيح الوقود قصير/طويل", "Fuel trim short/long"), "%", 0);
         for (int r = 0; r < 2; r++) {
-            LinearLayout row = new LinearLayout(this);
+            LinearLayout row = hbox();
             LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, 0, 1);
             rl.topMargin = px(10);
             col.addView(row, rl);

@@ -45,7 +45,7 @@ public class PrayerActivity extends Screen {
 
     @Override
     protected void build(FrameLayout content) {
-        LinearLayout row = new LinearLayout(this);
+        LinearLayout row = hbox();
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(px(16), 0, px(16), px(14));
         content.addView(row, new FrameLayout.LayoutParams(-1, -1));
@@ -56,7 +56,7 @@ public class PrayerActivity extends Screen {
         marginEnd(llp, px(14));
         row.addView(left, llp);
 
-        LinearLayout head = new LinearLayout(this);
+        LinearLayout head = hbox();
         head.setGravity(Gravity.CENTER_VERTICAL);
         head.addView(icon("location_on", Main.RED), lp(px(26), px(26)));
         LinearLayout ht = new LinearLayout(this);
@@ -70,15 +70,17 @@ public class PrayerActivity extends Screen {
         head.addView(pill("tune", I18n.L("المدينة", "City"), false, new View.OnClickListener() { public void onClick(View v) { chooseCity(); } }));
         left.addView(head);
 
-        LinearLayout dates = new LinearLayout(this);
+        LinearLayout dates = hbox();
         dates.setPadding(0, px(10), 0, px(6));
         dateTv = tv("", 14, Main.SOFT, false);
         hijriTv = tv("", 14, Main.RED, true);
         dates.addView(dateTv, new LinearLayout.LayoutParams(0, -2, 1));
-        dates.addView(hijriTv);
+        LinearLayout.LayoutParams hl = lp(-2, -2);
+        marginStart(hl, px(12));
+        dates.addView(hijriTv, hl);
         left.addView(dates);
 
-        LinearLayout next = new LinearLayout(this);
+        LinearLayout next = hbox();
         next.setGravity(Gravity.CENTER_VERTICAL);
         next.setBackground(round(Main.INNER, 14));
         next.setPadding(px(14), px(10), px(14), px(10));
@@ -106,7 +108,7 @@ public class PrayerActivity extends Screen {
 
         LinearLayout qc = cardBox();
         qc.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout qh = new LinearLayout(this);
+        LinearLayout qh = hbox();
         qh.setGravity(Gravity.CENTER_VERTICAL);
         qh.addView(icon("explore", Main.ICON), lp(px(22), px(22)));
         TextView qt = tv(I18n.L("اتجاه القبلة", "Qibla direction"), 16, Main.TEXT, true);
@@ -129,8 +131,8 @@ public class PrayerActivity extends Screen {
 
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout b1 = new LinearLayout(this);
-        LinearLayout b2 = new LinearLayout(this);
+        LinearLayout b1 = hbox();
+        LinearLayout b2 = hbox();
         b1.addView(pill("tune", I18n.L("طريقة الحساب", "Method"), false, new View.OnClickListener() { public void onClick(View v) { chooseMethod(); } }), lpw(1));
         View sp1 = new View(this); b1.addView(sp1, lp(px(8), 1));
         b1.addView(pill("build", I18n.L("تعديل الدقائق", "Adjust"), false, new View.OnClickListener() { public void onClick(View v) { chooseAdjust(); } }), lpw(1));
@@ -174,7 +176,7 @@ public class PrayerActivity extends Screen {
         else sub = I18n.L("تلقائي من GPS · خارج سوريا", "Automatic from GPS · outside Syria");
         citySubTv.setText(sub + "  ·  " + Prayer.methodName(Prayer.methodIndex(prefs)));
         Calendar now = Calendar.getInstance();
-        String d = I18n.sdf("EEEE، d MMMM yyyy").format(now.getTime());
+        String d = I18n.sdf(I18n.L("EEEE، d MMMM yyyy", "EEEE, d MMMM yyyy")).format(now.getTime());
         dateTv.setText(d);
         hijriTv.setText(Prayer.hijriText(this, now));
 
@@ -189,7 +191,7 @@ public class PrayerActivity extends Screen {
         list.removeAllViews();
         for (int i = 0; i < 6; i++) {
             boolean hi = i == nextIdx && !tomorrow;
-            LinearLayout r = new LinearLayout(this);
+            LinearLayout r = hbox();
             r.setGravity(Gravity.CENTER_VERTICAL);
             r.setPadding(px(14), 0, px(14), 0);
             if (hi) r.setBackground(round(Main.RED, 12));

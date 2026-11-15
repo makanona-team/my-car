@@ -32,7 +32,9 @@ public class PrayerAlarm extends BroadcastReceiver {
             if (prayer >= 0 && fresh && p.getBoolean("pr_alert", false)) {
                 Intent s = new Intent(c, Athan.class);
                 s.putExtra("prayer", prayer);
-                c.startService(s);
+                // Android 8+: الخدمة تبدأ كخدمة أمامية (التطبيق قد يكون في الخلفية، مثلاً أثناء الملاحة)
+                if (android.os.Build.VERSION.SDK_INT >= 26) c.startForegroundService(s);
+                else c.startService(s);
             }
         } catch (Throwable e) {
             Guard.log("PrayerAlarm: " + e);
@@ -55,14 +57,21 @@ public class PrayerAlarm extends BroadcastReceiver {
 
         @Override
         public int onStartCommand(Intent i, int flags, int id) {
-            if (i != null && "stop".equals(i.getAction())) { finish(); return START_NOT_STICKY; }
+            if (i != null && "stop".equals(i.getAction())) {
+                finish();
+                try { ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(NOTIF); } catch (Throwable ignored) { }
+                return START_NOT_STICKY;
+            }
             int prayer = i != null ? i.getIntExtra("prayer", Prayer.DHUHR) : Prayer.DHUHR;
-            notifyPrayer(prayer);
+            Notification n = notifyPrayer(prayer);
+            if (android.os.Build.VERSION.SDK_INT >= 26 && n != null) {
+                try { startForeground(NOTIF, n); } catch (Throwable ignored) { }
+            }
             play();
             return START_NOT_STICKY;
         }
 
-        private void notifyPrayer(int prayer) {
+        private Notification notifyPrayer(int prayer) {
             try {
                 NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
                 if (android.os.Build.VERSION.SDK_INT >= 26) {
@@ -86,9 +95,12 @@ public class PrayerAlarm extends BroadcastReceiver {
                 b.addAction(0, I18n.L("إيقاف الصوت", "Stop sound"), sp);
                 b.setDeleteIntent(sp);
                 if (android.os.Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
-                nm.notify(NOTIF, b.build());
+                Notification n = b.build();
+                nm.notify(NOTIF, n);
+                return n;
             } catch (Throwable e) {
                 Guard.log("Athan notify: " + e);
+                return null;
             }
         }
 
@@ -135,6 +147,7 @@ public class PrayerAlarm extends BroadcastReceiver {
         private void finish() {
             h.removeCallbacksAndMessages(null);
             stopSound();
+            try { if (android.os.Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_DETACH); else stopForeground(false); } catch (Throwable ignored) { }
             stopSelf();
         }
 

@@ -55,12 +55,11 @@ public abstract class Screen extends Activity {
         if (s <= 0) s = 1;
         root = new FrameLayout(this);
         root.setBackgroundColor(Main.BG);
-        if (rtl()) root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         root.addView(col, new FrameLayout.LayoutParams(-1, -1));
 
-        top = new LinearLayout(this);
+        top = hbox();
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(px(16), px(8), px(16), px(8));
@@ -101,7 +100,19 @@ public abstract class Screen extends Activity {
 
     // ───────────────────────── أدوات الواجهة ─────────────────────────
 
-    protected boolean rtl() { return !"en".equals(I18n.lang) && android.os.Build.VERSION.SDK_INT >= 17; }
+    /** العربية: الصفوف الأفقية تُعكس يدوياً (التطبيق لا يفعّل supportsRtl حتى لا تتأثر الشاشة الرئيسية). */
+    protected boolean rtl() { return !"en".equals(I18n.lang); }
+
+    /** صف أفقي يُعكس ترتيبه بالعربية (أول عنصر يظهر على اليمين). */
+    protected LinearLayout hbox() { return new Row(this, rtl()); }
+
+    static class Row extends LinearLayout {
+        final boolean rev;
+        Row(android.content.Context c, boolean rev) { super(c); this.rev = rev; }
+        @Override public void addView(View child, int index, ViewGroup.LayoutParams params) {
+            super.addView(child, rev && index < 0 ? 0 : index, params);
+        }
+    }
 
     protected int px(float v) { return Math.round(v * s); }
 
@@ -114,7 +125,6 @@ public abstract class Screen extends Activity {
         v.setSingleLine(true);
         v.setEllipsize(TextUtils.TruncateAt.END);
         v.setTypeface(Typeface.create(bold ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
-        if (android.os.Build.VERSION.SDK_INT >= 17) v.setTextDirection(View.TEXT_DIRECTION_LOCALE);
         return v;
     }
 
@@ -169,7 +179,7 @@ public abstract class Screen extends Activity {
 
     /** زر بشكل كبسولة: أيقونة اختيارية ونص. filled = بلون التمييز. */
     protected LinearLayout pill(String ic, String text, boolean filled, View.OnClickListener l) {
-        LinearLayout b = new LinearLayout(this);
+        LinearLayout b = hbox();
         b.setGravity(Gravity.CENTER);
         b.setPadding(px(16), px(8), px(16), px(8));
         b.setBackground(round(filled ? Main.RED : Main.BTN, 22));
@@ -199,11 +209,11 @@ public abstract class Screen extends Activity {
 
     /** هامش من جهة البداية (يمين بالعربية) — يعمل أيضاً على Android 4.1. */
     protected void marginStart(ViewGroup.MarginLayoutParams l, int v) {
-        if (android.os.Build.VERSION.SDK_INT >= 17) l.setMarginStart(v); else l.leftMargin = v;
+        if (rtl()) l.rightMargin = v; else l.leftMargin = v;
     }
 
     protected void marginEnd(ViewGroup.MarginLayoutParams l, int v) {
-        if (android.os.Build.VERSION.SDK_INT >= 17) l.setMarginEnd(v); else l.rightMargin = v;
+        if (rtl()) l.leftMargin = v; else l.rightMargin = v;
     }
 
     protected LinearLayout.LayoutParams lpw(float weight) {

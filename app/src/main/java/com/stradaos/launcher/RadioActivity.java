@@ -124,7 +124,7 @@ public class RadioActivity extends Screen {
         loadFavs();
         tab = favs.isEmpty() ? "sy" : prefs.getString("radio_tab", "fav");
 
-        LinearLayout row = new LinearLayout(this);
+        LinearLayout row = hbox();
         row.setPadding(px(16), 0, px(16), px(12));
         content.addView(row, new FrameLayout.LayoutParams(-1, -1));
 
@@ -142,7 +142,7 @@ public class RadioActivity extends Screen {
         main.setOrientation(LinearLayout.VERTICAL);
         row.addView(main, new LinearLayout.LayoutParams(0, -1, 1));
 
-        LinearLayout now = new LinearLayout(this);
+        LinearLayout now = hbox();
         now.setGravity(Gravity.CENTER_VERTICAL);
         now.setBackground(round(Main.CARD, 16));
         now.setPadding(px(14), px(8), px(14), px(8));
@@ -159,7 +159,7 @@ public class RadioActivity extends Screen {
         now.addView(stopBtn);
         main.addView(now, lp(-1, px(64)));
 
-        searchRow = new LinearLayout(this);
+        searchRow = hbox();
         searchRow.setGravity(Gravity.CENTER_VERTICAL);
         searchRow.setPadding(0, px(8), 0, 0);
         searchEt = new EditText(this);
@@ -219,7 +219,7 @@ public class RadioActivity extends Screen {
         tabsCol.removeAllViews();
         for (final String[] t : TABS) {
             boolean sel = t[0].equals(tab);
-            LinearLayout b = new LinearLayout(this);
+            LinearLayout b = hbox();
             b.setGravity(Gravity.CENTER_VERTICAL);
             b.setPadding(px(14), 0, px(14), 0);
             b.setBackground(round(sel ? Main.RED : Main.CARD, 14));
@@ -441,10 +441,10 @@ public class RadioActivity extends Screen {
 
         public View getView(int pos, View cv, ViewGroup parent) {
             final Station st = items.get(pos);
-            LinearLayout r = new LinearLayout(RadioActivity.this);
+            LinearLayout r = hbox();
             r.setGravity(Gravity.CENTER_VERTICAL);
             r.setMinimumHeight(px(60));
-            r.setPadding(px(14), px(6), px(6), px(6));
+            r.setPadding(rtl() ? px(6) : px(14), px(6), rtl() ? px(14) : px(6), px(6));
             boolean cur = st.uuid.equals(RadioService.curUuid) && RadioService.state != RadioService.IDLE;
             r.setBackground(round(cur ? Main.RED : Main.CARD, 14));
             int fg = cur ? Color.WHITE : Main.TEXT;
