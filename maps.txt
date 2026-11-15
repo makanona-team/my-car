@@ -1,0 +1,4 @@
+href="iraq.map">iraq.map</a>               </td><td align="right">2026-09-30 06:05  </td><td align="right">100M
+href="jordan.map">jordan.map</a>             </td><td align="right">2026-10-04 06:48  </td><td align="right"> 29M
+href="lebanon.map">lebanon.map</a>            </td><td align="right">2026-10-05 08:16  </td><td align="right"> 42M
+href="syria.map">syria.map</a>              </td><td align="right">2026-10-06 06:49  </td><td align="right"> 84M
