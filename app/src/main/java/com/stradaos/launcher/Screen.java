@@ -192,6 +192,7 @@ public abstract class Screen extends Activity {
             TextView t = tv(text, 15, fg, true);
             if (ic != null) t.setPadding(px(8), 0, px(8), 0);
             b.addView(t);
+            b.setTag(t);   // نص الزر (ترتيب العناصر يتعكس بالعربية، فلا يُعتمد على getChildAt)
         }
         b.setOnClickListener(l);
         return b;

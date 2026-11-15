@@ -453,8 +453,10 @@ public class RadioActivity extends Screen {
             LinearLayout t = new LinearLayout(RadioActivity.this);
             t.setOrientation(LinearLayout.VERTICAL);
             t.setPadding(px(12), 0, px(12), 0);
-            t.addView(tv(st.name, 17, fg, true));
-            t.addView(tv(st.info(), 12, cur ? Color.WHITE : Main.MUTED, false));
+            TextView nm = tv(st.name, 17, fg, true), inf = tv(st.info(), 12, cur ? Color.WHITE : Main.MUTED, false);
+            if (rtl()) { nm.setGravity(Gravity.RIGHT); inf.setGravity(Gravity.RIGHT); }
+            t.addView(nm, lp(-1, -2));
+            t.addView(inf, lp(-1, -2));
             r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
             final boolean fav = favIds.contains(st.uuid);
             TextView star = tv(fav ? "★" : "☆", 26, fav ? (cur ? Color.WHITE : 0xFFFFC107) : (cur ? Color.WHITE : Main.MUTED), false);

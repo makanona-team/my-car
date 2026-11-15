@@ -110,7 +110,7 @@ public class ObdActivity extends Screen implements Obd.Listener {
         st.addView(pill("bluetooth", I18n.L("الوصلة", "Adapter"), false, new View.OnClickListener() { public void onClick(View v) { chooseAdapter(); } }));
         st.addView(space(8));
         connBtn = pill("play_arrow", I18n.L("اتصال", "Connect"), true, new View.OnClickListener() { public void onClick(View v) { toggleConn(); } });
-        connTxt = (TextView) connBtn.getChildAt(1);
+        connTxt = (TextView) connBtn.getTag();
         st.addView(connBtn);
         st.addView(space(8));
         st.addView(pill("car_repair", I18n.L("الأعطال", "Codes"), false, new View.OnClickListener() { public void onClick(View v) { showCodes(); } }));
