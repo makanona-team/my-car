@@ -534,6 +534,17 @@ public class Main extends Activity {
                 if (settingsView != null) closeSettings();
                 closeDrawer();
                 if (v.startsWith("ajustes:")) showSettings(Integer.parseInt(v.substring(8)));
+                // My Car (نسخة التجربة فقط): mycar-tema:N، mycar-sayara:نوع:لون، mycar-صفحة
+                else if (v.startsWith("mycar-tema:")) { Themes.applyPreset(prefs, Integer.parseInt(v.substring(11))); applyTheme(); applyAccent(); rebuild(); }
+                else if (v.startsWith("mycar-sayara:")) {
+                    String[] a2 = v.substring(13).split(":");
+                    prefs.edit().putString("car_art", a2[0]).putInt("car_art_color", CarArt.COLORS[Integer.parseInt(a2[1])]).apply(); rebuild();
+                }
+                else if ("mycar-salat".equals(v)) openScreen(PrayerActivity.class);
+                else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
+                else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
+                else if ("mycar-lang-en".equals(v)) setLanguage("en");
+                else if ("mycar-lang-ar".equals(v)) setLanguage("ar");
                 else if (v.startsWith("boton:")) dockMenu(Integer.parseInt(v.substring(6)), null);
                 else if (v.startsWith("elegir:")) pickDock(Integer.parseInt(v.substring(7)), null);
                 else if ("cajon".equals(v)) openDrawer();
