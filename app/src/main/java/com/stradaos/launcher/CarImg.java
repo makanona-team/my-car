@@ -10,61 +10,54 @@ import java.io.File;
 import java.io.InputStream;
 
 /**
- * My Car · صورة السيارة في التصاميم الجديدة: «خلفية» (للعدّاد ووضع القيادة) و«جانبية» (لبطاقة السيارة الكبيرة).
- * صورة المستخدم أولاً (من الشاشة أو USB، بعد إزالة الخلفية)، وإلا مجسّم Car Concept المصيَّر بلون السيارة المختار.
+ * My Car · صور السيارة: ثلاث خانات يضعها المستخدم (خلفية مباشرة، من فوق وخلف، جانبية) تُعمَّم على كل التصاميم.
+ * إذا لم توضع صورة تُرسم السيارة (النوع واللون من الإعدادات). لا يوجد مجسّم جاهز.
  */
 public class CarImg {
 
-    /** ألوان المجسّم المصيَّر (assets/car/<view>_<color>.png). */
-    static final String[] COLORS = {"white", "silver", "black", "red", "blue", "gray"};
-    static final int[] RGB = {0xFFF2F4F7, 0xFFB8BEC6, 0xFF1C1E22, 0xFFC62828, 0xFF1E5AA8, 0xFF5F6670};
+    static final String[] SLOTS = {"rear", "top", "side"};
 
-    static File rearFile(Context c) { return new File(c.getFilesDir(), "car_rear.png"); }
+    static File slotFile(Context c, String slot) { return new File(c.getFilesDir(), "car_" + slot + ".png"); }
 
-    /** لون المجسّم الأقرب للون السيارة المختار في الإعدادات. */
-    static String colorKey(Context c) {
-        int want = c.getSharedPreferences("launcher", 0).getInt("car_art_color", CarArt.COLORS[0]);
-        int best = 0;
-        double bd = Double.MAX_VALUE;
-        for (int i = 0; i < RGB.length; i++) {
-            double d = Math.pow(Color.red(want) - Color.red(RGB[i]), 2) + Math.pow(Color.green(want) - Color.green(RGB[i]), 2)
-                    + Math.pow(Color.blue(want) - Color.blue(RGB[i]), 2);
-            if (d < bd) { bd = d; best = i; }
-        }
-        return COLORS[best];
-    }
-
-    public static Bitmap rear(Context c) {
-        File f = rearFile(c);
-        if (f.exists()) {
-            Bitmap b = BitmapFactory.decodeFile(f.getAbsolutePath());
-            if (b != null) return b;
-        }
-        return asset(c, "car/rear_" + colorKey(c) + ".png");
-    }
-
-    public static Bitmap side(Context c) {
+    /** صورة المستخدم لهذه الخانة (null إن لم توجد). الجانبية تقرأ أيضاً الملف القديم car_custom.png. */
+    static Bitmap user(Context c, String slot) {
         try {
-            Bitmap user = CarPhoto.load(c);
-            if (user != null) return user;
+            File f = slotFile(c, slot);
+            if (f.exists()) { Bitmap b = BitmapFactory.decodeFile(f.getAbsolutePath()); if (b != null) return b; }
+            if ("side".equals(slot)) return CarPhoto.load(c);
         } catch (Throwable ignored) { }
-        return asset(c, "car/side_" + colorKey(c) + ".png");
+        return null;
     }
 
-    static Bitmap asset(Context c, String path) {
-        try {
-            InputStream in = c.getAssets().open(path);
-            Bitmap b = BitmapFactory.decodeStream(in);
-            in.close();
-            return b;
-        } catch (Throwable e) {
-            try {
-                InputStream in = c.getAssets().open(path.replaceAll("_[a-z]+\\.png$", "_white.png"));
-                Bitmap b = BitmapFactory.decodeStream(in);
-                in.close();
-                return b;
-            } catch (Throwable e2) { return null; }
-        }
+    static boolean has(Context c, String slot) {
+        return slotFile(c, slot).exists() || ("side".equals(slot) && new File(c.getFilesDir(), CarPhoto.FILE).exists());
+    }
+
+    static boolean hasAny(Context c) { return has(c, "rear") || has(c, "top") || has(c, "side"); }
+
+    static Bitmap first(Context c, String... order) {
+        for (String s : order) { Bitmap b = user(c, s); if (b != null) return b; }
+        return art(c);
+    }
+
+    /** للعدّاد: الخلفية، وإلا الأقرب لها. */
+    public static Bitmap rear(Context c) { return first(c, "rear", "top", "side"); }
+    /** لوضع القيادة على الطريق: من فوق وخلف. */
+    public static Bitmap top(Context c) { return first(c, "top", "rear", "side"); }
+    /** لبطاقة السيارة (تيسلا والكلاسيكي): الجانبية. */
+    public static Bitmap side(Context c) { return first(c, "side", "top", "rear"); }
+
+    /** رسم السيارة بالنوع واللون المختارين (عند عدم وجود صورة). */
+    static Bitmap art(Context c) {
+        SharedPreferences p = c.getSharedPreferences("launcher", 0);
+        String t = p.getString("car_art", "suv");
+        if ("none".equals(t)) t = "suv";
+        return CarArt.render(t, p.getInt("car_art_color", CarArt.COLORS[0]), 800, 336);
+    }
+
+    static void clearAll(Context c) {
+        for (String s : SLOTS) slotFile(c, s).delete();
+        CarPhoto.delete(c);
     }
 
     /** يقصّ الصورة على الجزء المرئي (غير الشفاف). */
@@ -81,18 +74,23 @@ public class CarImg {
         return Bitmap.createBitmap(b, minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
-    /** يحفظ صورة السيارة الخلفية بعد إزالة الخلفية وقصّها. */
-    public static boolean saveRear(Context c, Bitmap src) {
+
+    /** يحفظ صورة خانة (rear/top/side): إن كانت بخلفية واضحة تُزال، ثم قصّ ما حول السيارة. */
+    public static boolean saveSlot(Context c, String slot, Bitmap src) {
         try {
             Bitmap b = CarPhoto.scaled(src, CarPhoto.MAX);
-            if (!CarPhoto.hasTransparency(b)) b = CarPhoto.removeBackground(b, c.getSharedPreferences("launcher", 0).getInt("photo_cut", 1));
+            if (!CarPhoto.hasTransparency(b)) {
+                Bitmap cut = CarPhoto.removeBackground(b, c.getSharedPreferences("launcher", 0).getInt("photo_cut", 1));
+                if (cut != null) b = cut;
+            }
             b = trim(b);
-            java.io.FileOutputStream os = new java.io.FileOutputStream(rearFile(c));
+            java.io.FileOutputStream os = new java.io.FileOutputStream(slotFile(c, slot));
             b.compress(Bitmap.CompressFormat.PNG, 100, os);
             os.close();
+            if ("side".equals(slot)) CarPhoto.delete(c);   // الملف القديم يحل محله الجديد
             return true;
         } catch (Throwable e) {
-            Guard.log("CarImg.saveRear: " + e);
+            Guard.log("CarImg.saveSlot: " + e);
             return false;
         }
     }

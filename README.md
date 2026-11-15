@@ -37,7 +37,6 @@
 
 ### صور وخطوط من مصادر أخرى
 
-- صورة السيارة: نموذج **Car Concept** من Khronos Group، رخصة [CC-BY 4.0](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) (مبني على نموذج CC0 من Unity Fan)، مصيَّر بـ Blender بدون الشعارات.
 - الخلفيات من [Unsplash](https://unsplash.com/license): David Becker، NASA، TEDDY2 H، Andrew Svk، Darwin Vegher، Jakub Kriz، Patrick Schöpflin، Wietse Jongsma.
 - الخط: **Cairo** برخصة SIL Open Font License.
 

@@ -26,7 +26,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.BaseAdapter;
 import android.widget.ImageView;
+import android.widget.ListAdapter;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -418,7 +420,7 @@ public class Dash implements Obd.Listener {
 
     void buildDrive() {
         drive = new DriveView(m);
-        drive.setup(mph() ? 130 : 200, mph() ? "mph" : I18n.L("كم/س", "km/h"), GOLD, CarImg.rear(m), font, black);
+        drive.setup(mph() ? 130 : 200, mph() ? "mph" : I18n.L("كم/س", "km/h"), GOLD, CarImg.top(m), font, black);
         view.addView(drive, 0, new FrameLayout.LayoutParams(-1, -1));
         // أزرار علوية
         TextView exit = tv(I18n.L("خروج من وضع القيادة ✕", "Exit drive mode ✕"), 18, 0xFFFFFFFF, true);
@@ -1034,7 +1036,7 @@ public class Dash implements Obd.Listener {
             .setSingleChoiceItems(names.toArray(new String[0]), sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
                 d.dismiss();
                 String k = keys.get(w);
-                if ("pick".equals(k)) { pickImage(m, "wall"); return; }
+                if ("pick".equals(k)) { pickSource(m, "wall"); return; }
                 p.edit().putString("dash_wall", k).apply();
                 m.rebuildPublic();
             }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
@@ -1043,21 +1045,99 @@ public class Dash implements Obd.Listener {
     // ───────────────────────── صور من الشاشة/USB ─────────────────────────
 
     /** what: wall (خلفية) | rear (صورة السيارة من الخلف). يعرض الصور الموجودة في الذاكرة والفلاشات. */
-    public static void pickImage(final Main m, final String what) {
+    /** أول سؤال: من أين الصورة؟ فلاشة USB، ذاكرة الشاشة، أو المعرض (منتقي النظام). what = wall | rear | top | side */
+    public static void pickSource(final Main m, final String what) {
+        String[] items = {
+            I18n.L("فلاشة USB", "USB stick"),
+            I18n.L("ذاكرة الشاشة", "Screen storage"),
+            I18n.L("المعرض (تطبيق الصور)", "Gallery (photos app)"),
+        };
+        new TB(m, Main.dlg()).raw().setTitle(I18n.L("من أين الصورة؟", "Where is the picture?"))
+            .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                if (w == 2) m.pickGalleryPublic(what); else browse(m, what, w == 0);
+            }}).setNegativeButton(I18n.L("إلغاء", "Cancel"), null).show();
+    }
+
+    static boolean isPrimary(File r, File primary) {
+        try {
+            String c = r.getCanonicalPath(), p = primary.getCanonicalPath();
+            if (c.equals(p) || c.startsWith(p + "/") || p.startsWith(c + "/") || c.startsWith("/storage/emulated") || c.startsWith("/mnt/runtime")) return true;
+        } catch (Throwable ignored) { }
+        String n = r.getName().toLowerCase(java.util.Locale.US);
+        return n.equals("sdcard") || n.equals("sdcard0") || n.equals("emulated") || n.equals("shell") || n.equals("obb") || n.equals("user")
+            || n.equals("asec") || n.equals("secure") || n.equals("default") || n.equals("knox-emulated") || n.equals("runtime") || n.equals("self");
+    }
+
+    /** يعرض صور المصدر المختار بصور مصغّرة (الأحدث أولاً). */
+    static void browse(final Main m, final String what, final boolean usb) {
         m.toastPublic(I18n.L("جارِ البحث عن الصور…", "Looking for pictures…"));
         new Thread(new Runnable() { public void run() {
             final List<File> found = new ArrayList<File>();
-            for (File r : PrayerActivity.AudioFiles.roots()) scanImages(r, 5, found);
+            File primary = android.os.Environment.getExternalStorageDirectory();
+            if (usb) { for (File r : PrayerActivity.AudioFiles.roots()) if (!isPrimary(r, primary)) scanImages(r, 5, found); }
+            else scanImages(primary, 5, found);
             Collections.sort(found, new Comparator<File>() { public int compare(File a, File b) { return Long.valueOf(b.lastModified()).compareTo(a.lastModified()); } });
+            while (found.size() > 80) found.remove(found.size() - 1);
+            final List<Bitmap> thumbs = new ArrayList<Bitmap>();
+            for (File f : found) thumbs.add(thumb(f, 150));
             m.runOnUiThread(new Runnable() { public void run() {
-                if (found.isEmpty()) { m.toastPublic(I18n.L("لا توجد صور. انسخ الصورة إلى الشاشة أو فلاشة USB", "No pictures found. Copy one to the screen or a USB stick")); return; }
-                String[] n = new String[found.size()];
-                for (int i = 0; i < n.length; i++) n[i] = found.get(i).getName() + "\n" + found.get(i).getParent();
-                new TB(m, Main.dlg()).raw().setTitle("rear".equals(what) ? I18n.L("صورة السيارة من الخلف", "Car photo from behind") : I18n.L("صورة الخلفية", "Background picture"))
-                    .setItems(n, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { usePicked(m, what, found.get(w)); } })
+                if (found.isEmpty()) {
+                    m.toastPublic(usb ? I18n.L("لا توجد صور على فلاشة. تأكد أنها موصولة وفيها صور", "No pictures on a USB stick. Make sure it is plugged in and has pictures")
+                                      : I18n.L("لا توجد صور بذاكرة الشاشة. انسخ الصورة إليها أو استعمل الفلاشة", "No pictures in the screen storage. Copy one here or use a USB stick"));
+                    return;
+                }
+                final float dn = m.getResources().getDisplayMetrics().density;
+                ListAdapter ad = new BaseAdapter() {
+                    public int getCount() { return found.size(); }
+                    public Object getItem(int i) { return found.get(i); }
+                    public long getItemId(int i) { return i; }
+                    public View getView(int i, View cv, ViewGroup p) {
+                        LinearLayout row = new LinearLayout(m);
+                        row.setGravity(Gravity.CENTER_VERTICAL);
+                        row.setPadding((int) (10 * dn), (int) (6 * dn), (int) (10 * dn), (int) (6 * dn));
+                        ImageView iv = new ImageView(m);
+                        iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                        if (thumbs.get(i) != null) iv.setImageBitmap(thumbs.get(i));
+                        row.addView(iv, new LinearLayout.LayoutParams((int) (110 * dn), (int) (72 * dn)));
+                        LinearLayout col = new LinearLayout(m);
+                        col.setOrientation(LinearLayout.VERTICAL);
+                        TextView n = new TextView(m); n.setText(found.get(i).getName()); n.setTextColor(0xFFFFFFFF); n.setTextSize(15); n.setSingleLine(true);
+                        n.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                        TextView d2 = new TextView(m); d2.setText(found.get(i).getParent()); d2.setTextColor(0xFF9AA3B2); d2.setTextSize(12); d2.setSingleLine(true);
+                        d2.setEllipsize(android.text.TextUtils.TruncateAt.START);
+                        col.addView(n); col.addView(d2);
+                        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+                        lp.leftMargin = (int) (12 * dn); lp.rightMargin = (int) (12 * dn);
+                        row.addView(col, lp);
+                        return row;
+                    }
+                };
+                new TB(m, Main.dlg()).raw().setTitle(titleFor(what))
+                    .setAdapter(ad, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { usePicked(m, what, found.get(w)); } })
                     .setNegativeButton(I18n.L("إلغاء", "Cancel"), null).show();
             }});
         }}).start();
+    }
+
+    static String titleFor(String what) {
+        if ("rear".equals(what)) return I18n.L("صورة السيارة من الخلف", "Car photo from behind");
+        if ("top".equals(what)) return I18n.L("صورة السيارة من فوق وخلف", "Car photo from above-behind");
+        if ("side".equals(what)) return I18n.L("صورة السيارة الجانبية", "Car side photo");
+        return I18n.L("صورة الخلفية", "Background picture");
+    }
+
+    static Bitmap thumb(File f, int target) {
+        try {
+            BitmapFactory.Options b = new BitmapFactory.Options();
+            b.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(f.getAbsolutePath(), b);
+            int sm = 1;
+            while (b.outWidth / (sm * 2) >= target && b.outHeight / (sm * 2) >= target) sm *= 2;
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inSampleSize = sm;
+            o.inPreferredConfig = Bitmap.Config.RGB_565;
+            return BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+        } catch (Throwable e) { return null; }
     }
 
     static void scanImages(File dir, int depth, List<File> out) {
@@ -1076,6 +1156,10 @@ public class Dash implements Obd.Listener {
     }
 
     static void usePicked(final Main m, final String what, final File f) {
+        usePicked(m, what, new CarPhoto.Opener() { public InputStream open() throws Exception { return new java.io.FileInputStream(f); } });
+    }
+
+    static void usePicked(final Main m, final String what, final CarPhoto.Opener op) {
         new Thread(new Runnable() { public void run() {
             boolean ok = false;
             try {
@@ -1083,19 +1167,17 @@ public class Dash implements Obd.Listener {
                     File dst = new File(m.getFilesDir(), "dash_wall.jpg");
                     BitmapFactory.Options b = new BitmapFactory.Options();
                     b.inJustDecodeBounds = true;
-                    BitmapFactory.decodeFile(f.getAbsolutePath(), b);
+                    InputStream in = op.open(); BitmapFactory.decodeStream(in, null, b); in.close();
                     BitmapFactory.Options o = new BitmapFactory.Options();
                     o.inSampleSize = Walls.sample(b.outWidth, b.outHeight, 1600, 900);
-                    Bitmap bm = BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+                    in = op.open(); Bitmap bm = BitmapFactory.decodeStream(in, null, o); in.close();
                     java.io.FileOutputStream os = new java.io.FileOutputStream(dst);
                     bm.compress(Bitmap.CompressFormat.JPEG, 88, os);
                     os.close();
                     m.getSharedPreferences("launcher", 0).edit().putString("dash_wall", "file:" + dst.getAbsolutePath()).apply();
                     ok = true;
                 } else {
-                    final File ff = f;
-                    Bitmap src = CarPhoto.decode(new CarPhoto.Opener() { public InputStream open() throws Exception { return new java.io.FileInputStream(ff); } });
-                    ok = CarImg.saveRear(m, src);
+                    ok = CarImg.saveSlot(m, what, CarPhoto.decode(op));
                 }
             } catch (Throwable e) { Guard.log("usePicked: " + e); }
             final boolean fok = ok;
@@ -1106,26 +1188,27 @@ public class Dash implements Obd.Listener {
         }}).start();
     }
 
-    /** قائمة صور السيارة: الخلفية (للعدّاد) والجانبية (لبطاقة السيارة)، مع لون المجسّم. */
+    /** قائمة صور السيارة: ثلاث خانات تُعمَّم على كل التصاميم، ونوع/لون الرسم عند عدم وجود صورة. */
     void carMenu() { carMenu(m); }
 
     public static void carMenu(final Main m) {
-        final boolean hasRear = CarImg.rearFile(m).exists();
-        String[] items = {
-            I18n.L("صورة سيارتي من الخلف (للعدّاد ووضع القيادة)", "My car from behind (speedometer & drive mode)"),
-            hasRear ? I18n.L("إزالة صورتي الخلفية (عودة للمجسّم)", "Remove my rear photo (back to the 3D car)") : null,
-            I18n.L("صورة سيارتي الجانبية (بطاقة السيارة)", "My car side photo (car card)"),
-            I18n.L("لون المجسّم", "3D car colour"),
+        final String[] slots = {"rear", "top", "side"};
+        String[] names = {
+            I18n.L("صورة من الخلف (داخل العدّاد)", "From behind (in the speedometer)"),
+            I18n.L("صورة من فوق وخلف (وضع القيادة)", "From above-behind (drive mode)"),
+            I18n.L("صورة جانبية (تيسلا والكلاسيكي)", "Side photo (Tesla & Classic)"),
         };
         final List<String> list = new ArrayList<String>();
-        for (String s : items) if (s != null) list.add(s);
+        final List<String> act = new ArrayList<String>();
+        for (int i = 0; i < 3; i++) { list.add((CarImg.has(m, slots[i]) ? "✓  " : "") + names[i]); act.add(slots[i]); }
+        list.add(I18n.L("نوع السيارة المرسومة ولونها (عند عدم وجود صورة)", "Drawn car type & colour (when no photo)")); act.add("art");
+        if (CarImg.hasAny(m)) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
         new TB(m, Main.dlg()).raw().setTitle(I18n.L("صورة السيارة", "Car picture"))
             .setItems(list.toArray(new String[0]), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                String s = list.get(w);
-                if (s.startsWith(I18n.L("صورة سيارتي من الخلف", "My car from behind"))) pickImage(m, "rear");
-                else if (s.startsWith(I18n.L("إزالة", "Remove"))) { CarImg.rearFile(m).delete(); m.rebuildPublic(); }
-                else if (s.startsWith(I18n.L("صورة سيارتي الجانبية", "My car side photo"))) m.pickPhotoPublic();
-                else m.chooseCarColorPublic();
+                String a = act.get(w);
+                if ("art".equals(a)) m.carLookPublic();
+                else if ("clear".equals(a)) { CarImg.clearAll(m); m.rebuildPublic(); }
+                else pickSource(m, a);
             }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
     }
 }

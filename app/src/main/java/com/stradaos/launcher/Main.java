@@ -547,6 +547,11 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-wall:")) { prefs.edit().putString("dash_wall", v.substring(11)).apply(); rebuild(); }
                 else if (v.startsWith("mycar-mode:")) { prefs.edit().putString("dash_mode", v.substring(11)).apply(); rebuild(); }
                 else if ("mycar-themes".equals(v)) Dash.chooseLayout(Main.this);
+                else if (v.startsWith("mycar-pic:")) { String[] pp = v.substring(10).split(":", 2); Dash.usePicked(Main.this, pp[0], new java.io.File(pp[1])); }
+                else if (v.startsWith("mycar-pick:")) Dash.pickSource(Main.this, v.substring(11));
+                else if (v.startsWith("mycar-browse:")) { String[] pp = v.substring(13).split(":"); Dash.browse(Main.this, pp[0], "usb".equals(pp[1])); }
+                else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
+                else if ("mycar-picclear".equals(v)) { CarImg.clearAll(Main.this); rebuild(); }
                 else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
                 else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
                 else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
@@ -1057,6 +1062,19 @@ public class Main extends Activity {
     }
     void pickPhotoPublic() { pickPhoto(); }
     void chooseCarColorPublic() { chooseCarColor(); }
+    void carLookPublic() { carLookMenu(); }
+
+    private static final int REQ_DASHPIC = 61;
+    private String pendingPic = "rear";
+    void pickGalleryPublic(String what) {
+        pendingPic = what;
+        try {
+            Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+            i.setType("image/*");
+            if (i.resolveActivity(getPackageManager()) == null) { toast(I18n.L("لا يوجد تطبيق معرض بهذه الشاشة. استعمل الفلاشة أو ذاكرة الشاشة", "No gallery app on this screen. Use the USB stick or screen storage")); return; }
+            startActivityForResult(i, REQ_DASHPIC);
+        } catch (Throwable e) { toast(I18n.L("تعذّر فتح المعرض. استعمل الفلاشة أو ذاكرة الشاشة", "Could not open the gallery. Use the USB stick or screen storage")); }
+    }
 
     /**
      * Columnas del inicio: tarjeta del vehículo (300), mapa (lo que sobra) y reproductor (248; 300 si no hay tarjeta
@@ -1395,7 +1413,7 @@ public class Main extends Activity {
         chip.setVisibility(prefs.getString("car_tag", "").trim().length() == 0 ? View.GONE : View.VISIBLE);
         placeWrap(card, chip, 20, 46);
 
-        Bitmap photo = CarPhoto.load(this);
+        Bitmap photo = CarImg.hasAny(this) ? CarImg.side(this) : null;
         if (photo != null) {
             ImageView car = new ImageView(this);
             // 2.18: una foto con fondo (sin recortar) llena el recuadro con esquinas redondas; la recortada, como siempre
@@ -4267,7 +4285,7 @@ public class Main extends Activity {
 
     /** قائمة بطاقة السيارة: الرسم (النوع واللون)، صورة حقيقية، شعار الماركة. */
     private void carLookMenu() {
-        final boolean hasPhoto = CarPhoto.load(this) != null, hasLogo = loadBrandLogo() != null;
+        final boolean hasPhoto = CarImg.hasAny(this), hasLogo = loadBrandLogo() != null;
         String[] items = {
             I18n.L("نوع السيارة المرسومة: ", "Drawn car type: ") + CarArt.typeName(CarArt.typeIndex(prefs.getString("car_art", "suv"))),
             I18n.L("لون السيارة", "Car colour"),
@@ -4280,8 +4298,8 @@ public class Main extends Activity {
             .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
                 if (w == 0) chooseCarType();
                 else if (w == 1) chooseCarColor();
-                else if (w == 2) pickPhoto();
-                else if (w == 3) { CarPhoto.delete(Main.this); if ("none".equals(prefs.getString("car_art", "suv"))) prefs.edit().putString("car_art", "suv").apply(); rebuild(); }
+                else if (w == 2) Dash.carMenu(Main.this);
+                else if (w == 3) { CarImg.clearAll(Main.this); if ("none".equals(prefs.getString("car_art", "suv"))) prefs.edit().putString("car_art", "suv").apply(); rebuild(); }
                 else if (w == 4) pickBrandLogo();
                 else { new File(getFilesDir(), "brand_logo.png").delete(); rebuild(); }
             }})
@@ -4424,6 +4442,13 @@ public class Main extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == REQ_HOME) { homeResult(); return; }
+        if (req == REQ_DASHPIC) {
+            if (res == RESULT_OK && data != null && data.getData() != null) {
+                final Uri du = data.getData();
+                Dash.usePicked(this, pendingPic, new CarPhoto.Opener() { public InputStream open() throws Exception { return getContentResolver().openInputStream(du); } });
+            }
+            return;
+        }
         if (req == REQ_BACKUP_CREATE || req == REQ_BACKUP_OPEN) {
             if (res == RESULT_OK && data != null && data.getData() != null) backupDocument(data.getData(), req == REQ_BACKUP_CREATE);
             return;
@@ -6276,8 +6301,6 @@ public class Main extends Activity {
         row(l, "Clima", "Open-Meteo.com (CC BY 4.0)", null, null);
         row(l, I18n.L("الراديو", "Radio"), I18n.L("دليل Radio-Browser.info المفتوح", "Radio-Browser.info open directory"), null, null);
         row(l, I18n.L("مواقيت الصلاة", "Prayer times"), I18n.L("تُحسب على الجهاز (طريقة PrayTimes)", "Computed on the device (PrayTimes method)"), null, null);
-        row(l, I18n.L("صورة السيارة", "Car picture"), "Car Concept · Khronos Group · CC-BY 4.0 (" + I18n.L("مبني على نموذج CC0 من Unity Fan", "based on a CC0 model by Unity Fan") + ")", null,
-            new Runnable() { public void run() { linkDialog("Car Concept", "CC-BY 4.0", "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept"); } });
         row(l, I18n.L("الخلفيات", "Wallpapers"), "Unsplash: David Becker, NASA, TEDDY2 H, Andrew Svk, Darwin Vegher, Jakub Kriz, Patrick Schöpflin, Wietse Jongsma", null,
             new Runnable() { public void run() { linkDialog("Unsplash", "Unsplash License", "https://unsplash.com/license"); } });
         row(l, I18n.L("الخط", "Font"), "Cairo · SIL Open Font License", null, null);

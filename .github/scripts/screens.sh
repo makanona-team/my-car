@@ -20,12 +20,32 @@ shot() { adb shell screencap -p /data/local/tmp/s.png && adb pull /data/local/tm
 go() { adb shell am start -n $ACT --es prueba "$1" >/dev/null; sleep "${2:-6}"; }
 back() { adb shell input keyevent 4; sleep 3; }
 go unidad:kmh 6
+# صور اختبار على الذاكرة
+adb push .github/testdata/rear.png /sdcard/Download/car_rear.png >/dev/null
+adb push .github/testdata/top.png /sdcard/Download/car_top.png >/dev/null
+adb push .github/testdata/side.png /sdcard/Download/car_side.png >/dev/null
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download >/dev/null 2>&1 || true
 n=10
 for L in garage center main modes tesla drive classic; do
   go mycar-dash:$L 9; gps 35; sleep 3; shot ${n}_$L; n=$((n+1))
 done
-go "mycar-sayara:sedan:4" 5; go mycar-dash:garage 8; shot 17_garage_red
-go mycar-dash:tesla 8; shot 18_tesla_red; go "mycar-sayara:suv:0" 5
+go mycar-dash:garage 8; shot 17_garage_art
+go mycar-carmenu 5; shot 50_carmenu
+back
+go mycar-pick:rear 5; shot 51_source
+back
+go mycar-browse:rear:mem 12; shot 52_browse_mem
+back
+go mycar-browse:rear:usb 8; shot 53_browse_usb
+back
+go mycar-pic:rear:/sdcard/Download/car_rear.png 8
+go mycar-pic:top:/sdcard/Download/car_top.png 8
+go mycar-pic:side:/sdcard/Download/car_side.png 8
+for L in garage center main modes tesla drive classic; do go mycar-dash:$L 8; shot 6_$L; done
+go mycar-carmenu 5; shot 54_carmenu_checked
+back
+go mycar-picclear 5
+go mycar-dash:tesla 8; shot 18_tesla_art; go "mycar-sayara:suv:0" 5
 go mycar-dash:modes 6; go mycar-mode:sport 6; shot 20_modes_sport
 go mycar-mode:calm 6; shot 21_modes_calm; go mycar-mode:night 4
 go mycar-dash:garage 6
