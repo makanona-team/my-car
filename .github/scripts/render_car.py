@@ -47,7 +47,7 @@ def look(at):
 # إيجاد المؤخرة: نفترض أن مقدمة glTF نحو +Z (بعد الاستيراد نحو -Y في Blender). نصيّر الجهتين ونحفظ الاسم بالزاوية.
 views = {
   # name: (azimuth deg, elevation deg, distance factor, res, sign)  — sign -1 = خلف السيارة
-  "rear":   (0,   30, 1.55, (900, 760), -1),
+  "rear":   (0,   30, 1.55, (900, 760), 1),
   "side":   (35,  20, 1.75, (1200, 720), 1),
 }
 paint = [bpy.data.materials[m] for m in mats if any(k in m.lower() for k in ("paint", "body", "carpaint"))]
@@ -60,8 +60,8 @@ for m in paint:
                 if inp in n.inputs and n.inputs[inp].is_linked:
                     for l in list(n.inputs[inp].links): m.node_tree.links.remove(l)
             if 'Roughness' in n.inputs and not n.inputs['Roughness'].is_linked: n.inputs['Roughness'].default_value = 0.25
-colors = {"white": (0.86, 0.87, 0.88), "silver": (0.55, 0.57, 0.6), "black": (0.02, 0.02, 0.025), "red": (0.45, 0.02, 0.02),
-          "blue": (0.03, 0.09, 0.32), "gray": (0.16, 0.17, 0.19)}
+colors = {"white": (0.86, 0.87, 0.88), "silver": (0.55, 0.57, 0.6), "black": (0.004, 0.004, 0.005), "red": (0.45, 0.02, 0.02),
+          "blue": (0.03, 0.09, 0.32), "gray": (0.05, 0.055, 0.06)}
 only = os.environ.get("COLORS", ",".join(colors)).split(",")
 def set_color(rgb):
     for m in paint:
