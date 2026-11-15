@@ -234,4 +234,17 @@ public class I18n {
         if ("ar".equals(lang)) return "EEEE، d MMMM";
         return "EEEE, d 'de' MMMM";
     }
+
+    /** My Car: أرقام هندية (٠١٢…) بالعربية إن اختارها المستخدم. */
+    public static boolean arabicDigits;
+
+    public static String num(String s) {
+        if (!arabicDigits || s == null || !"ar".equals(lang)) return s;
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            b.append(ch >= '0' && ch <= '9' ? (char) ('\u0660' + (ch - '0')) : ch);
+        }
+        return b.toString();
+    }
 }

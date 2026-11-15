@@ -65,14 +65,79 @@ public class RadioService extends Service {
             start();
         } else if ("stop".equals(a)) {
             stopAll();
+        } else if ("next".equals(a)) {
+            step(1);
+        } else if ("prev".equals(a)) {
+            step(-1);
+        } else if ("toggle".equals(a)) {
+            if (state == PLAYING || state == CONNECTING) stopAll(); else resumeLast();
         }
         return START_NOT_STICKY;
+    }
+
+    // ── أزرار المقود والأزرار الجانبية: التالي/السابق بين المحطات المفضلة، تشغيل/إيقاف ──
+    private Object session;   // android.media.session.MediaSession (أندرويد 5+)
+
+    private org.json.JSONArray favs() {
+        try { return new org.json.JSONArray(getSharedPreferences("launcher", 0).getString("radio_favs", "[]")); } catch (Throwable e) { return new org.json.JSONArray(); }
+    }
+
+    private void playJson(org.json.JSONObject o) {
+        curName = o.optString("name"); curUrl = o.optString("url_resolved"); curUuid = o.optString("stationuuid");
+        String cc = o.optString("countrycode", ""), codec = o.optString("codec", "");
+        curInfo = (cc + (codec.length() > 0 ? " · " + codec : "")).trim();
+        retries = 0;
+        start();
+    }
+
+    private void step(int dir) {
+        org.json.JSONArray a = favs();
+        if (a.length() == 0) return;
+        int cur = -1;
+        for (int i = 0; i < a.length(); i++) if (a.optJSONObject(i) != null && a.optJSONObject(i).optString("stationuuid").equals(curUuid)) cur = i;
+        int n = ((cur < 0 ? (dir > 0 ? -1 : 0) : cur) + dir + a.length()) % a.length();
+        playJson(a.optJSONObject(n));
+    }
+
+    private void resumeLast() {
+        if (curUrl != null && curUrl.length() > 0) { retries = 0; start(); return; }
+        org.json.JSONArray a = favs();
+        if (a.length() > 0) playJson(a.optJSONObject(0));
+    }
+
+    private void session(boolean active) {
+        if (android.os.Build.VERSION.SDK_INT < 21) return;
+        try {
+            android.media.session.MediaSession ms = (android.media.session.MediaSession) session;
+            if (ms == null) {
+                ms = new android.media.session.MediaSession(this, "MyCarRadio");
+                ms.setFlags(android.media.session.MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | android.media.session.MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+                ms.setCallback(new android.media.session.MediaSession.Callback() {
+                    @Override public void onSkipToNext() { step(1); }
+                    @Override public void onSkipToPrevious() { step(-1); }
+                    @Override public void onPlay() { resumeLast(); }
+                    @Override public void onPause() { stopAll(); }
+                    @Override public void onStop() { stopAll(); }
+                });
+                session = ms;
+            }
+            long acts = android.media.session.PlaybackState.ACTION_PLAY | android.media.session.PlaybackState.ACTION_PAUSE
+                    | android.media.session.PlaybackState.ACTION_PLAY_PAUSE | android.media.session.PlaybackState.ACTION_STOP
+                    | android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT | android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS;
+            ms.setPlaybackState(new android.media.session.PlaybackState.Builder().setActions(acts)
+                    .setState(active ? android.media.session.PlaybackState.STATE_PLAYING : android.media.session.PlaybackState.STATE_STOPPED, 0, 1f).build());
+            ms.setMetadata(new android.media.MediaMetadata.Builder()
+                    .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, curName != null ? curName : "")
+                    .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, I18n.L("راديو إنترنت", "Internet radio")).build());
+            ms.setActive(active);
+        } catch (Throwable e) { Guard.log("Radio session: " + e); }
     }
 
     private void set(int st) {
         state = st;
         h.post(new Runnable() { public void run() { if (listener != null) try { listener.run(); } catch (Throwable ignored) { } } });
         broadcastMeta(st == PLAYING || st == CONNECTING);
+        session(st == PLAYING || st == CONNECTING);
         foreground();
     }
 
@@ -148,6 +213,7 @@ public class RadioService extends Service {
         try { if (am != null) am.abandonAudioFocus(focus); } catch (Throwable ignored) { }
         state = IDLE;
         broadcastMeta(false);
+        session(false);
         try { stopForeground(true); } catch (Throwable ignored) { }
         if (listener != null) h.post(new Runnable() { public void run() { if (listener != null) try { listener.run(); } catch (Throwable ignored) { } } });
         stopSelf();
@@ -159,6 +225,7 @@ public class RadioService extends Service {
         release();
         try { if (am != null) am.abandonAudioFocus(focus); } catch (Throwable ignored) { }
         if (state != IDLE) { state = IDLE; broadcastMeta(false); }
+        try { if (session != null && android.os.Build.VERSION.SDK_INT >= 21) ((android.media.session.MediaSession) session).release(); } catch (Throwable ignored) { }
         super.onDestroy();
     }
 
@@ -194,7 +261,11 @@ public class RadioService extends Service {
             b.setContentIntent(PendingIntent.getActivity(this, 7402, open, PendingIntent.FLAG_UPDATE_CURRENT));
             Intent stop = new Intent(this, RadioService.class);
             stop.setAction("stop");
+            Intent pv = new Intent(this, RadioService.class).setAction("prev");
+            Intent nx = new Intent(this, RadioService.class).setAction("next");
+            b.addAction(0, "⏮", PendingIntent.getService(this, 7404, pv, PendingIntent.FLAG_UPDATE_CURRENT));
             b.addAction(0, I18n.L("إيقاف", "Stop"), PendingIntent.getService(this, 7403, stop, PendingIntent.FLAG_UPDATE_CURRENT));
+            b.addAction(0, "⏭", PendingIntent.getService(this, 7405, nx, PendingIntent.FLAG_UPDATE_CURRENT));
             Notification n = b.build();
             if (state == PLAYING || state == CONNECTING) startForeground(NOTIF, n);
             else { stopForeground(false); nm.notify(NOTIF, n); }

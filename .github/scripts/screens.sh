@@ -71,5 +71,20 @@ go mycar-obd 6; shot 44_obd; back
 go mycar-lang-en 8; go mycar-dash:garage 8; shot 45_garage_en
 go mycar-dash:tesla 8; shot 46_tesla_en
 go mycar-lang-ar 6; go mycar-dash:garage 6
+go mycar-dash:garage 6; gps 60
+go mycar-tripdemo 6; go mycar-dash:garage 8; shot 80_trip_card
+go mycar-triplog 5; shot 81_triplog; back
+go mycar-pref:digits_ar=true 8; shot 82_digits; go mycar-pref:digits_ar=false 4
+go mycar-pref:dash_lite=true 8; shot 83_lite; go mycar-pref:dash_lite=false 4
+go mycar-dash:center 8; shot 84_center_road
+go mycar-dash:modes 8; shot 85_modes_road
+go mycar-dash:garage 6
+go mycar-diag 25; shot 86_diag
+adb shell input swipe 640 600 640 150 300; sleep 2; shot 87_diag_scroll
+back
+go ajustes:11 6
+for i in 1 2 3; do adb shell input swipe 760 620 760 160 400; sleep 2; done; shot 88_settings_trips
+for i in 1 2; do adb shell input swipe 760 620 760 160 400; sleep 2; done; shot 89_settings_screen
+back
 adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|MyCar|Dash" | tail -120 > $OUT/logcat.txt
 ls -l $OUT

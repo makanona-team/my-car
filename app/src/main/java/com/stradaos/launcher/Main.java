@@ -558,6 +558,10 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-pick:")) Dash.pickSource(Main.this, v.substring(11));
                 else if (v.startsWith("mycar-browse:")) { String[] pp = v.substring(13).split(":"); Dash.browse(Main.this, pp[0], "usb".equals(pp[1])); }
                 else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
+                else if ("mycar-diag".equals(v)) openScreen(DiagActivity.class);
+                else if ("mycar-triplog".equals(v)) Trip.showLog(Main.this);
+                else if (v.startsWith("mycar-pref:")) { String[] pp = v.substring(11).split("=", 2); if ("true".equals(pp[1]) || "false".equals(pp[1])) prefs.edit().putBoolean(pp[0], "true".equals(pp[1])).apply(); else prefs.edit().putString(pp[0], pp[1]).apply(); I18n.arabicDigits = prefs.getBoolean("digits_ar", false); rebuild(); }
+                else if ("mycar-tripdemo".equals(v)) { prefs.edit().putFloat("trip_km", 23.4f).putLong("trip_ms", 1900000).putFloat("trip_max", 96).putFloat("trip_fuel", 2.3f).putInt("fuel_price", 11000).apply(); Trip.close(Main.this, System.currentTimeMillis() - 3600000); prefs.edit().putFloat("trip_km", 4.2f).putLong("trip_ms", 600000).putFloat("trip_fuel", 0.4f).apply(); rebuild(); }
                 else if ("mycar-picclear".equals(v)) { CarImg.clearAll(Main.this); rebuild(); }
                 else if (v.startsWith("mycar-lit:")) { prefs.edit().putString("car_lit", v.substring(10)).apply(); rebuild(); }
                 else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
@@ -890,6 +894,11 @@ public class Main extends Activity {
             if (bt != null && bt.isConnected() && (++btPoll % 3 == 0 || curTitle == null)) bt.refresh();
             updatePlayIcon();
             updateStatusIcons();
+            if (dash != null && ++litTick % 2 == 0) {   // My Car: تبدّل إشارة الأضواء ← صور السيارة المضاءة
+                boolean lit = Dash.litNow(Main.this);
+                if (lastLit == null) lastLit = lit;
+                else if (lit != lastLit) { lastLit = lit; rebuild(); }
+            }
             if (++themeTick % 30 == 0) {
                 boolean was = LIGHT;
                 applyTheme();
@@ -1756,7 +1765,7 @@ public class Main extends Activity {
      * inglés de EE. UU. (= millas): por eso, antes de pedir números, se pregunta una vez y queda fija (issue #7).
      */
     private void askOilUnit(final Runnable next) {
-        if (!"auto".equals(prefs.getString("speed_unit", "auto"))) { next.run(); return; }
+        if (true) { if ("auto".equals(prefs.getString("speed_unit", "auto"))) prefs.edit().putString("speed_unit", "kmh").apply(); next.run(); return; }
         new TB(this, dlg())
             .setTitle("¿Tu tablero marca kilómetros o millas?")
             .setItems(new String[]{"Kilómetros (km)", "Millas (mi)"}, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
@@ -2815,8 +2824,7 @@ public class Main extends Activity {
         String u = prefs.getString("speed_unit", "auto");
         if ("mph".equals(u)) return true;
         if ("kmh".equals(u)) return false;
-        String c = java.util.Locale.getDefault().getCountry();
-        return "US".equals(c) || "GB".equals(c) || "LR".equals(c) || "MM".equals(c);
+        return false;   // My Car: كم/س افتراضياً (سوريا)
     }
 
     /** 0 = bien (o buscando señal), 1 = StradaOS sin permiso de ubicación, 2 = ubicación del equipo apagada. */
@@ -4729,6 +4737,8 @@ public class Main extends Activity {
 
     /** Modo «Sistema»: sigue el modo oscuro de la pantalla (algunas lo activan al encender las luces del carro). */
     private boolean lastNightUi = false;
+    private int litTick;
+    private Boolean lastLit;
 
     private boolean systemNight() {
         try {
@@ -6183,11 +6193,46 @@ public class Main extends Activity {
     private long screenOffAt;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
-            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); return; }
+            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); sleepNow(); return; }
+            wakeNow();
             if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 5 * 60000L && hasWindowFocus()) runBootApp(1500);
             screenOffAt = 0;
         }
     };
+
+    /** My Car · السكون: إطفاء السيارة يطفئ الشاشة ← نوقف GPS والحركة وOBD وننهي الرحلة؛ التشغيل يرجعها فوراً بدون إعادة تحميل. */
+    private boolean sleeping;
+
+    private void sleepNow() {
+        if (sleeping) return;
+        sleeping = true;
+        try {
+            if (dash != null) dash.pause();
+            stopGps();
+            h.removeCallbacks(ticker);
+            Trip.close(this, prefs.getLong("trip_move_at", System.currentTimeMillis()));
+            if (Obd.get(this).state() != Obd.OFF) { obdWasOn = true; Obd.get(this).disconnect(); }
+        } catch (Throwable e) { Guard.log("Sleep: " + e); }
+    }
+
+    private boolean obdWasOn;
+
+    private void wakeNow() {
+        if (!sleeping) return;
+        sleeping = false;
+        try {
+            if (hasWindowFocus()) {
+                if (dash != null) dash.resume();
+                startGps();
+                h.removeCallbacks(ticker);
+                h.postDelayed(ticker, 500);
+            }
+            if (obdWasOn || (prefs.getBoolean("obd_auto", true) && prefs.getBoolean("obd_ok_once", false))) {
+                obdWasOn = false;
+                h.postDelayed(new Runnable() { public void run() { try { Obd.get(Main.this).connect(); } catch (Throwable ignored) { } } }, 3000);
+            }
+        } catch (Throwable e) { Guard.log("Wake: " + e); }
+    }
 
     private void runBootApp(long delay) {
         final String comp = prefs.getString("boot_app", "");
@@ -6341,7 +6386,7 @@ public class Main extends Activity {
         LinearLayout rd = section(body, I18n.L("الراديو", "Radio"));
         rowIc(rd, "radio_tower", I18n.L("راديو الإنترنت العربي", "Arabic internet radio"), I18n.L("سوريا، القرآن الكريم، الدول العربية، والبحث", "Syria, Holy Quran, Arab countries, search"), null,
             new Runnable() { public void run() { openScreen(RadioActivity.class); } });
-        rowIc(rd, "radio", I18n.L("راديو FM (تطبيق الشاشة)", "FM radio (screen's app)"), I18n.L("نصيحة: الضغط المطوّل على ⏩ أو ⏪ في تطبيق الراديو يبحث عن المحطة التالية", "Tip: long-press ⏩ or ⏪ in the radio app to seek the next station"), null,
+        rowIc(rd, "radio", I18n.L("راديو FM (تطبيق الشاشة)", "FM radio (screen's app)"), I18n.L("نصيحة: الضغط المطوّل على ⏩ أو ⏪ في تطبيق الراديو يبحث عن المحطة التالية · أزرار المقود تقلّب المحطات المفضلة في راديو الإنترنت", "Tip: long-press ⏩ or ⏪ in the radio app to seek · steering-wheel buttons switch favourite internet stations"), null,
             new Runnable() { public void run() { openSlot(0); } });
 
         LinearLayout ob = section(body, "OBD2");
@@ -6350,6 +6395,52 @@ public class Main extends Activity {
             new Runnable() { public void run() { openScreen(ObdActivity.class); } });
         toggle(ob, I18n.L("الاتصال بالوصلة تلقائياً", "Connect to the adapter automatically"), I18n.L("عند تشغيل الشاشة، بعد أول اتصال ناجح", "When the screen starts, after the first successful connection"),
             prefs.getBoolean("obd_auto", true), new IntCb() { public void on(int i) { prefs.edit().putBoolean("obd_auto", i == 1).apply(); } });
+
+        LinearLayout tr = section(body, I18n.L("الرحلات والوقود", "Trips & fuel"));
+        row(tr, I18n.L("سجل الرحلات", "Trip log"), I18n.L("آخر 20 رحلة: المسافة والمدة وأعلى سرعة والوقود", "Last 20 trips: distance, time, top speed and fuel"), null,
+            new Runnable() { public void run() { Trip.showLog(Main.this); } });
+        int fp = prefs.getInt("fuel_price", 0);
+        row(tr, I18n.L("سعر لتر الوقود", "Fuel price per litre"), I18n.L("لحساب كلفة الرحلة بالليرة", "To show the trip cost"), fp > 0 ? String.format(Locale.US, "%,d", fp) + I18n.L(" ل.س", " SYP") : I18n.L("غير محدد", "Not set"),
+            new Runnable() { public void run() {
+                askNumber(I18n.L("سعر لتر الوقود (ليرة سورية)", "Fuel price per litre (SYP)"), prefs.getInt("fuel_price", 0), new NumCb() { public void on(float v) {
+                    prefs.edit().putInt("fuel_price", Math.max(0, Math.round(v))).apply(); showSettings(settingsCat); rebuild();
+                }});
+            }});
+        final boolean diesel = "diesel".equals(prefs.getString("fuel_type", "petrol"));
+        row(tr, I18n.L("نوع الوقود", "Fuel type"), I18n.L("لحساب الاستهلاك من OBD (تقديري)", "For the OBD consumption estimate"), diesel ? I18n.L("مازوت", "Diesel") : I18n.L("بنزين", "Petrol"),
+            new Runnable() { public void run() { prefs.edit().putString("fuel_type", diesel ? "petrol" : "diesel").apply(); showSettings(settingsCat); } });
+        row(tr, I18n.L("سعة المحرك", "Engine size"), I18n.L("تُستعمل فقط إن لم يكن في السيارة حساس هواء (MAF)", "Used only when the car has no MAF sensor"), String.format(Locale.US, "%.1f L", prefs.getFloat("engine_l", 2.4f)),
+            new Runnable() { public void run() {
+                final float[] opts = {1.4f, 1.6f, 2.0f, 2.2f, 2.4f, 2.7f, 3.0f, 3.3f, 3.5f};
+                String[] n = new String[opts.length];
+                int sel = 0;
+                for (int i = 0; i < opts.length; i++) { n[i] = String.format(Locale.US, "%.1f L", opts[i]); if (Math.abs(opts[i] - prefs.getFloat("engine_l", 2.4f)) < 0.05f) sel = i; }
+                new TB(Main.this, dlg()).raw().setTitle(I18n.L("سعة المحرك", "Engine size")).setSingleChoiceItems(n, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    d.dismiss(); prefs.edit().putFloat("engine_l", opts[w]).apply(); showSettings(settingsCat);
+                }}).show();
+            }});
+        row(tr, I18n.L("تصحيح الاستهلاك", "Consumption correction"), I18n.L("إذا كان الاستهلاك المحسوب أعلى أو أقل من الحقيقي (قارنه بتعبئة كاملة)", "If the estimate is higher or lower than real (compare with a full tank)"), prefs.getInt("fuel_cal", 100) + "%",
+            new Runnable() { public void run() {
+                final int[] opts = {70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 140};
+                String[] n = new String[opts.length];
+                int sel = 6;
+                for (int i = 0; i < opts.length; i++) { n[i] = opts[i] + "%"; if (opts[i] == prefs.getInt("fuel_cal", 100)) sel = i; }
+                new TB(Main.this, dlg()).raw().setTitle(I18n.L("تصحيح الاستهلاك", "Consumption correction")).setSingleChoiceItems(n, sel, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                    d.dismiss(); prefs.edit().putInt("fuel_cal", opts[w]).apply(); showSettings(settingsCat);
+                }}).show();
+            }});
+
+        LinearLayout sc = section(body, I18n.L("الشاشة والأداء", "Screen & performance"));
+        rowIc(sc, "explore", I18n.L("تشخيص الشاشة", "Screen diagnostics"), I18n.L("إشارة الأضواء، الفلاشة، الراديو، الذاكرة الحقيقية · احفظ التقرير وأرسله للمطوّر", "Light signal, USB, radio, real memory · save the report and send it to the developer"), null,
+            new Runnable() { public void run() { openScreen(DiagActivity.class); } });
+        String ls = prefs.getString("lit_src", "");
+        row(sc, I18n.L("إشارة تشغيل الأضواء", "Headlight signal"), I18n.L("لتبديل صور السيارة المضاءة · اضغط للرجوع للوضع الليلي للشاشة", "Switches to the lit car photos · tap to go back to the screen's night mode"),
+            ls.length() > 0 ? ls : I18n.L("الوضع الليلي للشاشة", "Screen night mode"),
+            new Runnable() { public void run() { prefs.edit().remove("lit_src").remove("lit_on").apply(); showSettings(settingsCat); rebuild(); } });
+        toggle(sc, I18n.L("وضع خفيف", "Light mode"), I18n.L("بدون توهج ولا حركة للطريق، إذا لاحظت تقطيعاً", "No glow and no road motion, if you notice stutter"),
+            prefs.getBoolean("dash_lite", false), new IntCb() { public void on(int i) { prefs.edit().putBoolean("dash_lite", i == 1).apply(); rebuild(); } });
+        toggle(sc, I18n.L("أرقام هندية (١٢٣)", "Eastern Arabic digits (١٢٣)"), I18n.L("للساعة والعدّاد والمواقيت في التصاميم الجديدة", "For the clock, gauge and prayer times in the new layouts"),
+            prefs.getBoolean("digits_ar", false), new IntCb() { public void on(int i) { prefs.edit().putBoolean("digits_ar", i == 1).apply(); I18n.arabicDigits = i == 1; rebuild(); } });
 
         LinearLayout mp = section(body, I18n.L("خريطة سوريا بدون إنترنت", "Offline Syria map"));
         String mf = prefs.getString("map_file", "");

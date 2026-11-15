@@ -39,7 +39,7 @@ public class RoadView extends View {
         float dt = last == 0 ? 0 : Math.min(0.1f, (now - last) / 1000f);
         last = now;
         float d = speed - shown;
-        shown += Math.abs(d) < 0.3f ? d : d * 0.15f;
+        shown += lite() || Math.abs(d) < 0.3f ? d : d * 0.15f;
         offset = (offset + dt * (0.2f + shown / 70f)) % 1f;
 
         float y0 = cy + r * 0.25f, y1 = cy + r * 0.95f, hw0 = carW * 0.18f, hw1 = carW * 0.95f;
@@ -87,7 +87,13 @@ public class RoadView extends View {
                 c.drawCircle(x, y - ph, Math.max(1.5f, r * 0.022f * e + 1), p);
             }
         }
-        if (running && (shown > 0.5f || Math.abs(d) > 0.3f)) postInvalidateDelayed(50);
+        if (running && !lite() && (shown > 0.5f || Math.abs(d) > 0.3f)) postInvalidateDelayed(50);
         else last = 0;
+    }
+
+    private Boolean liteCache;
+    private boolean lite() {
+        if (liteCache == null) liteCache = getContext().getSharedPreferences("launcher", 0).getBoolean("dash_lite", false);
+        return liteCache;
     }
 }

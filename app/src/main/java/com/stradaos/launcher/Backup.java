@@ -101,8 +101,25 @@ public class Backup {
                 root.put("photo", photoCache);
             }
         }
+        // My Car: صور السيارة الست والخلفية الخاصة
+        JSONObject files = new JSONObject();
+        String[] names = {"car_rear.png", "car_top.png", "car_side.png", "car_rear_lit.png", "car_top_lit.png", "car_side_lit.png", "dash_wall.jpg"};
+        for (String n : names) {
+            File f = new File(c.getFilesDir(), n);
+            if (f.isFile() && f.length() > 0 && f.length() < 6L * 1024 * 1024) {
+                synchronized (Backup.class) {
+                    String key = n + ":" + f.lastModified() + ":" + f.length();
+                    String b64 = fileCache.get(key);
+                    if (b64 == null) { b64 = Base64.encodeToString(readAll(new FileInputStream(f)), Base64.NO_WRAP); fileCache.put(key, b64); }
+                    files.put(n, b64);
+                }
+            }
+        }
+        if (files.length() > 0) root.put("files", files);
         return root.toString();
     }
+
+    private static final java.util.HashMap<String, String> fileCache = new java.util.HashMap<String, String>();
 
     static byte[] readAll(InputStream in) throws Exception {
         try {
@@ -375,6 +392,17 @@ public class Backup {
             if (data != null && data.length > 0) {
                 FileOutputStream os = new FileOutputStream(new File(c.getFilesDir(), CarPhoto.FILE));
                 try { os.write(data); } finally { os.close(); }
+            }
+            JSONObject files = root.optJSONObject("files");
+            if (files != null) {
+                java.util.Iterator<?> fit = files.keys();
+                while (fit.hasNext()) {
+                    String n = String.valueOf(fit.next());
+                    if (!n.matches("[a-z_]+\\.(png|jpg)")) continue;
+                    byte[] fd = Base64.decode(files.getString(n), Base64.DEFAULT);
+                    FileOutputStream fo = new FileOutputStream(new File(c.getFilesDir(), n));
+                    try { fo.write(fd); } finally { fo.close(); }
+                }
             }
             return null;
         } catch (Throwable ex) {

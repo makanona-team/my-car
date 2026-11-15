@@ -107,7 +107,7 @@ public class DriveView extends View {
         float dt = lastFrame == 0 ? 0 : Math.min(0.1f, (now - lastFrame) / 1000f);
         lastFrame = now;
         float ds = speed - shown;
-        shown += Math.abs(ds) < 0.3f ? ds : ds * 0.15f;
+        shown += lite() || Math.abs(ds) < 0.3f ? ds : ds * 0.15f;
         offset = (offset + dt * (0.15f + shown / 60f)) % 1f;
 
         float hz = h * 0.42f, cx = w / 2f;
@@ -192,7 +192,7 @@ public class DriveView extends View {
                 p.setColor(0xDDFFFFFF);
                 p.setTextSize(h * 0.035f);
                 float rl = arcR - h * 0.11f;
-                c.drawText(String.valueOf(v), cx + (float) Math.cos(a) * rl, arcCy + (float) Math.sin(a) * rl, p);
+                c.drawText(I18n.num(String.valueOf(v)), cx + (float) Math.cos(a) * rl, arcCy + (float) Math.sin(a) * rl, p);
             }
         }
         // الرقم الكبير
@@ -201,7 +201,7 @@ public class DriveView extends View {
         p.setColor(0xFFFFFFFF);
         p.setTextSize(h * 0.14f);
         p.setShadowLayer(h * 0.01f, 0, 0, 0xAA000000);
-        c.drawText(ok ? String.valueOf(Math.round(shown < 1 ? 0 : shown)) : "0", cx, h * 0.30f, p);
+        c.drawText(I18n.num(ok ? String.valueOf(Math.round(shown < 1 ? 0 : shown)) : "0"), cx, h * 0.30f, p);
         p.setTypeface(font);
         p.setTextSize(h * 0.035f);
         p.setColor(accent);
@@ -216,7 +216,7 @@ public class DriveView extends View {
             c.drawBitmap(car, null, rf, p);
         }
 
-        if (running && (shown > 0.5f || Math.abs(ds) > 0.3f)) postInvalidateDelayed(40);
+        if (running && !lite() && (shown > 0.5f || Math.abs(ds) > 0.3f)) postInvalidateDelayed(40);
         else lastFrame = 0;
     }
 
@@ -234,5 +234,11 @@ public class DriveView extends View {
         c.drawRoundRect(rf, 4, 4, p);
         rf.set(x + wd * 0.22f, y - ht * 0.62f, x + wd * 0.42f, y - ht * 0.5f);
         c.drawRoundRect(rf, 4, 4, p);
+    }
+
+    private Boolean liteCache;
+    private boolean lite() {
+        if (liteCache == null) liteCache = getContext().getSharedPreferences("launcher", 0).getBoolean("dash_lite", false);
+        return liteCache;
     }
 }

@@ -96,6 +96,7 @@ public class Dash implements Obd.Listener {
         this.prefs = main.getSharedPreferences("launcher", 0);
         this.layout = layout;
         this.W = w; this.H = hgt;
+        I18n.arabicDigits = prefs.getBoolean("digits_ar", false);
         k = Math.min(w / 1280f, hgt / 720f);
         try {
             font = Typeface.createFromAsset(main.getAssets(), "fonts/Cairo-Bold.ttf");
@@ -213,6 +214,12 @@ public class Dash implements Obd.Listener {
         String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
         if ("on".equals(md)) return true;
         if ("off".equals(md)) return false;
+        SharedPreferences sp = m.getSharedPreferences("launcher", 0);
+        String src = sp.getString("lit_src", "");
+        if (src.length() > 0) {   // إشارة اختارها المستخدم من صفحة التشخيص
+            String v = DiagActivity.signal(m, src);
+            return v != null && v.equals(sp.getString("lit_on", ""));
+        }
         try {
             return (m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                     == android.content.res.Configuration.UI_MODE_NIGHT_YES;
@@ -327,8 +334,8 @@ public class Dash implements Obd.Listener {
         locTv.setPadding(px(12), px(4), px(12), px(4));
         in(mid, locTv, 20, 6, -1, -1);
         speedo = new Speedo(m);
-        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), small ? 0.2f : 0.36f, small, font, black);
-        if (small) { road = new RoadView(m); road.setup(small ? 0.2f : 0.36f); in(mid, road, 30, 40, 540, 508); }
+        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), small ? 0.2f : 0.36f, true, font, black);
+        road = new RoadView(m); road.setup(small ? 0.2f : 0.36f); in(mid, road, 30, 40, 540, 508);
         in(mid, speedo, 30, 40, 540, 508);
         // اليمين
         buildClock(1090, 72, 170, 140);
@@ -352,7 +359,8 @@ public class Dash implements Obd.Listener {
         locTv.setPadding(px(12), px(4), px(12), px(4));
         in(mid, locTv, 18, 14, -1, -1);
         speedo = new Speedo(m);
-        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), 0.2f, false, font, black);
+        speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), 0.24f, true, font, black);
+        road = new RoadView(m); road.setup(0.24f); in(mid, road, 80, 50, 500, 500);
         in(mid, speedo, 80, 50, 500, 500);
         buildMiniPlayer(20, 646, 1240, 66, false);
     }
@@ -401,7 +409,9 @@ public class Dash implements Obd.Listener {
         obdTemp = miniTile(rc, 410, 392, I18n.L("الحرارة", "Temp"), "thermostat");
         obdVolt = miniTile(rc, 215, 392, I18n.L("البطارية", "Battery"), "battery_charging_full");
         obdFuel = miniTile(rc, 20, 392, I18n.L("الوقود", "Fuel"), "local_gas_station");
-        tripLast = stat(rc, 410, 486, I18n.L("آخر رحلة", "Last trip"));
+        tripLast = stat(rc, 410, 486, I18n.L("الوقود (OBD)", "Fuel (OBD)"));
+        tripLast.setTextSize(16);
+        tripLast.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { Trip.showLog(m); } });
         tripDur = stat(rc, 215, 486, I18n.L("مدة القيادة", "Drive time"));
         tripDist = stat(rc, 20, 486, I18n.L("المسافة", "Distance"));
         buildTextDock(648);
@@ -610,12 +620,14 @@ public class Dash implements Obd.Listener {
         TextView t = rtext(I18n.L("ملخص الرحلة", "Trip summary"), 16, 0xFFFFFFFF, true);
         in(c, t, 12, 14, w - 24, 28);
         float yy = 64;
-        String[] lbl = {I18n.L("المسافة", "Distance"), I18n.L("مدة القيادة", "Drive time"), I18n.L("آخر رحلة", "Last trip")};
+        c.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { Trip.showLog(m); } });
+        String[] lbl = {I18n.L("المسافة", "Distance"), I18n.L("مدة القيادة", "Drive time"), I18n.L("الوقود (OBD)", "Fuel (OBD)")};
         TextView[] vals = new TextView[3];
         for (int i = 0; i < 3; i++) {
             TextView l = rtext(lbl[i], 16, GOLD, true);
             in(c, l, 12, yy, w - 24, 26);
-            vals[i] = rtext("--", 24, 0xFFFFFFFF, true);
+            vals[i] = rtext("--", i == 2 ? 17 : 24, 0xFFFFFFFF, true);
+            vals[i].setMaxLines(2);
             in(c, vals[i], 12, yy + 30, w - 24, 38);
             yy += 100;
         }
@@ -825,6 +837,21 @@ public class Dash implements Obd.Listener {
         refreshTrip();
         refreshStatus();
         if ("drive".equals(layout)) updateLimit();
+        if (I18n.arabicDigits && ar()) digits(view);
+    }
+
+    /** أرقام هندية لكل النصوص الظاهرة (إن اختارها المستخدم). */
+    static void digits(View v) {
+        if (v instanceof TextView) {
+            CharSequence t = ((TextView) v).getText();
+            if (t != null && t.length() > 0) {
+                String n = I18n.num(t.toString());
+                if (!n.contentEquals(t)) ((TextView) v).setText(n);
+            }
+        } else if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) digits(g.getChildAt(i));
+        }
     }
 
     void refreshPrayer(Calendar now, Prayer.Place pl, boolean h24) {
@@ -876,8 +903,7 @@ public class Dash implements Obd.Listener {
         if (tripDist == null) return;
         tripDist.setText(Trip.dist(Trip.km(m), mph()));
         tripDur.setText(Trip.dur(Trip.ms(m)));
-        float lk = Trip.lastKm(m);
-        tripLast.setText(lk < 0 ? "--" : Trip.dist(lk, mph()));
+        tripLast.setText(Trip.fuelText(m, Trip.fuel(m)));
     }
 
     void refreshStatus() {

@@ -33,7 +33,7 @@ public class Obd {
 
     // ── القيم المقروءة: id، الأمر، الاسم ──
     public static final String RPM = "rpm", SPEED = "speed", COOLANT = "coolant", LOAD = "load", IAT = "iat", THROTTLE = "throttle",
-            VOLT = "volt", FUEL = "fuel", STFT = "stft", LTFT = "ltft", MAP = "map", OIL = "oil", MAF = "maf", ECU_V = "ecuv";
+            VOLT = "volt", FUEL = "fuel", STFT = "stft", LTFT = "ltft", MAP = "map", OIL = "oil", MAF = "maf", ECU_V = "ecuv", FUEL_RATE = "lph";
 
     public interface Listener {
         void onState(int state, String msg);
@@ -288,8 +288,44 @@ public class Obd {
             case 0x0B: return (double) a;
             case 0x10: return d.length > 1 ? (a * 256 + b) / 100.0 : null;
             case 0x42: return d.length > 1 ? (a * 256 + b) / 1000.0 : null;
+            case 0x5E: return d.length > 1 ? (a * 256 + b) / 20.0 : null;
             default: return null;
         }
+    }
+
+    // ── استهلاك الوقود (تقديري): PID 5E إن وُجد، وإلا من حساس الهواء MAF، وإلا من MAP والحرارة وحجم المحرك ──
+    private long fuelAt;
+
+    private void fuelTick() {
+        try {
+            Double rpm, lph = null;
+            synchronized (values) { rpm = values.get(RPM); }
+            long now = android.os.SystemClock.elapsedRealtime();
+            long dt = fuelAt == 0 ? 0 : now - fuelAt;
+            fuelAt = now;
+            if (rpm == null || rpm < 300) { put(FUEL_RATE, null); return; }
+            SharedPreferences p = prefs();
+            boolean diesel = "diesel".equals(p.getString("fuel_type", "petrol"));
+            double afr = diesel ? 22.0 : 14.7, dens = diesel ? 832.0 : 745.0;
+            Double fr = pid(0x5E);
+            if (fr != null && fr > 0) lph = fr;
+            else {
+                Double maf;
+                synchronized (values) { maf = values.get(MAF); }
+                if (maf == null) {
+                    Double map, iat;
+                    synchronized (values) { map = values.get(MAP); iat = values.get(IAT); }
+                    if (map != null) {
+                        double disp = p.getFloat("engine_l", 2.4f), tk = (iat != null ? iat : 30) + 273.15;
+                        maf = (map * disp * 0.85 * rpm / 120.0) * 28.97 / (8.314 * tk);   // غ/ث
+                    }
+                }
+                if (maf != null && maf > 0) lph = maf * 3600.0 / (afr * dens);
+            }
+            if (lph != null) lph *= p.getInt("fuel_cal", 100) / 100.0;
+            put(FUEL_RATE, lph);
+            if (lph != null && dt > 0 && dt < 30000) Trip.addFuel(ctx, lph * dt / 3600000.0);
+        } catch (Throwable e) { put(FUEL_RATE, null); }
     }
 
     private void put(String k, Double v) {
@@ -311,6 +347,7 @@ public class Obd {
                 put(IAT, pid(0x0F));
                 put(MAP, pid(0x0B));
                 put(MAF, pid(0x10));
+                fuelTick();
                 put(STFT, pid(0x06));
                 put(LTFT, pid(0x07));
                 try {
