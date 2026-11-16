@@ -525,10 +525,10 @@ public class Dash implements Obd.Listener {
         obdState.setBackground(round(0x991A2440, 16));
         obdState.setPadding(px(14), 0, px(14), 0);
         place(obdState, 900, 306, 360, 40);
-        prayerBanner = tv("", 20, 0xFF4ADE80, true);
-        prayerBanner.setGravity(Gravity.CENTER);
-        prayerBanner.setBackground(round(0x991A2440, 18));
-        place(prayerBanner, 440, 322, 400, 50);
+        prayerBanner = rtext("", 15, 0xFF4ADE80, true);
+        prayerBanner.setBackground(round(0x991A2440, 16));
+        prayerBanner.setPadding(px(14), 0, px(14), 0);
+        place(prayerBanner, 900, 356, 360, 40);
         prayerBanner.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { m.openScreen(PrayerActivity.class); } });
         // أزرار سفلية
         roundAt(40, 612, "map", 0xFF2E6FD8, "nav");
