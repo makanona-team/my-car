@@ -38,7 +38,7 @@ public class Speedo extends View {
         super(c);
         glow.setStyle(Paint.Style.STROKE);
         glow.setStrokeCap(Paint.Cap.ROUND);
-        lite = c.getSharedPreferences("launcher", 0).getBoolean("dash_lite", false);
+        lite = Dash.lite(c);
         // التوهج يحتاج رسماً برمجياً؛ في الوضع الخفيف يُرسم بالمعالج الرسومي بدون توهج
         if (!lite) try { setLayerType(LAYER_TYPE_SOFTWARE, null); } catch (Throwable ignored) { }
     }

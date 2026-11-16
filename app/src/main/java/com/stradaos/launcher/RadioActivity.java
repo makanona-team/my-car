@@ -427,9 +427,12 @@ public class RadioActivity extends Screen {
             return;
         }
         nowTv.setText(RadioService.curName);
-        String sub = st == RadioService.CONNECTING ? I18n.L("جارِ الاتصال…", "Connecting…")
+        String dt = RadioService.detail != null ? RadioService.detail : "";
+        String sub = st == RadioService.CONNECTING ? (dt.length() > 0 ? dt : I18n.L("جارِ الاتصال…", "Connecting…"))
                 : st == RadioService.PLAYING ? I18n.L("يعمل الآن", "Playing") + (RadioService.curInfo != null && RadioService.curInfo.length() > 0 ? " · " + RadioService.curInfo : "")
-                : I18n.L("تعذّر تشغيل هذه المحطة، جرّب غيرها", "This station could not be played, try another");
+                : I18n.L("تعذّر التشغيل: ", "Could not play: ") + (RadioService.lastError != null ? RadioService.lastError : "") + I18n.L(" · جرّب محطة أخرى", " · try another station");
+        nowSubTv.setMaxLines(2);
+        nowSubTv.setSingleLine(false);
         nowSubTv.setText(sub);
         stopBtn.setVisibility(st == RadioService.ERROR ? View.GONE : View.VISIBLE);
     }

@@ -53,6 +53,8 @@ public class DiagActivity extends Screen {
     private final StringBuilder events = new StringBuilder();
     private final Handler h = new Handler();
     private boolean watching;
+    private TwSignal tw;
+    private final StringBuilder twSeen = new StringBuilder();
     private Map<String, String> snap;
     private final List<ContentObserver> observers = new ArrayList<ContentObserver>();
     private final SimpleDateFormat tf = new SimpleDateFormat("HH:mm:ss", Locale.US);
@@ -161,6 +163,7 @@ public class DiagActivity extends Screen {
             }
             b.append('\n');
 
+            b.append("── ").append(I18n.L("مكتبة TW", "TW library")).append(" ──\n").append(TwSignal.describe()).append('\n');
             b.append("── ").append(I18n.L("إعدادات النظام المتعلقة", "Related system settings")).append(" ──\n");
             for (Map.Entry<String, String> e : settings().entrySet()) if (INTEREST.matcher(e.getKey()).matches()) b.append(e.getKey()).append(" = ").append(e.getValue()).append('\n');
             b.append('\n');
@@ -215,7 +218,26 @@ public class DiagActivity extends Screen {
             r.close();
             p.destroy();
         } catch (Throwable ignored) { }
+        // ملفات إضاءة الشاشة: إن كانت الشاشة تخفّت مع الأضواء تتغير هنا
+        for (String dir : new String[]{"/sys/class/backlight", "/sys/class/leds"}) {
+            File[] fs = new File(dir).listFiles();
+            if (fs == null) continue;
+            for (File f : fs) for (String n : new String[]{"brightness", "actual_brightness"}) {
+                File x = new File(f, n);
+                String v = readFile(x.getAbsolutePath());
+                if (v != null) m.put("file:" + x.getAbsolutePath(), v);
+            }
+        }
         return m;
+    }
+
+    static String readFile(String path) {
+        try {
+            BufferedReader r = new BufferedReader(new java.io.FileReader(path));
+            String l = r.readLine();
+            r.close();
+            return l == null ? null : l.trim();
+        } catch (Throwable e) { return null; }
     }
 
     // ───────────────────────── مراقبة الأضواء ─────────────────────────
@@ -244,6 +266,27 @@ public class DiagActivity extends Screen {
             for (String a : new String[]{"com.tw.service.acc", "com.tw.acc", "com.tw.ill", "com.tw.light", "android.intent.action.ILL", "com.android.ill"}) f.addAction(a);
             registerReceiver(br, f);
         } catch (Throwable ignored) { }
+        // قناة TW الداخلية: نستمع لكل الأرقام ونُظهر ما يتغير بعد ٣ ثوانٍ من البداية
+        tw = new TwSignal();
+        final long t0 = System.currentTimeMillis();
+        final Map<Integer, String> twLast = new HashMap<Integer, String>();
+        final Map<Integer, Integer> twCount = new HashMap<Integer, Integer>();
+        short[] ids = new short[0x1000];
+        for (int i = 0; i < ids.length; i++) ids[i] = (short) i;
+        TwSignal.Sink sink = new TwSignal.Sink() { public void on(int what, String v) {
+            if (!watching) return;
+            String old = twLast.put(what, v);
+            boolean settled = System.currentTimeMillis() - t0 > 3000;
+            if (old == null && !settled) { twSeen.append(String.format(Locale.US, "tw:%d (0x%04X) = %s\n", what, what, v)); return; }
+            if (v.equals(old)) return;
+            Integer n = twCount.get(what);
+            twCount.put(what, n == null ? 1 : n + 1);
+            if (n != null && n >= 6) { if (n == 6) event(String.format(Locale.US, "tw:%d %s", what, I18n.L("يتغير باستمرار، أُخفي", "changes constantly, hidden")), null, null); return; }
+            event(String.format(Locale.US, "tw:%d (0x%04X): %s → %s", what, what, old, v), "tw:" + what, v);
+        }};
+        boolean ok = tw.open(ids, sink);
+        if (!ok) { short[] small = new short[0x300]; for (int i = 0; i < small.length; i++) small[i] = (short) (0x100 + i); ok = tw.open(small, sink); }
+        event("TW: " + (ok ? I18n.L("القناة مفتوحة ", "channel open ") : I18n.L("تعذّر الفتح ", "could not open ")) + tw.error, null, null);
         for (Uri u : new Uri[]{Settings.System.CONTENT_URI, Settings.Secure.CONTENT_URI}) {
             ContentObserver o = new ContentObserver(h) {
                 @Override public void onChange(boolean self, Uri uri) { h.removeCallbacks(poll); h.postDelayed(poll, 150); }
@@ -259,6 +302,9 @@ public class DiagActivity extends Screen {
         try { unregisterReceiver(br); } catch (Throwable ignored) { }
         for (ContentObserver o : observers) try { getContentResolver().unregisterContentObserver(o); } catch (Throwable ignored) { }
         observers.clear();
+        if (tw != null) { tw.close(); tw = null; }
+        if (twSeen.length() > 0) events.append("── TW ").append(I18n.L("(القيم الأولى)", "(first values)")).append(" ──\n").append(twSeen);
+        twSeen.setLength(0);
         event(I18n.L("انتهت المراقبة", "Watching stopped"), null, null);
     }
 
@@ -344,6 +390,8 @@ public class DiagActivity extends Screen {
             if (src.startsWith("sys:")) return Settings.System.getString(c.getContentResolver(), src.substring(4));
             if (src.startsWith("sec:")) return Settings.Secure.getString(c.getContentResolver(), src.substring(4));
             if (src.startsWith("glob:") && Build.VERSION.SDK_INT >= 17) return Settings.Global.getString(c.getContentResolver(), src.substring(5));
+            if (src.startsWith("tw:")) { TwSignal.ensure(c, src); return TwSignal.liveValue; }
+            if (src.startsWith("file:")) return readFile(src.substring(5));
             if (src.startsWith("prop:")) {
                 Class<?> sp = Class.forName("android.os.SystemProperties");
                 return (String) sp.getMethod("get", String.class).invoke(null, src.substring(5));

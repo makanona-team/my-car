@@ -211,19 +211,54 @@ public class Dash implements Obd.Listener {
     boolean lit() { return litNow(m); }
 
     static boolean litNow(Main m) {
-        String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
+        SharedPreferences sp = m.getSharedPreferences("launcher", 0);
+        String md = sp.getString("car_lit", "auto");
         if ("on".equals(md)) return true;
         if ("off".equals(md)) return false;
-        SharedPreferences sp = m.getSharedPreferences("launcher", 0);
         String src = sp.getString("lit_src", "");
         if (src.length() > 0) {   // إشارة اختارها المستخدم من صفحة التشخيص
             String v = DiagActivity.signal(m, src);
-            return v != null && v.equals(sp.getString("lit_on", ""));
+            if (v != null) return v.equals(sp.getString("lit_on", ""));
         }
         try {
-            return (m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        } catch (Throwable e) { return false; }
+            if ((m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES) return true;
+        } catch (Throwable ignored) { }
+        return "auto".equals(md) && afterSunset(m);
+    }
+
+    private static long sunAt;
+    private static boolean sunLit;
+
+    /** بين المغرب والشروق (حسب مواقيت مدينتك). */
+    static boolean afterSunset(Context c) {
+        long now = System.currentTimeMillis();
+        if (now - sunAt < 60000) return sunLit;
+        sunAt = now;
+        try {
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            int[] t = Prayer.times(c, cal);
+            int min = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE);
+            sunLit = t != null && (min >= t[Prayer.MAGHRIB] || min < t[Prayer.SUNRISE]);
+        } catch (Throwable e) { sunLit = false; }
+        return sunLit;
+    }
+
+    private static Boolean lowRam;
+
+    /** الوضع الخفيف: اختيار المستخدم، وإلا تلقائياً إذا كانت الذاكرة الحقيقية أقل من 1.5 جيغا. */
+    static boolean lite(Context c) {
+        SharedPreferences p = c.getSharedPreferences("launcher", 0);
+        if (p.contains("dash_lite")) return p.getBoolean("dash_lite", false);
+        if (lowRam == null) {
+            try {
+                android.app.ActivityManager am = (android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+                android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo();
+                am.getMemoryInfo(mi);
+                lowRam = mi.totalMem > 0 && mi.totalMem < 1500L * 1024 * 1024;
+            } catch (Throwable e) { lowRam = false; }
+        }
+        return lowRam;
     }
 
     int accent() {
@@ -1267,7 +1302,7 @@ public class Dash implements Obd.Listener {
         for (int i = 0; i < slots.length; i++) { list.add((CarImg.has(m, slots[i]) ? "✓  " : "") + names[i]); act.add(slots[i]); }
         String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
         list.add(I18n.L("الإضاءة: ", "Lights: ") + ("on".equals(md) ? I18n.L("مضاءة دائماً", "always on") : "off".equals(md) ? I18n.L("عادية دائماً", "always off")
-            : I18n.L("تلقائي (مع الوضع الليلي للشاشة)", "auto (with the screen's night mode)"))); act.add("lit");
+            : I18n.L("تلقائي (إشارة الأضواء، وإلا من المغرب للشروق)", "auto (light signal, else sunset to sunrise)"))); act.add("lit");
         list.add(I18n.L("نوع السيارة المرسومة ولونها (عند عدم وجود صورة)", "Drawn car type & colour (when no photo)")); act.add("art");
         if (CarImg.hasAny(m)) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
         new TB(m, Main.dlg()).raw().setTitle(I18n.L("صورة السيارة", "Car picture"))

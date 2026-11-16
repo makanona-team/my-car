@@ -566,6 +566,7 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-lit:")) { prefs.edit().putString("car_lit", v.substring(10)).apply(); rebuild(); }
                 else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
                 else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
+                else if (v.startsWith("mycar-play:")) { RadioService.play(Main.this, "Test", v.substring(11), "test", ""); openScreen(RadioActivity.class); }
                 else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
                 else if ("mycar-lang-en".equals(v)) setLanguage("en");
                 else if ("mycar-lang-ar".equals(v)) setLanguage("ar");
@@ -1050,6 +1051,7 @@ public class Main extends Activity {
                     if (c != board && c != dash.view) c.setVisibility(View.INVISIBLE);
                 }
                 lastNightUi = systemNight();
+                TwSignal.ensure(Main.this, prefs.getString("lit_src", ""));
                 if (lastGpsKmh >= 0) dash.onSpeed(lastFix > 0, lastGpsKmh);
             } catch (Throwable e) {
                 Guard.log("Dash: " + e);
@@ -6437,8 +6439,8 @@ public class Main extends Activity {
         row(sc, I18n.L("إشارة تشغيل الأضواء", "Headlight signal"), I18n.L("لتبديل صور السيارة المضاءة · اضغط للرجوع للوضع الليلي للشاشة", "Switches to the lit car photos · tap to go back to the screen's night mode"),
             ls.length() > 0 ? ls : I18n.L("الوضع الليلي للشاشة", "Screen night mode"),
             new Runnable() { public void run() { prefs.edit().remove("lit_src").remove("lit_on").apply(); showSettings(settingsCat); rebuild(); } });
-        toggle(sc, I18n.L("وضع خفيف", "Light mode"), I18n.L("بدون توهج ولا حركة للطريق، إذا لاحظت تقطيعاً", "No glow and no road motion, if you notice stutter"),
-            prefs.getBoolean("dash_lite", false), new IntCb() { public void on(int i) { prefs.edit().putBoolean("dash_lite", i == 1).apply(); rebuild(); } });
+        toggle(sc, I18n.L("وضع خفيف", "Light mode"), I18n.L("بدون توهج ولا حركة للطريق · يعمل تلقائياً إذا كانت الذاكرة أقل من 1.5 جيغا", "No glow and no road motion · on by default when memory is under 1.5 GB"),
+            Dash.lite(this), new IntCb() { public void on(int i) { prefs.edit().putBoolean("dash_lite", i == 1).apply(); rebuild(); } });
         toggle(sc, I18n.L("أرقام هندية (١٢٣)", "Eastern Arabic digits (١٢٣)"), I18n.L("للساعة والعدّاد والمواقيت في التصاميم الجديدة", "For the clock, gauge and prayer times in the new layouts"),
             prefs.getBoolean("digits_ar", false), new IntCb() { public void on(int i) { prefs.edit().putBoolean("digits_ar", i == 1).apply(); I18n.arabicDigits = i == 1; rebuild(); } });
 

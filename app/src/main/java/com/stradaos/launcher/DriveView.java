@@ -238,7 +238,7 @@ public class DriveView extends View {
 
     private Boolean liteCache;
     private boolean lite() {
-        if (liteCache == null) liteCache = getContext().getSharedPreferences("launcher", 0).getBoolean("dash_lite", false);
+        if (liteCache == null) liteCache = Dash.lite(getContext());
         return liteCache;
     }
 }

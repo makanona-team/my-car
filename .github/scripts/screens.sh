@@ -86,5 +86,13 @@ go ajustes:11 6
 adb shell input swipe 760 600 760 250 500; sleep 2; shot 88_settings_trips
 adb shell input swipe 760 600 760 250 500; sleep 2; shot 89_settings_screen
 back
-adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|MyCar|Dash" | tail -120 > $OUT/logcat.txt
+go "mycar-play:https://stream.live.vc.bbcmedia.co.uk/bbc_world_service" 4; shot 90_radio_a; sleep 14; shot 90_radio_b
+back
+go "mycar-play:http://icecast.radiofrance.fr/fip-midfi.mp3" 18; shot 91_radio_http
+back
+go "mycar-play:https://radio.garden/api/ara/content/listen/xxxx/channel.mp3" 18; shot 92_radio_bad
+back
+go mycar-obd 6; shot 93_obd
+back
+adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|MyCar|Dash|Radio" | tail -120 > $OUT/logcat.txt
 ls -l $OUT

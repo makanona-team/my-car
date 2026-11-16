@@ -154,45 +154,94 @@ public class RadioService extends Service {
         }
     };
 
+    /** تفصيل المرحلة الحالية يظهر تحت اسم المحطة (اتصال، يصل X ك.ب، سبب الفشل). */
+    static volatile String detail = "";
+    private StreamProxy proxy;
+    private StreamProxy.Opened opened;
+    private int gen;
+
+    private void detail(final String d) {
+        detail = d;
+        h.post(new Runnable() { public void run() { if (listener != null) try { listener.run(); } catch (Throwable ignored) { } } });
+    }
+
     private void start() {
         release();
         if (curUrl == null || curUrl.length() == 0) { lastError = I18n.L("لا يوجد رابط للبث", "No stream URL"); set(ERROR); return; }
         set(CONNECTING);
+        detail(I18n.L("الاتصال بالمحطة…", "Contacting the station…"));
+        final int my = ++gen;
+        final String url = curUrl;
         try {
             am = (AudioManager) getSystemService(AUDIO_SERVICE);
             am.requestAudioFocus(focus, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        } catch (Throwable ignored) { }
+        h.postDelayed(timeout, 20000);
+        // نفتح البث بأنفسنا في خيط منفصل (شهادات حديثة، تحويلات، قوائم)، ثم نعطيه للمشغّل محلياً
+        new Thread(new Runnable() { public void run() {
+            try {
+                Net.init(RadioService.this);
+                final StreamProxy.Opened o = StreamProxy.open(url, 10000);
+                if (my != gen) { StreamProxy.closeQuietly(o); return; }
+                final StreamProxy px = o.hls ? null : new StreamProxy();
+                final String local = o.hls ? o.finalUrl : px.serve(o, new StreamProxy.Progress() { public void on(long b) {
+                    if (state == CONNECTING) detail(I18n.L("تصل البيانات · ", "Receiving · ") + (b / 1024) + I18n.L(" ك.ب", " KB"));
+                }});
+                h.post(new Runnable() { public void run() {
+                    if (my != gen) { if (px != null) px.close(); StreamProxy.closeQuietly(o); return; }
+                    proxy = px; opened = o;
+                    detail(I18n.L("تجهيز الصوت…", "Preparing audio…"));
+                    player(local);
+                }});
+            } catch (final Throwable e) {
+                h.post(new Runnable() { public void run() { if (my == gen) fail(e.getMessage() != null ? e.getMessage() : e.toString()); } });
+            }
+        }}, "radio-open").start();
+    }
+
+    private void player(String src) {
+        try {
             mp = new MediaPlayer();
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            mp.setDataSource(this, Uri.parse(curUrl));
+            mp.setDataSource(this, Uri.parse(src));
             mp.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                 public void onPrepared(MediaPlayer m) {
-                    try { m.start(); retries = 0; set(PLAYING); } catch (Throwable e) { fail(String.valueOf(e)); }
+                    try { m.start(); retries = 0; detail(""); set(PLAYING); } catch (Throwable e) { fail(String.valueOf(e)); }
                 }
             });
             mp.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-                public boolean onError(MediaPlayer m, int what, int extra) { fail("MediaPlayer " + what + "/" + extra); return true; }
+                public boolean onError(MediaPlayer m, int what, int extra) {
+                    long got = proxy != null ? proxy.bytes : 0;
+                    fail(got > 0 ? I18n.L("البيانات وصلت لكن الصيغة غير مدعومة", "Data arrived but the format is not supported") + " (" + (opened != null ? opened.type : "") + ")"
+                                 : "MediaPlayer " + what + "/" + extra);
+                    return true;
+                }
             });
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 public void onCompletion(MediaPlayer m) { fail(I18n.L("انقطع البث", "Stream ended")); }
             });
             mp.prepareAsync();
-            // بث لا يبدأ خلال 25 ثانية = خطأ
-            h.postDelayed(timeout, 25000);
         } catch (Throwable e) {
             fail(String.valueOf(e));
         }
     }
 
     private final Runnable timeout = new Runnable() {
-        public void run() { if (state == CONNECTING) fail(I18n.L("المحطة لا تستجيب", "Station not responding")); }
+        public void run() {
+            if (state != CONNECTING) return;
+            long got = proxy != null ? proxy.bytes : 0;
+            fail(got > 0 ? I18n.L("البيانات تصل لكن المشغّل لم يبدأ", "Data arrives but the player did not start") + " (" + (opened != null ? opened.type : "") + ")"
+                         : I18n.L("المحطة لا تستجيب", "Station not responding"));
+        }
     };
 
     private void fail(String why) {
         h.removeCallbacks(timeout);
         lastError = why;
+        detail(why);
         Guard.log("Radio: " + curName + " · " + why);
         release();
-        if (retries < 2) {
+        if (retries < 1) {
             retries++;
             set(CONNECTING);
             h.postDelayed(new Runnable() { public void run() { start(); } }, 2500);
@@ -203,6 +252,10 @@ public class RadioService extends Service {
 
     private void release() {
         h.removeCallbacks(timeout);
+        gen++;
+        try { if (proxy != null) proxy.close(); } catch (Throwable ignored) { }
+        StreamProxy.closeQuietly(opened);
+        proxy = null; opened = null;
         try { if (mp != null) { mp.reset(); mp.release(); } } catch (Throwable ignored) { }
         mp = null;
     }

@@ -188,7 +188,32 @@ public class Obd {
     // ───────────────────────── أوامر ELM327 ─────────────────────────
 
     /** يرسل أمراً وينتظر «>» ويعيد الرد (بدون الصدى والمسافات الزائدة). */
+    /** سجل الاتصال (آخر 80 سطراً) لصفحة OBD ← الإعدادات ← سجل الاتصال. */
+    public static final java.util.LinkedList<String> commLog = new java.util.LinkedList<String>();
+
+    static void logLine(String s) {
+        synchronized (commLog) {
+            commLog.add(new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date()) + "  " + s);
+            while (commLog.size() > 80) commLog.removeFirst();
+        }
+    }
+
     String cmd(String c, long timeoutMs) throws Exception {
+        try {
+            String r = cmd0(c, timeoutMs);
+            if (!quietLog) logLine("> " + c + "   < " + r.replace("\n", " | "));
+            return r;
+        } catch (Exception e) {
+            logLine("> " + c + "   ✗ " + e.getMessage());
+            throw e;
+        }
+    }
+
+    private volatile boolean quietLog;
+    /** هل ردّت السيارة بأي قيمة مؤخراً؟ */
+    public volatile boolean carAnswers = true;
+
+    private String cmd0(String c, long timeoutMs) throws Exception {
         synchronized (cmdLock) {
             Link l = link;
             if (l == null) throw new Exception(I18n.L("انقطع الاتصال", "Disconnected"));
@@ -219,19 +244,31 @@ public class Obd {
         String ver = "";
         try { ver = cmd("ATI", 2000); } catch (Throwable ignored) { }
         adapterInfo = (ver.length() > 0 ? ver : z).replace("\n", " ").trim();
-        cmd("ATSP0", 2000);
-        // أول طلب: البحث عن بروتوكول السيارة (قد يأخذ حتى 10 ثوانٍ)
-        String r = cmd("0100", 12000);
-        if (r.contains("UNABLE") || r.contains("NO DATA") || r.contains("ERROR") || r.contains("STOPPED")) {
-            String again = cmd("0100", 12000);
-            if (!again.replace(" ", "").contains("4100"))
-                throw new Exception(I18n.L("الوصلة تعمل لكن السيارة لا تستجيب. شغّل الإشعال (أو المحرك) وحاول ثانية", "Adapter OK but the car does not answer. Turn the ignition (or engine) on and retry"));
-            r = again;
+        // البروتوكول المحفوظ من آخر نجاح أولاً، ثم البحث التلقائي، ثم تجربة البروتوكولات واحداً واحداً
+        SharedPreferences pp = prefs();
+        String saved = pp.getString("obd_proto", "");
+        java.util.List<String> order = new java.util.ArrayList<String>();
+        if (saved.length() > 0) order.add(saved);
+        order.add("0");
+        for (String p : new String[]{"6", "7", "8", "9", "3", "4", "5", "1", "2"}) if (!order.contains(p)) order.add(p);
+        String r = null;
+        for (String p : order) {
+            if (!want) throw new InterruptedException();
+            setState(CONNECTING, "0".equals(p) ? I18n.L("البحث عن بروتوكول السيارة…", "Searching the car protocol…")
+                                               : I18n.L("تجربة البروتوكول ", "Trying protocol ") + p + "…");
+            cmd("ATSP" + p, 2000);
+            String a = cmd("0100", "0".equals(p) ? 12000 : 7000);
+            if (!a.replace(" ", "").contains("4100") && "0".equals(p)) a = cmd("0100", 12000);
+            if (a.replace(" ", "").contains("4100")) { r = a; if (!"0".equals(p)) pp.edit().putString("obd_proto", p).apply(); break; }
         }
+        if (r == null) throw new Exception(I18n.L("الوصلة تعمل لكن السيارة لا تستجيب لأي بروتوكول. شغّل الإشعال (أو المحرك) وحاول ثانية", "Adapter OK but the car answers no protocol. Turn the ignition (or engine) on and retry"));
         for (int i = 0; i < supported.length; i++) supported[i] = false;
         readSupported(r, 0x00);
         try { if (supported[0x20]) readSupported(cmd("0120", 4000), 0x20); } catch (Throwable ignored) { }
         try { if (supported[0x40]) readSupported(cmd("0140", 4000), 0x40); } catch (Throwable ignored) { }
+        boolean any = false;
+        for (boolean b : supported) any |= b;
+        if (!any) { logLine("! " + I18n.L("قائمة القيم المدعومة غير مفهومة؛ سنجرب الكل", "Supported list unreadable; trying all")); for (int i = 0; i < supported.length; i++) supported[i] = true; }
         try {
             String dp = cmd("ATDPN", 2000).replace("A", "").trim();
             protocol = cmd("ATDP", 2000).replace("AUTO,", "").trim();
@@ -333,8 +370,16 @@ public class Obd {
     }
 
     private void poll() throws Exception {
-        int round = 0;
+        int round = 0, empty = 0;
         while (want && link != null) {
+            quietLog = round > 3;   // السجل يحفظ أول الدورات فقط
+            if (round % 4 == 1) {
+                boolean got;
+                synchronized (values) { got = values.get(RPM) != null || values.get(SPEED) != null || values.get(COOLANT) != null; }
+                empty = got ? 0 : empty + 1;
+                boolean ans = empty < 3;
+                if (ans != carAnswers) { carAnswers = ans; setState(READY, adapterInfo); }
+            }
             // سريعة: كل دورة
             put(RPM, pid(0x0C));
             put(SPEED, pid(0x0D));

@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -40,39 +41,53 @@ public class ObdActivity extends Screen implements Obd.Listener {
         View bar, barBg;
         float max;
 
-        Tile(String n, String u, float max) {
+        Tile(String n, String u, float max, String ic) {
             this.max = max;
             box = new LinearLayout(ObdActivity.this);
             box.setOrientation(LinearLayout.VERTICAL);
             box.setBackground(round(Main.CARD, 16));
             box.setPadding(px(14), px(10), px(14), px(10));
+            LinearLayout hd = hbox();
+            hd.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout ib = new FrameLayout(ObdActivity.this);
+            ib.setBackground(round(0x33FF3B30, 14));
+            iconV = icon(ic, 0xFFFF6B5A);
+            FrameLayout.LayoutParams il = new FrameLayout.LayoutParams(px(20), px(20), Gravity.CENTER);
+            ib.addView(iconV, il);
+            hd.addView(ib, lp(px(30), px(30)));
             name = tv(n, 13, Main.MUTED, false);
-            box.addView(name);
+            LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(0, -2, 1);
+            marginStart(nl, px(8));
+            hd.addView(name, nl);
+            box.addView(hd);
             LinearLayout vr = new LinearLayout(ObdActivity.this);
-            vr.setGravity(Gravity.BOTTOM);
+            vr.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
             if (android.os.Build.VERSION.SDK_INT >= 17) vr.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            val = tv("--", 36, Main.TEXT, true);
+            val = tv("--", 38, Main.TEXT, true);
             unit = tv(u, 14, Main.MUTED, false);
-            unit.setPadding(px(6), 0, 0, px(4));
+            unit.setPadding(px(6), 0, 0, px(5));
             vr.addView(val);
             vr.addView(unit);
             LinearLayout.LayoutParams vl = new LinearLayout.LayoutParams(-1, 0, 1);
             box.addView(vr, vl);
-            if (max > 0) {
-                FrameLayout fb = new FrameLayout(ObdActivity.this);
-                barBg = new View(ObdActivity.this);
-                barBg.setBackground(round(Main.INNER, 4));
-                fb.addView(barBg, new FrameLayout.LayoutParams(-1, -1));
-                bar = new View(ObdActivity.this);
-                bar.setBackground(round(Main.RED, 4));
-                fb.addView(bar, new FrameLayout.LayoutParams(0, -1));
-                box.addView(fb, lp(-1, px(8)));
-            }
+            FrameLayout fb = new FrameLayout(ObdActivity.this);
+            barBg = new View(ObdActivity.this);
+            barBg.setBackground(round(Main.INNER, 4));
+            fb.addView(barBg, new FrameLayout.LayoutParams(-1, -1));
+            bar = new View(ObdActivity.this);
+            bar.setBackground(round(Main.RED, 4));
+            fb.addView(bar, new FrameLayout.LayoutParams(0, -1));
+            box.addView(fb, lp(-1, px(8)));
+            if (max <= 0) fb.setVisibility(View.INVISIBLE);
         }
+
+        ImageView iconV;
 
         void set(Double v, String text, int color) {
             val.setText(v == null ? "--" : text);
             val.setTextColor(v == null ? Main.MUTED : color);
+            if (bar != null) bar.setBackground(round(v == null ? Main.INNER : (color == Main.TEXT ? Main.RED : color), 4));
+            if (iconV != null) iconV.setColorFilter(v == null ? Main.MUTED : (color == Main.TEXT ? 0xFFFF6B5A : color));
             if (bar != null) {
                 float f = v == null ? 0 : (float) Math.max(0, Math.min(1, v / max));
                 int w = barBg.getWidth();
@@ -119,14 +134,14 @@ public class ObdActivity extends Screen implements Obd.Listener {
         col.addView(st, lp(-1, px(64)));
 
         // ── العدادات ──
-        tiles[0] = new Tile(I18n.L("دورات المحرك", "Engine RPM"), "rpm", 7000);
-        tiles[1] = new Tile(I18n.L("السرعة", "Speed"), "km/h", 200);
-        tiles[2] = new Tile(I18n.L("حرارة المحرك (الماء)", "Coolant temp"), "°C", 130);
-        tiles[3] = new Tile(I18n.L("جهد البطارية", "Battery voltage"), "V", 0);
-        tiles[4] = new Tile(I18n.L("حمل المحرك", "Engine load"), "%", 100);
-        tiles[5] = new Tile(I18n.L("فتحة البوابة", "Throttle"), "%", 100);
-        tiles[6] = new Tile(I18n.L("حرارة الهواء الداخل", "Intake air temp"), "°C", 0);
-        tiles[7] = new Tile(I18n.L("تصحيح الوقود قصير/طويل", "Fuel trim short/long"), "%", 0);
+        tiles[0] = new Tile(I18n.L("دورات المحرك", "Engine RPM"), "rpm", 7000, "speed");
+        tiles[1] = new Tile(I18n.L("السرعة", "Speed"), "km/h", 200, "directions_car");
+        tiles[2] = new Tile(I18n.L("حرارة المحرك (الماء)", "Coolant temp"), "°C", 130, "thermostat");
+        tiles[3] = new Tile(I18n.L("جهد البطارية", "Battery voltage"), "V", 0, "battery_charging_full");
+        tiles[4] = new Tile(I18n.L("حمل المحرك", "Engine load"), "%", 100, "electric_bolt");
+        tiles[5] = new Tile(I18n.L("فتحة البوابة", "Throttle"), "%", 100, "tune");
+        tiles[6] = new Tile(I18n.L("حرارة الهواء الداخل", "Intake air temp"), "°C", 0, "air");
+        tiles[7] = new Tile(I18n.L("تصحيح الوقود قصير/طويل", "Fuel trim short/long"), "%", 0, "local_gas_station");
         for (int r = 0; r < 2; r++) {
             LinearLayout row = hbox();
             LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, 0, 1);
@@ -173,7 +188,10 @@ public class ObdActivity extends Screen implements Obd.Listener {
         int col = Main.MUTED;
         switch (st) {
             case Obd.CONNECTING: s = msg; break;
-            case Obd.READY: s = I18n.L("متصل ✓", "Connected ✓") + (obd.protocol.length() > 0 ? " · " + obd.protocol : ""); col = 0xFF2ECC71; break;
+            case Obd.READY:
+                if (obd.carAnswers) { s = I18n.L("الوصلة ✓ · السيارة ✓", "Adapter ✓ · Car ✓") + (obd.protocol.length() > 0 ? " · " + obd.protocol : ""); col = 0xFF2ECC71; }
+                else { s = I18n.L("الوصلة ✓ · السيارة لا ترد ✗ — شغّل المحرك", "Adapter ✓ · Car not answering ✗ — start the engine"); col = 0xFFFFB020; }
+                break;
             case Obd.FAILED: s = msg + I18n.L(" · إعادة المحاولة تلقائياً…", " · retrying…"); col = 0xFFFF6B5A; break;
             default: s = I18n.L("غير متصل", "Not connected");
         }
@@ -421,6 +439,8 @@ public class ObdActivity extends Screen implements Obd.Listener {
             (alerts ? "✓ " : "✗ ") + I18n.L("تنبيهات الحرارة والبطارية", "Temperature and battery alerts"),
             I18n.L("حد تنبيه الحرارة: ", "Temperature alert at: ") + ObdAlerts.hotLimit(prefs) + "°C",
             I18n.L("نسيان الوصلة المحفوظة", "Forget the saved adapter"),
+            I18n.L("سجل الاتصال (صوّره وأرسله للمطوّر)", "Connection log (photo it for the developer)"),
+            I18n.L("إعادة البحث عن البروتوكول", "Search the protocol again"),
         };
         choose(I18n.L("إعدادات OBD2", "OBD2 settings"), items, -1, new IntCb() { public void on(int w) {
             if (w == 0) prefs.edit().putBoolean("obd_auto", !auto).apply();
@@ -433,10 +453,27 @@ public class ObdActivity extends Screen implements Obd.Listener {
                 choose(I18n.L("التنبيه عند حرارة", "Alert at temperature"), n, sel, new IntCb() { public void on(int k) {
                     prefs.edit().putInt("obd_hot", vals[k]).apply();
                 }});
-            } else {
+            } else if (w == 3) {
                 obd.disconnect();
-                prefs.edit().remove("obd_type").remove("obd_addr").remove("obd_name").apply();
+                prefs.edit().remove("obd_type").remove("obd_addr").remove("obd_name").remove("obd_proto").apply();
                 onState(obd.state(), "");
+            } else if (w == 4) {
+                StringBuilder b = new StringBuilder();
+                synchronized (Obd.commLog) { for (String l : Obd.commLog) b.append(l).append('\n'); }
+                if (b.length() == 0) b.append(I18n.L("لا يوجد سجل بعد. اضغط «اتصال» أولاً.", "No log yet. Tap Connect first."));
+                TextView t = multi(b.toString(), 12, Main.TEXT);
+                t.setMaxLines(1000);
+                t.setTextIsSelectable(true);
+                if (android.os.Build.VERSION.SDK_INT >= 17) t.setTextDirection(View.TEXT_DIRECTION_LTR);
+                android.widget.ScrollView sv = new android.widget.ScrollView(ObdActivity.this);
+                sv.setPadding(px(16), px(10), px(16), px(10));
+                sv.addView(t);
+                new TB(ObdActivity.this, Main.dlg()).raw().wide().setTitle(I18n.L("سجل اتصال OBD", "OBD connection log")).setView(sv)
+                    .setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
+            } else {
+                prefs.edit().remove("obd_proto").apply();
+                obd.disconnect();
+                h.postDelayed(new Runnable() { public void run() { obd.connect(); } }, 800);
             }
         }});
     }
