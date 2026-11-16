@@ -503,7 +503,7 @@ public class Main extends Activity {
             boolean nightNow = (c.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
             if (nightNow != lastNightUi) {
                 lastNightUi = nightNow;
-                if (root != null && prefs != null && "auto".equals(prefs.getString("car_lit", "auto"))) rebuild();
+                if (root != null && prefs != null && !"on".equals(prefs.getString("car_lit", "auto")) && !"off".equals(prefs.getString("car_lit", "auto"))) rebuild();
             }
         } catch (Throwable e) { Guard.log("Night: " + e); }
         try {
@@ -564,7 +564,7 @@ public class Main extends Activity {
                 else if ("mycar-tripdemo".equals(v)) { prefs.edit().putFloat("trip_km", 23.4f).putLong("trip_ms", 1900000).putFloat("trip_max", 96).putFloat("trip_fuel", 2.3f).putInt("fuel_price", 11000).apply(); Trip.close(Main.this, System.currentTimeMillis() - 3600000); prefs.edit().putFloat("trip_km", 4.2f).putLong("trip_ms", 600000).putFloat("trip_fuel", 0.4f).apply(); rebuild(); }
                 else if ("mycar-picclear".equals(v)) { CarImg.clearAll(Main.this); rebuild(); }
                 else if (v.startsWith("mycar-lit:")) { prefs.edit().putString("car_lit", v.substring(10)).apply(); rebuild(); }
-                else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage"));
+                else if ("mycar-walls".equals(v)) Dash.chooseWall(Main.this, prefs.getString("dash_layout", "drive"));
                 else if ("mycar-radio".equals(v)) openScreen(RadioActivity.class);
                 else if (v.startsWith("mycar-play:")) { RadioService.play(Main.this, "Test", v.substring(11), "test", ""); openScreen(RadioActivity.class); }
                 else if ("mycar-obd".equals(v)) openScreen(ObdActivity.class);
@@ -1041,7 +1041,7 @@ public class Main extends Activity {
         showWeather();
         // My Car 1.1: التصاميم الجديدة فوق الشاشة الكلاسيكية (التي تبقى مخفية وتعمل كالمعتاد)
         if (dash != null) { dash.destroy(); dash = null; }
-        String dl = prefs.getString("dash_layout", "garage");
+        String dl = prefs.getString("dash_layout", "drive");
         if (sim == 0 && !"classic".equals(dl)) {
             try {
                 dash = new Dash(this, root, W, H, dl);
@@ -5920,7 +5920,7 @@ public class Main extends Activity {
         row(hm, "Launcher predeterminado", "La que aparece al encender y al tocar Inicio", def ? "StradaOS ✓" : "Otra · toca para cambiar", new Runnable() { public void run() {
             if (isDefaultHome()) homeHelp(); else makeDefaultHome();
         }});
-        toggle(hm, "Abrir StradaOS al encender", "Para pantallas que siempre arrancan en su menú de fábrica (Android 4 a 9)", prefs.getBoolean("boot_open", false), new IntCb() { public void on(int i) {
+        toggle(hm, "Abrir StradaOS al encender", "Para pantallas que siempre arrancan en su menú de fábrica (Android 4 a 9)", prefs.getBoolean("boot_open", true), new IntCb() { public void on(int i) {
             prefs.edit().putBoolean("boot_open", i == 1).apply(); showSettings(settingsCat);
         }});
         // 2.21 (rvilonen-spec, #15): abrir una app al encender (la radio, para que empiece a sonar) y volver al inicio
@@ -6461,9 +6461,9 @@ public class Main extends Activity {
 
         LinearLayout th = section(body, I18n.L("الثيمات", "Themes"));
         rowIc(th, "palette", I18n.L("ثيم الشاشة (التصميم)", "Screen theme (layout)"), I18n.L("الدائرة المركزية، القيادة، جراج 3D، الرئيسي، أوضاع القيادة، تيسلا", "Centre circle, Drive, Garage 3D, Main, Drive modes, Tesla"),
-            Dash.layoutName(Dash.layoutIndex(prefs.getString("dash_layout", "garage"))), new Runnable() { public void run() { Dash.chooseLayout(Main.this); } });
+            Dash.layoutName(Dash.layoutIndex(prefs.getString("dash_layout", "drive"))), new Runnable() { public void run() { Dash.chooseLayout(Main.this); } });
         rowIc(th, "image", I18n.L("الخلفية", "Background"), I18n.L("صور حقيقية، أو صورة من الشاشة أو USB", "Real photos, or a picture from the screen or USB"), null,
-            new Runnable() { public void run() { Dash.chooseWall(Main.this, prefs.getString("dash_layout", "garage")); } });
+            new Runnable() { public void run() { Dash.chooseWall(Main.this, prefs.getString("dash_layout", "drive")); } });
         rowIc(th, "directions_car", I18n.L("صورة السيارة", "Car picture"), I18n.L("صورتك من الخلف أو الجانب، أو لون المجسّم", "Your photo from behind or the side, or the 3D car colour"), null,
             new Runnable() { public void run() { Dash.carMenu(Main.this); } });
         row(th, I18n.L("ألوان التصميم الكلاسيكي", "Classic layout colours"), I18n.L("للتصميم الكلاسيكي فقط", "Classic layout only"),
@@ -6530,7 +6530,7 @@ public class Main extends Activity {
     /** Al volver al inicio: busca versión nueva (1 vez al día) o, si toca, el recuadro «¿Te gusta StradaOS?». */
     private void autoChecks() {
         if (!hasWindowFocus() || settingsView != null || drawer != null) return;
-        if (!homeAsked && prefs.getBoolean("setup_done", false) && !prefs.getBoolean("home_never", false) && askDefaultHome(null)) return;
+        if (!homeAsked && prefs.getBoolean("setup_done", false) && !prefs.getBoolean("home_never", false) && !prefs.getBoolean("home_asked1", false) && askDefaultHome(null)) return;
         if (oilAlert()) return;
         if (maintAlert()) return;
         long now = System.currentTimeMillis();
@@ -6981,6 +6981,7 @@ public class Main extends Activity {
     private boolean askDefaultHome(final Runnable after) {
         if (isDefaultHome()) return false;
         homeAsked = true;
+        prefs.edit().putBoolean("home_asked1", true).apply();   // My Car: السؤال التلقائي مرة واحدة فقط
         new TB(this, dlg())
             .setTitle("StradaOS aún no es tu pantalla de inicio")
             .setMessage("Por eso al encender el carro o al tocar Inicio aparece el menú de fábrica.\n\nToca «Fijar ahora», elige StradaOS y luego «Siempre».")

@@ -42,6 +42,7 @@ back
 go mycar-pic:rear:/sdcard/Download/car_rear.png 8
 go mycar-pic:top:/sdcard/Download/car_top.png 8
 go mycar-pic:side:/sdcard/Download/car_side.png 8
+go mycar-pic:logo:/sdcard/Download/car_side.png 6
 for L in garage center main modes tesla drive classic; do go mycar-dash:$L 8; shot 6_$L; done
 go mycar-dash:drive 8; shot 70_drive_a; sleep 1; shot 70_drive_b
 go mycar-dash:garage 6

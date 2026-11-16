@@ -210,21 +210,30 @@ public class Dash implements Obd.Listener {
     /** هل تُعرض صور السيارة «المضاءة»؟ تلقائي = الشاشة في الوضع الليلي (عند تشغيل الأضواء)، أو يدوي. */
     boolean lit() { return litNow(m); }
 
+    /** وضع الإضاءة: sun (المغرب والشروق) / car (أضواء السيارة) / on / off. القيمة القديمة auto تُحوَّل حسب وجود إشارة. */
+    static String litMode(Context c) {
+        SharedPreferences sp = c.getSharedPreferences("launcher", 0);
+        String md = sp.getString("car_lit", "auto");
+        if ("on".equals(md) || "off".equals(md) || "sun".equals(md) || "car".equals(md)) return md;
+        return sp.getString("lit_src", "").length() > 0 ? "car" : "sun";
+    }
+
     static boolean litNow(Main m) {
         SharedPreferences sp = m.getSharedPreferences("launcher", 0);
-        String md = sp.getString("car_lit", "auto");
+        String md = litMode(m);
         if ("on".equals(md)) return true;
         if ("off".equals(md)) return false;
+        if ("sun".equals(md)) return afterSunset(m);
         String src = sp.getString("lit_src", "");
         if (src.length() > 0) {   // إشارة اختارها المستخدم من صفحة التشخيص
             String v = DiagActivity.signal(m, src);
             if (v != null) return v.equals(sp.getString("lit_on", ""));
         }
         try {
-            if ((m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                    == android.content.res.Configuration.UI_MODE_NIGHT_YES) return true;
+            return (m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
         } catch (Throwable ignored) { }
-        return "auto".equals(md) && afterSunset(m);
+        return false;
     }
 
     private static long sunAt;
@@ -307,6 +316,7 @@ public class Dash implements Obd.Listener {
         TextView brand = tv("My Car", 22, 0xFFFFFFFF, true);
         brand.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         place(brand, 1080, 16, 180, 40);
+        logoAt(1124, 14, 44);
         wifiDot = dot(1030, "wifi", 0xFF2E86DE);
         btDot = dot(976, "bluetooth", 0xFF2C3E70);
         gpsDot = dot(922, "location_on", 0xFF27AE60);
@@ -502,6 +512,7 @@ public class Dash implements Obd.Listener {
         TextView brand = tv("My Car", 22, 0xFFFFFFFF, true);
         brand.setGravity(Gravity.RIGHT);
         place(brand, 1130, 22, 130, 36);
+        logoAt(1130, 20, 40);
         // حد السرعة (اضغط لتغييره)
         limitTv = tv("", 30, 0xFF111111, true);
         limitTv.setGravity(Gravity.CENTER);
@@ -534,6 +545,18 @@ public class Dash implements Obd.Listener {
         roundAt(40, 612, "map", 0xFF2E6FD8, "nav");
         roundAt(120, 612, "music_note", 0xFF8E44AD, "music");
         roundAt(1176, 612, "directions_car", 0xFFE53935, null);
+    }
+
+    /** شعار السيارة الذي وضعه المستخدم، بجانب الاسم. */
+    void logoAt(float x, float y, float size) {
+        try {
+            Bitmap b = CarImg.logo(m);
+            if (b == null) return;
+            ImageView v = new ImageView(m);
+            v.setImageBitmap(b);
+            v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            place(v, x, y, size, size);
+        } catch (Throwable e) { Guard.log("logo: " + e); }
     }
 
     void roundAt(float x, float y, String ic, int c, final String fn) {
@@ -1048,7 +1071,7 @@ public class Dash implements Obd.Listener {
         col.setPadding((int) (12 * s), (int) (4 * s), (int) (12 * s), 0);
         sv.addView(col);
         final android.app.Dialog[] dlg = new android.app.Dialog[1];
-        String cur = p.getString("dash_layout", "garage");
+        String cur = p.getString("dash_layout", "drive");
         for (int i = 0; i < LAYOUTS.length; i++) {
             final String id = LAYOUTS[i];
             LinearLayout r = new LinearLayout(m);
@@ -1216,7 +1239,8 @@ public class Dash implements Obd.Listener {
 
     static String titleFor(String what) {
         String lit = what.endsWith("_lit") ? I18n.L(" (والأضواء مضاءة)", " (lights on)") : "";
-        if (what.startsWith("rear")) return I18n.L("صورة السيارة من الخلف", "Car photo from behind") + lit;
+        if (what.startsWith("logo")) return I18n.L("شعار السيارة", "Car logo");
+        if (what.startsWith("rear")) return I18n.L("صورة السيارة من الخلف العلوي", "Car photo from above-behind") + lit;
         if (what.startsWith("top")) return I18n.L("صورة السيارة من فوق وخلف", "Car photo from above-behind") + lit;
         if (what.startsWith("side")) return I18n.L("صورة السيارة الجانبية", "Car side photo") + lit;
         return I18n.L("صورة الخلفية", "Background picture");
@@ -1287,36 +1311,51 @@ public class Dash implements Obd.Listener {
     /** قائمة صور السيارة: ثلاث خانات تُعمَّم على كل التصاميم، ونوع/لون الرسم عند عدم وجود صورة. */
     void carMenu() { carMenu(m); }
 
+    static String litName(String md) {
+        return "on".equals(md) ? I18n.L("مضاءة دائماً", "Always on") : "off".equals(md) ? I18n.L("مطفأة دائماً", "Always off")
+            : "car".equals(md) ? I18n.L("حسب أضواء السيارة", "Follow the car lights") : I18n.L("حسب المغرب والشروق", "Sunset to sunrise");
+    }
+
+    static void chooseLit(final Main m) {
+        final String[] ids = {"sun", "car", "on", "off"};
+        final SharedPreferences p = m.getSharedPreferences("launcher", 0);
+        String cur = litMode(m);
+        String[] names = new String[ids.length];
+        for (int i = 0; i < ids.length; i++) names[i] = (ids[i].equals(cur) ? "●  " : "○  ") + litName(ids[i]);
+        boolean sig = p.getString("lit_src", "").length() > 0;
+        new TB(m, Main.dlg()).raw().setTitle(I18n.L("متى تظهر السيارة بأضواء مضاءة؟", "When to show the car with lights on?"))
+            .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                p.edit().putString("car_lit", ids[w]).apply();
+                if ("car".equals(ids[w]) && p.getString("lit_src", "").length() == 0)
+                    m.toastPublic(I18n.L("لم تُحدَّد إشارة الأضواء بعد: الإعدادات ← تشخيص الشاشة ← «ابدأ مراقبة الأضواء»", "No light signal chosen yet: Settings → Screen diagnostics → “Watch lights”"));
+                m.rebuildPublic();
+                carMenu(m);
+            }}).setNegativeButton(I18n.L("رجوع", "Back"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { carMenu(m); } }).show();
+    }
+
     public static void carMenu(final Main m) {
-        final String[] slots = {"rear", "rear_lit", "top", "top_lit", "side", "side_lit"};
+        final String[] slots = {"rear", "rear_lit", "side", "logo"};
         String[] names = {
-            I18n.L("صورة من الخلف (داخل العدّاد)", "From behind (in the speedometer)"),
-            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
-            I18n.L("صورة من فوق وخلف (وضع القيادة)", "From above-behind (drive mode)"),
-            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
-            I18n.L("صورة جانبية (تيسلا والكلاسيكي)", "Side photo (Tesla & Classic)"),
-            I18n.L("   ↳ والأضواء مضاءة (للوضع الليلي)", "   ↳ lights on (night mode)"),
+            I18n.L("السيارة من الخلف العلوي · نهار", "Car from above-behind · day"),
+            I18n.L("السيارة من الخلف العلوي · ليل (الأضواء مضاءة)", "Car from above-behind · night (lights on)"),
+            I18n.L("السيارة من الجانب", "Car from the side"),
+            I18n.L("شعار السيارة (بجانب الاسم أعلى الشاشة)", "Car logo (next to the name at the top)"),
         };
         final List<String> list = new ArrayList<String>();
         final List<String> act = new ArrayList<String>();
-        for (int i = 0; i < slots.length; i++) { list.add((CarImg.has(m, slots[i]) ? "✓  " : "") + names[i]); act.add(slots[i]); }
-        String md = m.getSharedPreferences("launcher", 0).getString("car_lit", "auto");
-        list.add(I18n.L("الإضاءة: ", "Lights: ") + ("on".equals(md) ? I18n.L("مضاءة دائماً", "always on") : "off".equals(md) ? I18n.L("عادية دائماً", "always off")
-            : I18n.L("تلقائي (إشارة الأضواء، وإلا من المغرب للشروق)", "auto (light signal, else sunset to sunrise)"))); act.add("lit");
+        for (int i = 0; i < slots.length; i++) {
+            boolean has = CarImg.has(m, slots[i]) || ("rear".equals(slots[i]) && CarImg.has(m, "top")) || ("rear_lit".equals(slots[i]) && CarImg.has(m, "top_lit"));
+            list.add((has ? "✓  " : "") + names[i]); act.add(slots[i]);
+        }
+        list.add(I18n.L("الإضاءة: ", "Lights: ") + litName(litMode(m))); act.add("lit");
         list.add(I18n.L("نوع السيارة المرسومة ولونها (عند عدم وجود صورة)", "Drawn car type & colour (when no photo)")); act.add("art");
-        if (CarImg.hasAny(m)) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
+        if (CarImg.hasAny(m) || CarImg.has(m, "logo")) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
         new TB(m, Main.dlg()).raw().setTitle(I18n.L("صورة السيارة", "Car picture"))
             .setItems(list.toArray(new String[0]), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
                 String a = act.get(w);
                 if ("art".equals(a)) m.carLookPublic();
                 else if ("clear".equals(a)) { CarImg.clearAll(m); m.rebuildPublic(); }
-                else if ("lit".equals(a)) {
-                    SharedPreferences p = m.getSharedPreferences("launcher", 0);
-                    String cur = p.getString("car_lit", "auto");
-                    p.edit().putString("car_lit", "auto".equals(cur) ? "on" : "on".equals(cur) ? "off" : "auto").apply();
-                    m.rebuildPublic();
-                    carMenu(m);
-                }
+                else if ("lit".equals(a)) chooseLit(m);
                 else pickSource(m, a);
             }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
     }

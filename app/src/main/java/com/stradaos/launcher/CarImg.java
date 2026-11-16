@@ -63,8 +63,12 @@ public class CarImg {
         return CarArt.render(t, p.getInt("car_art_color", CarArt.COLORS[0]), 800, 336);
     }
 
+    /** شعار السيارة الذي يضعه المستخدم (يظهر بجانب الاسم أعلى الشاشة). */
+    public static Bitmap logo(Context c) { return user(c, "logo"); }
+
     static void clearAll(Context c) {
         for (String s : SLOTS) slotFile(c, s).delete();
+        slotFile(c, "logo").delete();
         CarPhoto.delete(c);
     }
 
@@ -92,6 +96,9 @@ public class CarImg {
             b.compress(Bitmap.CompressFormat.PNG, 100, os);
             os.close();
             if ("side".equals(slot)) CarPhoto.delete(c);   // الملف القديم يحل محله الجديد
+            // صورة «الخلف العلوي» واحدة للعدّاد ووضع القيادة: الجديدة تلغي صورة «من فوق» القديمة
+            if ("rear".equals(slot)) slotFile(c, "top").delete();
+            if ("rear_lit".equals(slot)) slotFile(c, "top_lit").delete();
             return true;
         } catch (Throwable e) {
             Guard.log("CarImg.saveSlot: " + e);

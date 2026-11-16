@@ -103,7 +103,7 @@ public class Backup {
         }
         // My Car: صور السيارة الست والخلفية الخاصة
         JSONObject files = new JSONObject();
-        String[] names = {"car_rear.png", "car_top.png", "car_side.png", "car_rear_lit.png", "car_top_lit.png", "car_side_lit.png", "dash_wall.jpg"};
+        String[] names = {"car_rear.png", "car_top.png", "car_side.png", "car_rear_lit.png", "car_top_lit.png", "car_side_lit.png", "car_logo.png", "dash_wall.jpg"};
         for (String n : names) {
             File f = new File(c.getFilesDir(), n);
             if (f.isFile() && f.length() > 0 && f.length() < 6L * 1024 * 1024) {
