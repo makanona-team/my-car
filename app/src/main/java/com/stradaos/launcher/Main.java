@@ -559,6 +559,7 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-browse:")) { String[] pp = v.substring(13).split(":"); Dash.browse(Main.this, pp[0], "usb".equals(pp[1])); }
                 else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
                 else if ("mycar-diag".equals(v)) openScreen(DiagActivity.class);
+                else if ("mycar-diagwatch".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autowatch", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-triplog".equals(v)) Trip.showLog(Main.this);
                 else if (v.startsWith("mycar-pref:")) { String[] pp = v.substring(11).split("=", 2); if ("true".equals(pp[1]) || "false".equals(pp[1])) prefs.edit().putBoolean(pp[0], "true".equals(pp[1])).apply(); else prefs.edit().putString(pp[0], pp[1]).apply(); I18n.arabicDigits = prefs.getBoolean("digits_ar", false); rebuild(); }
                 else if ("mycar-tripdemo".equals(v)) { prefs.edit().putFloat("trip_km", 23.4f).putLong("trip_ms", 1900000).putFloat("trip_max", 96).putFloat("trip_fuel", 2.3f).putInt("fuel_price", 11000).apply(); Trip.close(Main.this, System.currentTimeMillis() - 3600000); prefs.edit().putFloat("trip_km", 4.2f).putLong("trip_ms", 600000).putFloat("trip_fuel", 0.4f).apply(); rebuild(); }

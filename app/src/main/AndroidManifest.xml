@@ -56,6 +56,7 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+        <service android:name="com.stradaos.launcher.TwService" android:process=":tw" android:exported="false"/>
         <service android:name="com.stradaos.launcher.NotifArt" android:label="@string/acc_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>

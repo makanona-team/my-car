@@ -82,6 +82,7 @@ go mycar-dash:modes 8; shot 85_modes_road
 go mycar-dash:garage 6
 go mycar-diag 25; shot 86_diag
 adb shell input swipe 640 600 640 150 300; sleep 2; shot 87_diag_scroll
+go mycar-diagwatch 20; shot 87b_diag_watch; adb shell pidof com.feras.mycar.debug > /dev/null && echo MAIN_ALIVE >> $OUT/logcat_extra.txt || echo MAIN_DEAD >> $OUT/logcat_extra.txt; back
 back
 go ajustes:11 6
 adb shell input swipe 760 600 760 250 500; sleep 2; shot 88_settings_trips

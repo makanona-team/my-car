@@ -53,7 +53,46 @@ public class DiagActivity extends Screen {
     private final StringBuilder events = new StringBuilder();
     private final Handler h = new Handler();
     private boolean watching;
-    private TwSignal tw;
+    private long twT0, twBeat;
+    private boolean twDeadShown;
+    private String twStatus = "";
+    private final Map<Integer, String> twLast = new HashMap<Integer, String>();
+    private final Map<Integer, Integer> twCount = new HashMap<Integer, Integer>();
+
+    private final BroadcastReceiver twRx = new BroadcastReceiver() {
+        public void onReceive(Context c, Intent i) {
+            if (!watching) return;
+            if (TwService.BEAT.equals(i.getAction())) {
+                twBeat = System.currentTimeMillis();
+                String st = i.getStringExtra("status");
+                if (st != null && !st.equals(twStatus) && st.contains("batches open")) event("TW: " + st, null, null);
+                if (st != null) twStatus = st;
+                return;
+            }
+            int what = i.getIntExtra("what", -1);
+            String v = i.getStringExtra("val");
+            if (v == null) return;
+            String old = twLast.put(what, v);
+            boolean settled = System.currentTimeMillis() - twT0 > 8000;
+            if (old == null && !settled) { twSeen.append(String.format(Locale.US, "tw:%d (0x%04X) = %s\n", what, what, v)); return; }
+            if (v.equals(old)) return;
+            Integer n = twCount.get(what);
+            twCount.put(what, n == null ? 1 : n + 1);
+            if (n != null && n >= 6) { if (n == 6) event(String.format(Locale.US, "tw:%d %s", what, I18n.L("يتغير باستمرار، أُخفي", "changes constantly, hidden")), null, null); return; }
+            event(String.format(Locale.US, "tw:%d (0x%04X): %s → %s", what, what, old, v), "tw:" + what, v);
+        }
+    };
+
+    /** إن توقفت نبضات خدمة TW فقد انهارت مكتبة الشاشة: نخبر المستخدم ونكمل بدونها. */
+    private final Runnable twWatchdog = new Runnable() { public void run() {
+        if (!watching) return;
+        if (!twDeadShown && System.currentTimeMillis() - twBeat > 4000) {
+            twDeadShown = true;
+            String st = TwService.read(TwService.stageFile(DiagActivity.this));
+            event(I18n.L("⚠ قناة TW انهارت", "⚠ TW channel crashed") + (st.length() > 0 ? " (" + st + ")" : "") + I18n.L(" · المراقبة مستمرة بدونها، والدفعة ستُتخطّى بالمرة القادمة", " · watching continues without it; that batch will be skipped next time"), null, null);
+        }
+        h.postDelayed(this, 2000);
+    }};
     private final StringBuilder twSeen = new StringBuilder();
     private Map<String, String> snap;
     private final List<ContentObserver> observers = new ArrayList<ContentObserver>();
@@ -63,6 +102,8 @@ public class DiagActivity extends Screen {
 
     @Override
     protected void build(FrameLayout content) {
+        if (getIntent() != null && getIntent().getBooleanExtra("autowatch", false))
+            h.postDelayed(new Runnable() { public void run() { if (!watching) startWatch(); } }, 1500);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(16), 0, px(16), px(10));
@@ -164,6 +205,9 @@ public class DiagActivity extends Screen {
             b.append('\n');
 
             b.append("── ").append(I18n.L("مكتبة TW", "TW library")).append(" ──\n").append(TwSignal.describe()).append('\n');
+            b.append("TW stage: ").append(TwService.read(TwService.stageFile(this))).append(" · bad: ").append(TwService.read(TwService.badFile(this)).replace('\n', ' ')).append(" · status: ").append(twStatus).append('\n');
+            String crash = Guard.read(this);
+            if (crash != null) { if (crash.length() > 3000) crash = crash.substring(crash.length() - 3000); b.append("── ").append(I18n.L("سجل الأعطال", "Crash log")).append(" ──\n").append(crash).append('\n'); }
             b.append("── ").append(I18n.L("إعدادات النظام المتعلقة", "Related system settings")).append(" ──\n");
             for (Map.Entry<String, String> e : settings().entrySet()) if (INTEREST.matcher(e.getKey()).matches()) b.append(e.getKey()).append(" = ").append(e.getValue()).append('\n');
             b.append('\n');
@@ -266,27 +310,19 @@ public class DiagActivity extends Screen {
             for (String a : new String[]{"com.tw.service.acc", "com.tw.acc", "com.tw.ill", "com.tw.light", "android.intent.action.ILL", "com.android.ill"}) f.addAction(a);
             registerReceiver(br, f);
         } catch (Throwable ignored) { }
-        // قناة TW الداخلية: نستمع لكل الأرقام ونُظهر ما يتغير بعد ٣ ثوانٍ من البداية
-        tw = new TwSignal();
-        final long t0 = System.currentTimeMillis();
-        final Map<Integer, String> twLast = new HashMap<Integer, String>();
-        final Map<Integer, Integer> twCount = new HashMap<Integer, Integer>();
-        short[] ids = new short[0x1000];
-        for (int i = 0; i < ids.length; i++) ids[i] = (short) i;
-        TwSignal.Sink sink = new TwSignal.Sink() { public void on(int what, String v) {
-            if (!watching) return;
-            String old = twLast.put(what, v);
-            boolean settled = System.currentTimeMillis() - t0 > 3000;
-            if (old == null && !settled) { twSeen.append(String.format(Locale.US, "tw:%d (0x%04X) = %s\n", what, what, v)); return; }
-            if (v.equals(old)) return;
-            Integer n = twCount.get(what);
-            twCount.put(what, n == null ? 1 : n + 1);
-            if (n != null && n >= 6) { if (n == 6) event(String.format(Locale.US, "tw:%d %s", what, I18n.L("يتغير باستمرار، أُخفي", "changes constantly, hidden")), null, null); return; }
-            event(String.format(Locale.US, "tw:%d (0x%04X): %s → %s", what, what, old, v), "tw:" + what, v);
-        }};
-        boolean ok = tw.open(ids, sink);
-        if (!ok) { short[] small = new short[0x300]; for (int i = 0; i < small.length; i++) small[i] = (short) (0x100 + i); ok = tw.open(small, sink); }
-        event("TW: " + (ok ? I18n.L("القناة مفتوحة ", "channel open ") : I18n.L("تعذّر الفتح ", "could not open ")) + tw.error, null, null);
+        // قناة TW الداخلية: في عملية منفصلة (TwService)؛ إن انهارت مكتبة الشاشة تبقى المراقبة شغّالة
+        twT0 = System.currentTimeMillis();
+        twLast.clear(); twCount.clear(); twBeat = 0; twDeadShown = false;
+        try {
+            IntentFilter tf2 = new IntentFilter(TwService.MSG);
+            tf2.addAction(TwService.BEAT);
+            registerReceiver(twRx, tf2);
+        } catch (Throwable ignored) { }
+        String badNow = TwService.read(TwService.stageFile(this)) + " " + TwService.read(TwService.badFile(this)).replace('\n', ' ');
+        if (badNow.trim().length() > 0) event(I18n.L("دفعات TW تسبّبت بانهيار سابقاً وستُتخطّى: ", "TW batches that crashed before (skipped): ") + badNow.trim(), null, null);
+        TwService.start(this, "sniff", 0);
+        event(I18n.L("TW: تشغيل القناة بعملية منفصلة…", "TW: starting the channel in a separate process…"), null, null);
+        h.postDelayed(twWatchdog, 5000);
         for (Uri u : new Uri[]{Settings.System.CONTENT_URI, Settings.Secure.CONTENT_URI}) {
             ContentObserver o = new ContentObserver(h) {
                 @Override public void onChange(boolean self, Uri uri) { h.removeCallbacks(poll); h.postDelayed(poll, 150); }
@@ -302,7 +338,9 @@ public class DiagActivity extends Screen {
         try { unregisterReceiver(br); } catch (Throwable ignored) { }
         for (ContentObserver o : observers) try { getContentResolver().unregisterContentObserver(o); } catch (Throwable ignored) { }
         observers.clear();
-        if (tw != null) { tw.close(); tw = null; }
+        h.removeCallbacks(twWatchdog);
+        try { unregisterReceiver(twRx); } catch (Throwable ignored) { }
+        TwService.stop(this);
         if (twSeen.length() > 0) events.append("── TW ").append(I18n.L("(القيم الأولى)", "(first values)")).append(" ──\n").append(twSeen);
         twSeen.setLength(0);
         event(I18n.L("انتهت المراقبة", "Watching stopped"), null, null);

@@ -106,23 +106,30 @@ final class TwSignal {
         util = null;
     }
 
-    // ── مستمع دائم للإشارة المختارة (tw:<what>) ──
+    // ── مستمع دائم للإشارة المختارة (tw:<what>) عبر TwService في عملية منفصلة ──
 
-    private static TwSignal live;
     private static int liveWhat = -1;
     static volatile String liveValue;
+    private static android.content.BroadcastReceiver rx;
 
     static void ensure(Context c, String src) {
         try {
-            if (src == null || !src.startsWith("tw:")) { if (live != null) { live.close(); live = null; liveWhat = -1; } return; }
+            final Context app = c.getApplicationContext();
+            if (src == null || !src.startsWith("tw:")) {
+                if (liveWhat >= 0) { TwService.stop(app); liveWhat = -1; liveValue = null; }
+                return;
+            }
             int what = Integer.parseInt(src.substring(3));
-            if (live != null && liveWhat == what) return;
-            if (live != null) live.close();
-            live = new TwSignal();
+            if (liveWhat == what) return;
             liveWhat = what;
-            final int w = what;
-            if (live.open(new short[]{(short) what}, new Sink() { public void on(int wh, String v) { if (wh == w) liveValue = v; } })) live.request(what);
-            else { Guard.log("TwSignal: " + live.error); live = null; }
+            liveValue = null;
+            if (rx == null) {
+                rx = new android.content.BroadcastReceiver() { public void onReceive(Context x, android.content.Intent i) {
+                    if (i.getIntExtra("what", -2) == liveWhat) liveValue = i.getStringExtra("val");
+                }};
+                app.registerReceiver(rx, new android.content.IntentFilter(TwService.MSG));
+            }
+            TwService.start(app, "live", what);
         } catch (Throwable e) { Guard.log("TwSignal: " + e); }
     }
 }
