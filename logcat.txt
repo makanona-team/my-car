@@ -1,0 +1,120 @@
+11-17 06:06:22.350  2273  2273 I AndroidRuntime: Using default boot image
+11-17 06:06:22.350  2273  2273 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:06:22.405  2273  2273 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:06:22.411  2273  2273 D AndroidRuntime: Shutting down VM
+11-17 06:08:36.529  2568  2568 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:08:36.531  2568  2568 I AndroidRuntime: Using default boot image
+11-17 06:08:36.531  2568  2568 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:08:36.595  2568  2568 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:08:36.605  2568  2568 D AndroidRuntime: Shutting down VM
+11-17 06:08:45.597  2599  2599 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:08:45.599  2599  2599 I AndroidRuntime: Using default boot image
+11-17 06:08:45.599  2599  2599 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:08:45.665  2599  2599 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:08:45.670  2599  2599 D AndroidRuntime: Shutting down VM
+11-17 06:09:01.647  2632  2632 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:09:01.649  2632  2632 I AndroidRuntime: Using default boot image
+11-17 06:09:01.649  2632  2632 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:09:01.711  2632  2632 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:09:01.734  2632  2632 D AndroidRuntime: Shutting down VM
+11-17 06:09:13.805  2666  2666 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:09:13.812  2666  2666 I AndroidRuntime: Using default boot image
+11-17 06:09:13.812  2666  2666 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:09:13.880  2666  2666 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:09:13.884  2666  2666 D AndroidRuntime: Shutting down VM
+11-17 06:12:12.461  3004  3004 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:12:12.463  3004  3004 I AndroidRuntime: Using default boot image
+11-17 06:12:12.463  3004  3004 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:12:12.522  3004  3004 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:12:12.531  3004  3004 D AndroidRuntime: Shutting down VM
+11-17 06:13:48.259  3231  3231 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:13:48.261  3231  3231 I AndroidRuntime: Using default boot image
+11-17 06:13:48.261  3231  3231 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:13:48.326  3231  3231 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:13:48.335  3231  3231 D AndroidRuntime: Shutting down VM
+11-17 06:13:58.317  3262  3262 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:13:58.319  3262  3262 I AndroidRuntime: Using default boot image
+11-17 06:13:58.319  3262  3262 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:13:58.390  3262  3262 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:13:58.395  3262  3262 D AndroidRuntime: Shutting down VM
+11-17 06:14:08.146  3293  3293 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:14:08.148  3293  3293 I AndroidRuntime: Using default boot image
+11-17 06:14:08.148  3293  3293 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:14:08.226  3293  3293 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:14:08.240  3293  3293 D AndroidRuntime: Shutting down VM
+11-17 06:14:19.923  3330  3330 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:14:19.924  3330  3330 I AndroidRuntime: Using default boot image
+11-17 06:14:19.924  3330  3330 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:14:19.974  3330  3330 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:14:19.987  3330  3330 D AndroidRuntime: Shutting down VM
+11-17 06:14:29.653  3369  3369 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:14:29.655  3369  3369 I AndroidRuntime: Using default boot image
+11-17 06:14:29.655  3369  3369 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:14:29.705  3369  3369 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:14:29.709  3369  3369 D AndroidRuntime: Shutting down VM
+11-17 06:15:36.540  3508  3508 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:15:36.542  3508  3508 I AndroidRuntime: Using default boot image
+11-17 06:15:36.542  3508  3508 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:15:36.602  3508  3508 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:15:36.619  3508  3508 D AndroidRuntime: Shutting down VM
+11-17 06:16:53.649  3659  3659 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:16:53.650  3659  3659 I AndroidRuntime: Using default boot image
+11-17 06:16:53.650  3659  3659 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:16:53.700  3659  3659 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:16:54.012  3659  3659 D AndroidRuntime: Shutting down VM
+11-17 06:17:16.876  3754  3754 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:16.882  3754  3754 I AndroidRuntime: Using default boot image
+11-17 06:17:16.882  3754  3754 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:16.933  3754  3754 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:16.953  3754  3754 D AndroidRuntime: Shutting down VM
+11-17 06:17:20.424  3767  3767 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:20.425  3767  3767 I AndroidRuntime: Using default boot image
+11-17 06:17:20.425  3767  3767 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:20.478  3767  3767 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:20.481  3767  3767 D AndroidRuntime: Shutting down VM
+11-17 06:17:29.982  3790  3790 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:29.985  3790  3790 I AndroidRuntime: Using default boot image
+11-17 06:17:29.985  3790  3790 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:30.051  3790  3790 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:30.584  3790  3790 D AndroidRuntime: Shutting down VM
+11-17 06:17:33.328  3811  3811 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:33.348  3811  3811 I AndroidRuntime: Using default boot image
+11-17 06:17:33.348  3811  3811 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:33.441  3811  3811 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:33.956  3811  3811 D AndroidRuntime: Shutting down VM
+11-17 06:17:36.670  3832  3832 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:36.671  3832  3832 I AndroidRuntime: Using default boot image
+11-17 06:17:36.671  3832  3832 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:36.743  3832  3832 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:36.751  3832  3832 D AndroidRuntime: Shutting down VM
+11-17 06:17:41.714   508   690 I ActivityTaskManager: START u0 {cmp=com.feras.mycar.debug/com.stradaos.launcher.RadioActivity} from uid 10130
+11-17 06:17:41.732   508   538 I MediaFocusControl: requestAudioFocus() from uid/pid 10130/2335 clientId=android.media.AudioManager@a6257d0com.stradaos.launcher.RadioService$3@d80f3c9 callingPack=com.feras.mycar.debug req=1 flags=0x0 sdk=28
+11-17 06:17:41.806   508   548 I ActivityTaskManager: Displayed com.feras.mycar.debug/com.stradaos.launcher.RadioActivity: +92ms
+11-17 06:17:43.140   508   508 D MediaSessionService: Media button session is changed to com.feras.mycar.debug/MyCarRadio (userId=0)
+11-17 06:17:58.553  3905  3905 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:17:58.554  3905  3905 I AndroidRuntime: Using default boot image
+11-17 06:17:58.554  3905  3905 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:17:58.605  3905  3905 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:17:58.620  3905  3905 D AndroidRuntime: Shutting down VM
+11-17 06:18:03.570   508   538 I ActivityTaskManager: START u0 {cmp=com.feras.mycar.debug/com.stradaos.launcher.RadioActivity} from uid 10130
+11-17 06:18:03.589   508   538 I MediaFocusControl: requestAudioFocus() from uid/pid 10130/2335 clientId=android.media.AudioManager@a6257d0com.stradaos.launcher.RadioService$3@d80f3c9 callingPack=com.feras.mycar.debug req=1 flags=0x0 sdk=28
+11-17 06:18:03.671   508   548 I ActivityTaskManager: Displayed com.feras.mycar.debug/com.stradaos.launcher.RadioActivity: +101ms
+11-17 06:18:20.293  3962  3962 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:18:20.294  3962  3962 I AndroidRuntime: Using default boot image
+11-17 06:18:20.295  3962  3962 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:18:20.345  3962  3962 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:18:20.356  3962  3962 D AndroidRuntime: Shutting down VM
+11-17 06:18:25.299   508  3737 I ActivityTaskManager: START u0 {cmp=com.feras.mycar.debug/com.stradaos.launcher.RadioActivity} from uid 10130
+11-17 06:18:25.310   508  3619 I MediaFocusControl: requestAudioFocus() from uid/pid 10130/2335 clientId=android.media.AudioManager@a6257d0com.stradaos.launcher.RadioService$3@d80f3c9 callingPack=com.feras.mycar.debug req=1 flags=0x0 sdk=28
+11-17 06:18:25.405   508   548 I ActivityTaskManager: Displayed com.feras.mycar.debug/com.stradaos.launcher.RadioActivity: +105ms
+11-17 06:18:28.081   508  1521 I MediaFocusControl: requestAudioFocus() from uid/pid 10130/2335 clientId=android.media.AudioManager@a6257d0com.stradaos.launcher.RadioService$3@d80f3c9 callingPack=com.feras.mycar.debug req=1 flags=0x0 sdk=28
+11-17 06:18:42.018  4006  4006 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:18:42.020  4006  4006 I AndroidRuntime: Using default boot image
+11-17 06:18:42.020  4006  4006 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:18:42.070  4006  4006 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:18:42.086  4006  4006 D AndroidRuntime: Shutting down VM
+11-17 06:18:51.741  4041  4041 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-17 06:18:51.742  4041  4041 I AndroidRuntime: Using default boot image
+11-17 06:18:51.742  4041  4041 I AndroidRuntime: Leaving lock profiling enabled
+11-17 06:18:51.793  4041  4041 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-17 06:18:51.800  4041  4041 D AndroidRuntime: Shutting down VM
