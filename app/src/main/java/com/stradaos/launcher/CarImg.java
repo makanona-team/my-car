@@ -53,7 +53,27 @@ public class CarImg {
     /** لوضع القيادة على الطريق: من فوق وخلف. */
     public static Bitmap top(Context c, boolean lit) { return first(c, lit, "top", "rear", "side"); }
     /** لبطاقة السيارة (تيسلا والكلاسيكي): الجانبية. */
-    public static Bitmap side(Context c, boolean lit) { return first(c, lit, "side", "top", "rear"); }
+    public static Bitmap side(Context c, boolean lit) {
+        Bitmap s = user(c, "side");
+        if (s == null) return first(c, lit, "side", "top", "rear");
+        return lit ? night(s) : s;   // الجانبية تبقى جانبية: بالليل نفس الصورة أغمق قليلاً
+    }
+
+    private static Bitmap nightSrc, nightOut;
+    static Bitmap night(Bitmap b) {
+        if (b == nightSrc && nightOut != null) return nightOut;
+        try {
+            Bitmap o = Bitmap.createBitmap(b.getWidth(), b.getHeight(), Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas cv = new android.graphics.Canvas(o);
+            android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+            android.graphics.ColorMatrix cm = new android.graphics.ColorMatrix(new float[]{
+                0.62f, 0, 0, 0, 0,   0, 0.64f, 0, 0, 0,   0, 0, 0.74f, 0, 4,   0, 0, 0, 1, 0});
+            p.setColorFilter(new android.graphics.ColorMatrixColorFilter(cm));
+            cv.drawBitmap(b, 0, 0, p);
+            nightSrc = b; nightOut = o;
+            return o;
+        } catch (Throwable e) { return b; }
+    }
 
     /** رسم السيارة بالنوع واللون المختارين (عند عدم وجود صورة). */
     static Bitmap art(Context c) {

@@ -56,6 +56,20 @@ adb shell cmd uimode night no; sleep 8
 go mycar-dash:garage 8; shot 74_day_garage_back
 go mycar-carmenu 5; shot 54_carmenu_checked
 back
+adb push .github/testdata/car_video.mp4 /sdcard/Download/car_video.mp4 >/dev/null
+go mycar-dash:show 8; shot 75_show_novideo
+go mycar-pick:video 5; shot 75b_pick_video
+back
+go mycar-browse:video:mem 12; shot 75c_browse_video
+back
+go mycar-pic:video:/sdcard/Download/car_video.mp4 12; shot 76_show_video; sleep 2; shot 76b_show_video
+go mycar-carmenu 5; shot 77_carmenu_video
+back
+go mycar-intro 3; shot 78_intro; sleep 8; shot 78b_after_intro
+go mycar-dash:tesla 6
+adb shell cmd uimode night yes; sleep 12; shot 79_night_tesla_side
+adb shell cmd uimode night no; sleep 8
+go mycar-dash:garage 6
 go mycar-lit:auto 3
 go mycar-picclear 5
 go mycar-dash:tesla 8; shot 18_tesla_art; go "mycar-sayara:suv:0" 5
@@ -82,6 +96,7 @@ go mycar-dash:modes 8; shot 85_modes_road
 go mycar-dash:garage 6
 go mycar-diag 25; shot 86_diag
 adb shell input swipe 640 600 640 150 300; sleep 2; shot 87_diag_scroll
+go mycar-diagsend 25; shot 87c_diag_send; back
 go mycar-diagwatch 20; shot 87b_diag_watch; adb shell pidof com.feras.mycar.debug > /dev/null && echo MAIN_ALIVE >> $OUT/logcat_extra.txt || echo MAIN_DEAD >> $OUT/logcat_extra.txt; back
 back
 go ajustes:11 6

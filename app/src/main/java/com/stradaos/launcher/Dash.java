@@ -49,15 +49,15 @@ import java.util.List;
  */
 public class Dash implements Obd.Listener {
 
-    public static final String[] LAYOUTS = {"center", "drive", "garage", "main", "modes", "tesla", "classic"};
-    static final String[] LAYOUTS_AR = {"الدائرة المركزية", "القيادة", "جراج 3D", "الرئيسي", "أوضاع القيادة", "تيسلا البسيط", "الكلاسيكي (StradaOS)"};
-    static final String[] LAYOUTS_EN = {"Centre circle", "Drive", "Garage 3D", "Main", "Drive modes", "Tesla simple", "Classic (StradaOS)"};
+    public static final String[] LAYOUTS = {"center", "drive", "show", "garage", "main", "modes", "tesla", "classic"};
+    static final String[] LAYOUTS_AR = {"الدائرة المركزية", "القيادة", "عرض السيارة (فيديو)", "جراج 3D", "الرئيسي", "أوضاع القيادة", "تيسلا البسيط", "الكلاسيكي (StradaOS)"};
+    static final String[] LAYOUTS_EN = {"Centre circle", "Drive", "Car showcase (video)", "Garage 3D", "Main", "Drive modes", "Tesla simple", "Classic (StradaOS)"};
 
     public static String layoutName(int i) { return I18n.L(LAYOUTS_AR[i], LAYOUTS_EN[i]); }
 
     public static int layoutIndex(String id) {
         for (int i = 0; i < LAYOUTS.length; i++) if (LAYOUTS[i].equals(id)) return i;
-        return 2;
+        return 1;
     }
 
     static final int GOLD = 0xFFFFC233, CARD_BG = 0x8C0E1218, CARD_LINE = 0x26FFFFFF;
@@ -122,6 +122,7 @@ public class Dash implements Obd.Listener {
         parent.addView(view, new FrameLayout.LayoutParams(-1, -1));
 
         if ("drive".equals(layout)) buildDrive();
+        else if ("show".equals(layout)) buildShow();
         else {
             buildTop();
             if ("center".equals(layout)) buildCenter();
@@ -215,7 +216,39 @@ public class Dash implements Obd.Listener {
         SharedPreferences sp = c.getSharedPreferences("launcher", 0);
         String md = sp.getString("car_lit", "auto");
         if ("on".equals(md) || "off".equals(md) || "sun".equals(md) || "car".equals(md)) return md;
-        return sp.getString("lit_src", "").length() > 0 ? "car" : "sun";
+        return "car";   // الافتراضي: حسب أضواء السيارة (سطوع الشاشة)، ويرجع للمغرب والشروق إن لم تتوفر إشارة
+    }
+
+    /** ملفات سطوع الشاشة: شاشات TW تعتّم الشاشة تلقائياً عند تشغيل أضواء السيارة. */
+    static final String[] BL_FILES = {"/sys/class/backlight/tw/actual_brightness", "/sys/class/backlight/tw/brightness",
+        "/sys/class/backlight/sprd_backlight/actual_brightness", "/sys/class/backlight/sprd_backlight/brightness"};
+
+    static int backlight() {
+        for (String f : BL_FILES) {
+            try {
+                java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f));
+                String l = r.readLine(); r.close();
+                if (l != null) return Integer.parseInt(l.trim());
+            } catch (Throwable ignored) { }
+        }
+        return -1;
+    }
+
+    /**
+     * الأضواء حسب السطوع: يتعلّم أعلى وأدنى سطوع رآه. إن كان السطوع الحالي أقرب للأدنى فالأضواء شغّالة.
+     * null = لا يمكن الحكم بعد (لم يرَ مستويين مختلفين، أو الملف غير مقروء).
+     */
+    static Boolean litByBacklight(Context c) {
+        int v = backlight();
+        if (v < 0) return null;
+        SharedPreferences sp = c.getSharedPreferences("launcher", 0);
+        int mx = sp.getInt("bl_max", -1), mn = sp.getInt("bl_min", -1);
+        if (mx < 0 || v > mx || mn < 0 || v < mn) {
+            mx = Math.max(mx, v); mn = mn < 0 ? v : Math.min(mn, v);
+            sp.edit().putInt("bl_max", mx).putInt("bl_min", mn).apply();
+        }
+        if (mx - mn < 2) return null;
+        return v * 2 < mx + mn;
     }
 
     static boolean litNow(Main m) {
@@ -225,15 +258,17 @@ public class Dash implements Obd.Listener {
         if ("off".equals(md)) return false;
         if ("sun".equals(md)) return afterSunset(m);
         String src = sp.getString("lit_src", "");
-        if (src.length() > 0) {   // إشارة اختارها المستخدم من صفحة التشخيص
+        if (src.length() > 0 && !src.startsWith("tw:")) {   // إشارة اختارها المستخدم من صفحة التشخيص
             String v = DiagActivity.signal(m, src);
             if (v != null) return v.equals(sp.getString("lit_on", ""));
         }
+        Boolean bl = litByBacklight(m);
+        if (bl != null) return bl;
         try {
-            return (m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+            if ((m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES) return true;
         } catch (Throwable ignored) { }
-        return false;
+        return afterSunset(m);   // لا إشارة بعد: المغرب والشروق
     }
 
     private static long sunAt;
@@ -386,6 +421,40 @@ public class Dash implements Obd.Listener {
         buildClock(1090, 72, 170, 140);
         if (small) buildObdMini(1090, 222, 170, 390);
         else buildTripCard(1090, 222, 170, 390);
+        buildRoundDock(618);
+    }
+
+    // ───────────────────────── عرض السيارة (فيديو المستخدم) ─────────────────────────
+
+    private android.widget.VideoView video;
+
+    void buildShow() {
+        view.setBackgroundColor(0xFF000000);
+        if (CarVideo.has(m)) {
+            video = CarVideo.view(m, true, null);
+            FrameLayout.LayoutParams vl = new FrameLayout.LayoutParams(-1, -1);
+            vl.gravity = Gravity.CENTER;
+            view.addView(video, 0, vl);
+        } else {
+            ImageView car = new ImageView(m);
+            car.setImageBitmap(CarImg.rear(m, lit()));
+            car.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            place(car, 340, 120, 600, 400);
+            TextView hint = tv(I18n.L("اضغط لاختيار فيديو السيارة", "Tap to choose your car video"), 18, 0xFFFFFFFF, true);
+            hint.setGravity(Gravity.CENTER);
+            hint.setBackground(round(0xCC0E1218, 18));
+            place(hint, 440, 530, 400, 50);
+            View.OnClickListener pick = new View.OnClickListener() { public void onClick(View v) { pickSource(m, "video"); } };
+            hint.setOnClickListener(pick);
+            car.setOnClickListener(pick);
+        }
+        buildTop();
+        prayerBanner = rtext("", 16, 0xFF4ADE80, true);
+        prayerBanner.setBackground(round(0x991A2440, 16));
+        prayerBanner.setPadding(px(14), 0, px(14), 0);
+        place(prayerBanner, 20, 76, 380, 44);
+        prayerBanner.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { m.openScreen(PrayerActivity.class); } });
+        buildClock(1090, 72, 170, 140);
         buildRoundDock(618);
     }
 
@@ -1039,6 +1108,7 @@ public class Dash implements Obd.Listener {
         h.removeCallbacks(tick);
         if (drive != null) drive.setRunning(false);
         if (road != null) road.setRunning(false);
+        if (video != null) try { video.pause(); } catch (Throwable ignored) { }
     }
 
     public void resume() {
@@ -1046,6 +1116,7 @@ public class Dash implements Obd.Listener {
         paused = false;
         if (drive != null) drive.setRunning(true);
         if (road != null) road.setRunning(true);
+        if (video != null) try { video.start(); } catch (Throwable ignored) { }
         h.removeCallbacks(tick);
         tick.run();
     }
@@ -1054,6 +1125,7 @@ public class Dash implements Obd.Listener {
         paused = true;
         h.removeCallbacksAndMessages(null);
         Obd.get(m).remove(this);
+        if (video != null) try { video.stopPlayback(); } catch (Throwable ignored) { }
         try { ((ViewGroup) view.getParent()).removeView(view); } catch (Throwable ignored) { }
     }
 
@@ -1155,7 +1227,7 @@ public class Dash implements Obd.Listener {
             I18n.L("ذاكرة الشاشة", "Screen storage"),
             I18n.L("المعرض (تطبيق الصور)", "Gallery (photos app)"),
         };
-        new TB(m, Main.dlg()).raw().setTitle(I18n.L("من أين الصورة؟", "Where is the picture?"))
+        new TB(m, Main.dlg()).raw().setTitle("video".equals(what) ? I18n.L("من أين الفيديو؟", "Where is the video?") : I18n.L("من أين الصورة؟", "Where is the picture?"))
             .setItems(items, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
                 if (w == 2) m.pickGalleryPublic(what); else browse(m, what, w == 0);
             }}).setNegativeButton(I18n.L("إلغاء", "Cancel"), null).show();
@@ -1178,7 +1250,8 @@ public class Dash implements Obd.Listener {
 
     /** يعرض صور المصدر المختار بصور مصغّرة (الأحدث أولاً). */
     static void browse(final Main m, final String what, final boolean usb) {
-        m.toastPublic(I18n.L("جارِ البحث عن الصور…", "Looking for pictures…"));
+        final boolean vid = "video".equals(what);
+        m.toastPublic(vid ? I18n.L("جارِ البحث عن الفيديوهات…", "Looking for videos…") : I18n.L("جارِ البحث عن الصور…", "Looking for pictures…"));
         new Thread(new Runnable() { public void run() {
             final List<File> found = new ArrayList<File>();
             File primary = android.os.Environment.getExternalStorageDirectory();
@@ -1190,17 +1263,19 @@ public class Dash implements Obd.Listener {
                 for (File r : rs) {
                     if (!isRemovable(r, primary) && !"/udisk".equals(r.getPath())) continue;
                     try { if (!seen.add(r.getCanonicalPath())) continue; } catch (Throwable ignored) { }
-                    scanImages(r, 5, found);
+                    scanImages(r, 5, found, vid);
                 }
             }
-            else scanImages(primary, 5, found);
+            else scanImages(primary, 5, found, vid);
             Collections.sort(found, new Comparator<File>() { public int compare(File a, File b) { return Long.valueOf(b.lastModified()).compareTo(a.lastModified()); } });
             while (found.size() > 80) found.remove(found.size() - 1);
             final List<Bitmap> thumbs = new ArrayList<Bitmap>();
-            for (File f : found) thumbs.add(thumb(f, 150));
+            for (File f : found) thumbs.add(vid ? vthumb(f) : thumb(f, 150));
             m.runOnUiThread(new Runnable() { public void run() {
                 if (found.isEmpty()) {
-                    m.toastPublic(usb ? I18n.L("لا توجد صور على فلاشة. تأكد أنها موصولة وفيها صور", "No pictures on a USB stick. Make sure it is plugged in and has pictures")
+                    if (vid) m.toastPublic(usb ? I18n.L("لا توجد فيديوهات على فلاشة. تأكد أنها موصولة وفيها ملف mp4", "No videos on a USB stick. Make sure it is plugged in and has an mp4")
+                                               : I18n.L("لا توجد فيديوهات بذاكرة الشاشة. استعمل الفلاشة", "No videos in the screen storage. Use a USB stick"));
+                    else m.toastPublic(usb ? I18n.L("لا توجد صور على فلاشة. تأكد أنها موصولة وفيها صور", "No pictures on a USB stick. Make sure it is plugged in and has pictures")
                                       : I18n.L("لا توجد صور بذاكرة الشاشة. انسخ الصورة إليها أو استعمل الفلاشة", "No pictures in the screen storage. Copy one here or use a USB stick"));
                     return;
                 }
@@ -1240,6 +1315,7 @@ public class Dash implements Obd.Listener {
     static String titleFor(String what) {
         String lit = what.endsWith("_lit") ? I18n.L(" (والأضواء مضاءة)", " (lights on)") : "";
         if (what.startsWith("logo")) return I18n.L("شعار السيارة", "Car logo");
+        if (what.startsWith("video")) return I18n.L("فيديو السيارة", "Car video");
         if (what.startsWith("rear")) return I18n.L("صورة السيارة من الخلف العلوي", "Car photo from above-behind") + lit;
         if (what.startsWith("top")) return I18n.L("صورة السيارة من فوق وخلف", "Car photo from above-behind") + lit;
         if (what.startsWith("side")) return I18n.L("صورة السيارة الجانبية", "Car side photo") + lit;
@@ -1260,14 +1336,21 @@ public class Dash implements Obd.Listener {
         } catch (Throwable e) { return null; }
     }
 
-    static void scanImages(File dir, int depth, List<File> out) {
+    static Bitmap vthumb(File f) {
+        try { return android.media.ThumbnailUtils.createVideoThumbnail(f.getAbsolutePath(), android.provider.MediaStore.Images.Thumbnails.MINI_KIND); }
+        catch (Throwable e) { return null; }
+    }
+
+    static void scanImages(File dir, int depth, List<File> out) { scanImages(dir, depth, out, false); }
+
+    static void scanImages(File dir, int depth, List<File> out, boolean vid) {
         if (dir == null || depth < 0 || out.size() > 400) return;
         File[] fs = dir.listFiles();
         if (fs == null) return;
         for (File f : fs) {
             String n = f.getName().toLowerCase(java.util.Locale.US);
-            if (f.isDirectory()) { if (!n.startsWith(".") && !n.equals("android") && !n.equals("data")) scanImages(f, depth - 1, out); }
-            else if ((n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")) && f.length() > 20000) {
+            if (f.isDirectory()) { if (!n.startsWith(".") && !n.equals("android") && !n.equals("data")) scanImages(f, depth - 1, out, vid); }
+            else if ((vid ? CarVideo.isVideoName(n) && f.length() > 50000 : (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")) && f.length() > 20000)) {
                 boolean dup = false;
                 for (File o : out) if (o.getAbsolutePath().equals(f.getAbsolutePath())) { dup = true; break; }
                 if (!dup) out.add(f);
@@ -1296,13 +1379,16 @@ public class Dash implements Obd.Listener {
                     os.close();
                     m.getSharedPreferences("launcher", 0).edit().putString("dash_wall", "file:" + dst.getAbsolutePath()).apply();
                     ok = true;
+                } else if ("video".equals(what)) {
+                    ok = CarVideo.save(m, op);
+                    if (ok) m.getSharedPreferences("launcher", 0).edit().putString("dash_layout", "show").apply();
                 } else {
                     ok = CarImg.saveSlot(m, what, CarPhoto.decode(op));
                 }
             } catch (Throwable e) { Guard.log("usePicked: " + e); }
             final boolean fok = ok;
             m.runOnUiThread(new Runnable() { public void run() {
-                m.toastPublic(fok ? I18n.L("تم ✓", "Done ✓") : I18n.L("تعذّر فتح الصورة", "Could not open the picture"));
+                m.toastPublic(fok ? I18n.L("تم ✓", "Done ✓") : "video".equals(what) ? I18n.L("تعذّر فتح الفيديو (جرّب ملف mp4)", "Could not open the video (try an mp4 file)") : I18n.L("تعذّر فتح الصورة", "Could not open the picture"));
                 if (fok) m.rebuildPublic();
             }});
         }}).start();
@@ -1313,21 +1399,26 @@ public class Dash implements Obd.Listener {
 
     static String litName(String md) {
         return "on".equals(md) ? I18n.L("مضاءة دائماً", "Always on") : "off".equals(md) ? I18n.L("مطفأة دائماً", "Always off")
-            : "car".equals(md) ? I18n.L("حسب أضواء السيارة", "Follow the car lights") : I18n.L("حسب المغرب والشروق", "Sunset to sunrise");
+            : "car".equals(md) ? I18n.L("حسب أضواء السيارة (سطوع الشاشة)", "Follow the car lights (screen dimming)") : I18n.L("حسب المغرب والشروق", "Sunset to sunrise");
     }
 
     static void chooseLit(final Main m) {
-        final String[] ids = {"sun", "car", "on", "off"};
+        final String[] ids = {"car", "sun", "on", "off", "relearn"};
         final SharedPreferences p = m.getSharedPreferences("launcher", 0);
         String cur = litMode(m);
         String[] names = new String[ids.length];
         for (int i = 0; i < ids.length; i++) names[i] = (ids[i].equals(cur) ? "●  " : "○  ") + litName(ids[i]);
-        boolean sig = p.getString("lit_src", "").length() > 0;
+        int bv = backlight();
+        names[4] = "↻  " + I18n.L("إعادة تعلّم سطوع النهار والليل", "Re-learn day/night brightness")
+            + (bv >= 0 ? I18n.L(" (السطوع الآن: ", " (now: ") + bv + I18n.L("، نهار ", ", day ") + p.getInt("bl_max", bv) + I18n.L("، ليل ", ", night ") + p.getInt("bl_min", bv) + ")" : I18n.L(" (السطوع غير مقروء)", " (brightness not readable)"));
         new TB(m, Main.dlg()).raw().setTitle(I18n.L("متى تظهر السيارة بأضواء مضاءة؟", "When to show the car with lights on?"))
             .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                p.edit().putString("car_lit", ids[w]).apply();
-                if ("car".equals(ids[w]) && p.getString("lit_src", "").length() == 0)
-                    m.toastPublic(I18n.L("لم تُحدَّد إشارة الأضواء بعد: الإعدادات ← تشخيص الشاشة ← «ابدأ مراقبة الأضواء»", "No light signal chosen yet: Settings → Screen diagnostics → “Watch lights”"));
+                if ("relearn".equals(ids[w])) {
+                    p.edit().remove("bl_max").remove("bl_min").apply();
+                    m.toastPublic(I18n.L("شغّل أضواء السيارة وأطفئها مرة ليتعلّم البرنامج السطوعين", "Switch the car lights on and off once so the app learns both levels"));
+                } else p.edit().putString("car_lit", ids[w]).apply();
+                if ("car".equals(ids[w]) && backlight() < 0)
+                    m.toastPublic(I18n.L("لا يمكن قراءة سطوع الشاشة هنا: سيُعتمد المغرب والشروق", "Screen brightness can't be read here: sunset/sunrise will be used"));
                 m.rebuildPublic();
                 carMenu(m);
             }}).setNegativeButton(I18n.L("رجوع", "Back"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { carMenu(m); } }).show();
@@ -1347,6 +1438,12 @@ public class Dash implements Obd.Listener {
             boolean has = CarImg.has(m, slots[i]) || ("rear".equals(slots[i]) && CarImg.has(m, "top")) || ("rear_lit".equals(slots[i]) && CarImg.has(m, "top_lit"));
             list.add((has ? "✓  " : "") + names[i]); act.add(slots[i]);
         }
+        list.add((CarVideo.has(m) ? "✓  " : "") + I18n.L("فيديو السيارة (ترحيب + ثيم «عرض السيارة»)", "Car video (welcome + “Car showcase” theme)")); act.add("video");
+        if (CarVideo.has(m)) {
+            boolean on = m.getSharedPreferences("launcher", 0).getBoolean("video_intro", true);
+            list.add(I18n.L("فيديو الترحيب عند التشغيل: ", "Welcome video at start: ") + (on ? I18n.L("مفعّل", "on") : I18n.L("متوقف", "off"))); act.add("intro");
+            list.add(I18n.L("حذف فيديو السيارة", "Remove the car video")); act.add("delvideo");
+        }
         list.add(I18n.L("الإضاءة: ", "Lights: ") + litName(litMode(m))); act.add("lit");
         list.add(I18n.L("نوع السيارة المرسومة ولونها (عند عدم وجود صورة)", "Drawn car type & colour (when no photo)")); act.add("art");
         if (CarImg.hasAny(m) || CarImg.has(m, "logo")) { list.add(I18n.L("إزالة صوري كلها", "Remove all my photos")); act.add("clear"); }
@@ -1356,6 +1453,8 @@ public class Dash implements Obd.Listener {
                 if ("art".equals(a)) m.carLookPublic();
                 else if ("clear".equals(a)) { CarImg.clearAll(m); m.rebuildPublic(); }
                 else if ("lit".equals(a)) chooseLit(m);
+                else if ("intro".equals(a)) { SharedPreferences sp = m.getSharedPreferences("launcher", 0); sp.edit().putBoolean("video_intro", !sp.getBoolean("video_intro", true)).apply(); carMenu(m); }
+                else if ("delvideo".equals(a)) { CarVideo.delete(m); m.rebuildPublic(); }
                 else pickSource(m, a);
             }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
     }

@@ -104,6 +104,8 @@ public class DiagActivity extends Screen {
     protected void build(FrameLayout content) {
         if (getIntent() != null && getIntent().getBooleanExtra("autowatch", false))
             h.postDelayed(new Runnable() { public void run() { if (!watching) startWatch(); } }, 1500);
+        if (getIntent() != null && getIntent().getBooleanExtra("autosend", false))
+            h.postDelayed(new Runnable() { public void run() { send(); } }, 5000);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(16), 0, px(16), px(10));
@@ -122,6 +124,12 @@ public class DiagActivity extends Screen {
         LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-2, -2);
         marginStart(sl, px(10));
         bar.addView(save, sl);
+        LinearLayout send = pill("cloud", I18n.L("إرسال التقرير", "Send report"), false, new View.OnClickListener() {
+            public void onClick(View v) { send(); }
+        });
+        LinearLayout.LayoutParams sl2 = new LinearLayout.LayoutParams(-2, -2);
+        marginStart(sl2, px(10));
+        bar.addView(send, sl2);
         col.addView(bar, new LinearLayout.LayoutParams(-1, px(52)));
 
         TextView help = multi(I18n.L(
@@ -318,11 +326,7 @@ public class DiagActivity extends Screen {
             tf2.addAction(TwService.BEAT);
             registerReceiver(twRx, tf2);
         } catch (Throwable ignored) { }
-        String badNow = TwService.read(TwService.stageFile(this)) + " " + TwService.read(TwService.badFile(this)).replace('\n', ' ');
-        if (badNow.trim().length() > 0) event(I18n.L("دفعات TW تسبّبت بانهيار سابقاً وستُتخطّى: ", "TW batches that crashed before (skipped): ") + badNow.trim(), null, null);
-        TwService.start(this, "sniff", 0);
-        event(I18n.L("TW: تشغيل القناة بعملية منفصلة…", "TW: starting the channel in a separate process…"), null, null);
-        h.postDelayed(twWatchdog, 5000);
+        event(I18n.L("TW: موقوفة (مكتبة الشاشة تنهار عند فتحها) · نراقب السطوع والإعدادات والخصائص", "TW: off (the screen library crashes) · watching brightness, settings and properties") + " · " + I18n.L("السطوع الآن: ", "brightness now: ") + Dash.backlight(), null, null);
         for (Uri u : new Uri[]{Settings.System.CONTENT_URI, Settings.Secure.CONTENT_URI}) {
             ContentObserver o = new ContentObserver(h) {
                 @Override public void onChange(boolean self, Uri uri) { h.removeCallbacks(poll); h.postDelayed(poll, 150); }
@@ -340,7 +344,7 @@ public class DiagActivity extends Screen {
         observers.clear();
         h.removeCallbacks(twWatchdog);
         try { unregisterReceiver(twRx); } catch (Throwable ignored) { }
-        TwService.stop(this);
+
         if (twSeen.length() > 0) events.append("── TW ").append(I18n.L("(القيم الأولى)", "(first values)")).append(" ──\n").append(twSeen);
         twSeen.setLength(0);
         event(I18n.L("انتهت المراقبة", "Watching stopped"), null, null);
@@ -392,9 +396,67 @@ public class DiagActivity extends Screen {
         while (cands.getChildCount() > 6) cands.removeViewAt(cands.getChildCount() - 1);
     }
 
+    private String reportText() {
+        return "My Car diagnostics · v" + Updates.currentVersion(this) + " · " + new Date() + "\n\n" + (events.length() > 0 ? "── Changes ──\n" + events + "\n" : "") + report;
+    }
+
+    /** يرفع التقرير لموقع لصق نصوص ويعرض رابطاً قصيراً يرسله المستخدم للمطوّر (بدل الفلاشة). */
+    private void send() {
+        final String text = reportText();
+        toast(I18n.L("جارِ الإرسال…", "Sending…"));
+        new Thread(new Runnable() { public void run() {
+            String url = null, err = "";
+            try { url = post("https://paste.rs/", text.getBytes("UTF-8"), "text/plain; charset=utf-8"); } catch (Throwable e) { err = String.valueOf(e); }
+            if (url == null || !url.startsWith("http")) {
+                try {
+                    String body = "content=" + java.net.URLEncoder.encode(text, "UTF-8") + "&syntax=text&expiry_days=30";
+                    url = post("https://dpaste.com/api/v2/", body.getBytes("UTF-8"), "application/x-www-form-urlencoded");
+                } catch (Throwable e) { err += " · " + e; }
+            }
+            final String u = url == null ? null : url.trim();
+            final String fe = err;
+            runOnUiThread(new Runnable() { public void run() {
+                TextView t = new TextView(DiagActivity.this);
+                t.setTextIsSelectable(true);
+                t.setPadding(px(20), px(16), px(20), px(8));
+                if (u != null && u.startsWith("http")) {
+                    t.setText(I18n.L("أرسل هذا الرابط للمطوّر (صوّره أو اكتبه):\n\n", "Send this link to the developer (photo or type it):\n\n") + u.replace("https://", ""));
+                    t.setTextSize(22);
+                } else {
+                    t.setText(I18n.L("تعذّر الإرسال. تأكد من الإنترنت وحاول مجدداً.\n", "Could not send. Check the internet and try again.\n") + fe);
+                    t.setTextSize(16);
+                }
+                t.setTextColor(0xFFFFFFFF);
+                new TB(DiagActivity.this, Main.dlg()).raw().setTitle(I18n.L("إرسال التقرير", "Send report")).setView(t)
+                    .setPositiveButton(I18n.L("تم", "OK"), null).show();
+            }});
+        }}).start();
+    }
+
+    private static String post(String url, byte[] body, String type) throws Exception {
+        java.net.HttpURLConnection c = Net.open(url, 20000);
+        c.setRequestMethod("POST");
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", type);
+        c.setFixedLengthStreamingMode(body.length);
+        java.io.OutputStream os = c.getOutputStream();
+        os.write(body); os.close();
+        int code = c.getResponseCode();
+        java.io.InputStream in = code < 400 ? c.getInputStream() : c.getErrorStream();
+        StringBuilder b = new StringBuilder();
+        if (in != null) { BufferedReader r = new BufferedReader(new InputStreamReader(in, "UTF-8")); String l; while ((l = r.readLine()) != null) b.append(l); r.close(); }
+        String loc = c.getHeaderField("Location");
+        c.disconnect();
+        if (code >= 300) throw new Exception("HTTP " + code);
+        String s = b.toString().trim();
+        if (!s.startsWith("http") && loc != null) s = loc;
+        return s;
+    }
+
     private void save() {
-        String text = "My Car diagnostics · " + new Date() + "\n\n" + (events.length() > 0 ? "── Changes ──\n" + events + "\n" : "") + report;
+        String text = reportText();
         List<String> ok = new ArrayList<String>();
+        List<String> bad = new ArrayList<String>();
         List<File> dirs = new ArrayList<File>();
         dirs.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS));
         File primary = Environment.getExternalStorageDirectory();
@@ -405,13 +467,24 @@ public class DiagActivity extends Screen {
                 if (d == null) continue;
                 d.mkdirs();
                 File f = new File(d, "MyCar-diag.txt");
+                byte[] data = text.getBytes("UTF-8");
                 FileOutputStream os = new FileOutputStream(f);
-                os.write(text.getBytes("UTF-8"));
+                os.write(data);
+                os.flush();
+                try { os.getFD().sync(); } catch (Throwable ignored) { }   // اكتب فعلياً قبل سحب الفلاشة
                 os.close();
+                // تحقق: نقرأ الملف ونقارن (بعض الشاشات لا تكتب المحتوى على الفلاشة)
+                byte[] back = new byte[(int) Math.min(f.length(), data.length)];
+                java.io.FileInputStream in = new java.io.FileInputStream(f);
+                int n = 0, r; while (n < back.length && (r = in.read(back, n, back.length - n)) > 0) n += r;
+                in.close();
+                if (n != data.length || !java.util.Arrays.equals(back, data)) { bad.add(f.getAbsolutePath()); continue; }
                 ok.add(f.getAbsolutePath());
             } catch (Throwable ignored) { }
         }
-        toast(ok.isEmpty() ? I18n.L("تعذّر الحفظ", "Could not save") : I18n.L("حُفظ في: ", "Saved to: ") + ok.get(0) + (ok.size() > 1 ? I18n.L(" وعلى الفلاشة", " and the USB stick") : ""));
+        String msg = ok.isEmpty() ? I18n.L("تعذّر الحفظ", "Could not save") : I18n.L("حُفظ في: ", "Saved to: ") + ok.get(0) + (ok.size() > 1 ? I18n.L(" وعلى الفلاشة · يمكنك سحبها الآن", " and the USB stick · you can unplug it now") : "");
+        if (!bad.isEmpty()) msg += I18n.L("\n⚠ الحفظ على الفلاشة فشل (الملف لم يُكتب صحيحاً). استعمل «إرسال التقرير».", "\n⚠ Saving to the USB stick failed. Use “Send report”.");
+        toast(msg);
     }
 
     @Override
@@ -428,7 +501,7 @@ public class DiagActivity extends Screen {
             if (src.startsWith("sys:")) return Settings.System.getString(c.getContentResolver(), src.substring(4));
             if (src.startsWith("sec:")) return Settings.Secure.getString(c.getContentResolver(), src.substring(4));
             if (src.startsWith("glob:") && Build.VERSION.SDK_INT >= 17) return Settings.Global.getString(c.getContentResolver(), src.substring(5));
-            if (src.startsWith("tw:")) { TwSignal.ensure(c, src); return TwSignal.liveValue; }
+            if (src.startsWith("tw:")) return null;   // قناة TW تنهار بهذه الشاشات: موقوفة
             if (src.startsWith("file:")) return readFile(src.substring(5));
             if (src.startsWith("prop:")) {
                 Class<?> sp = Class.forName("android.os.SystemProperties");

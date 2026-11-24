@@ -87,7 +87,7 @@ public class RoadView extends View {
                 c.drawCircle(x, y - ph, Math.max(1.5f, r * 0.022f * e + 1), p);
             }
         }
-        if (running && !lite() && (shown > 0.5f || Math.abs(d) > 0.3f)) postInvalidateDelayed(50);
+        if (running && (shown > 0.5f || Math.abs(d) > 0.3f)) postInvalidateDelayed(lite() ? 70 : 50);
         else last = 0;
     }
 

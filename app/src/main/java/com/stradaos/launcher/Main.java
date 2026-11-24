@@ -438,6 +438,7 @@ public class Main extends Activity {
     protected void onResume() {
         super.onResume();
         if (dash != null) dash.resume();
+        if (!introTried) { introTried = true; root.postDelayed(new Runnable() { public void run() { CarVideo.intro(Main.this, root); } }, 300); }
         if (homeFixing && SDK < 29) h.postDelayed(new Runnable() { public void run() { homeResult(); } }, 700);
         immersive();
         if (SDK >= 23 && !askedPerms) {
@@ -558,7 +559,9 @@ public class Main extends Activity {
                 else if (v.startsWith("mycar-pick:")) Dash.pickSource(Main.this, v.substring(11));
                 else if (v.startsWith("mycar-browse:")) { String[] pp = v.substring(13).split(":"); Dash.browse(Main.this, pp[0], "usb".equals(pp[1])); }
                 else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
+                else if ("mycar-intro".equals(v)) { prefs.edit().putLong("intro_boot", 0).apply(); CarVideo.intro(Main.this, root); }
                 else if ("mycar-diag".equals(v)) openScreen(DiagActivity.class);
+                else if ("mycar-diagsend".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autosend", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-diagwatch".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autowatch", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-triplog".equals(v)) Trip.showLog(Main.this);
                 else if (v.startsWith("mycar-pref:")) { String[] pp = v.substring(11).split("=", 2); if ("true".equals(pp[1]) || "false".equals(pp[1])) prefs.edit().putBoolean(pp[0], "true".equals(pp[1])).apply(); else prefs.edit().putString(pp[0], pp[1]).apply(); I18n.arabicDigits = prefs.getBoolean("digits_ar", false); rebuild(); }
@@ -1052,7 +1055,6 @@ public class Main extends Activity {
                     if (c != board && c != dash.view) c.setVisibility(View.INVISIBLE);
                 }
                 lastNightUi = systemNight();
-                TwSignal.ensure(Main.this, prefs.getString("lit_src", ""));
                 if (lastGpsKmh >= 0) dash.onSpeed(lastFix > 0, lastGpsKmh);
             } catch (Throwable e) {
                 Guard.log("Dash: " + e);
@@ -1091,7 +1093,7 @@ public class Main extends Activity {
         pendingPic = what;
         try {
             Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-            i.setType("image/*");
+            i.setType("video".equals(what) ? "video/*" : "image/*");
             if (i.resolveActivity(getPackageManager()) == null) { toast(I18n.L("لا يوجد تطبيق معرض بهذه الشاشة. استعمل الفلاشة أو ذاكرة الشاشة", "No gallery app on this screen. Use the USB stick or screen storage")); return; }
             startActivityForResult(i, REQ_DASHPIC);
         } catch (Throwable e) { toast(I18n.L("تعذّر فتح المعرض. استعمل الفلاشة أو ذاكرة الشاشة", "Could not open the gallery. Use the USB stick or screen storage")); }
@@ -4742,6 +4744,7 @@ public class Main extends Activity {
     private boolean lastNightUi = false;
     private int litTick;
     private Boolean lastLit;
+    private boolean introTried;
 
     private boolean systemNight() {
         try {

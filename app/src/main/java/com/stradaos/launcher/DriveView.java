@@ -216,7 +216,7 @@ public class DriveView extends View {
             c.drawBitmap(car, null, rf, p);
         }
 
-        if (running && !lite() && (shown > 0.5f || Math.abs(ds) > 0.3f)) postInvalidateDelayed(40);
+        if (running && (shown > 0.5f || Math.abs(ds) > 0.3f)) postInvalidateDelayed(lite() ? 70 : 40);
         else lastFrame = 0;
     }
 
