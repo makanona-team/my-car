@@ -44,6 +44,9 @@ go mycar-pic:top:/sdcard/Download/car_top.png 8
 go mycar-pic:side:/sdcard/Download/car_side.png 8
 go mycar-pic:logo:/sdcard/Download/car_side.png 6
 for L in garage center main modes tesla drive classic; do go mycar-dash:$L 8; shot 6_$L; done
+go mycar-dash:drive 8; shot 95_drive_day
+adb shell input swipe 640 560 640 560 1500; sleep 6; shot 95b_drive_toggled
+adb shell input swipe 640 560 640 560 1500; sleep 6; shot 95c_drive_back
 go mycar-dash:classic 8; gps 30; sleep 4; shot 90_classic_buttons
 go mycar-mapsrc:3 15; shot 91_sat
 go mycar-mapfull 10; shot 92_mapfull

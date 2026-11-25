@@ -69,10 +69,51 @@ public class Weather {
                     }
                 }
                 if (n == null) { l.onWeather(null, lastError); return; }
+                fetchLight(lat, lon);
                 n.city = city(c, lat, lon);
                 l.onWeather(n, null);
             }
         }).start();
+    }
+
+    // ── My Car: ضوء الشمس الواصل الآن (غيم كثيف/غبار/مطر يعتّم النهار) ──
+    static volatile double lightRatio = Double.NaN;   // الضوء الفعلي ÷ المتوقع بسماء صافية
+    static volatile long lightAt;
+    static volatile String lightInfo = "—";
+
+    /** طلب منفصل حتى لا يؤثر على الطقس إن رفض الخادم متغيراً. */
+    static void fetchLight(double lat, double lon) {
+        try {
+            String q = String.format(Locale.US, "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f&current=shortwave_radiation,cloud_cover&timezone=GMT", lat, lon);
+            JSONObject cur = new JSONObject(new String(Net.get(q, 10000), "UTF-8")).getJSONObject("current");
+            double sw = cur.getDouble("shortwave_radiation");
+            double elev = sunElevation(lat, lon, System.currentTimeMillis());
+            if (elev < 8) { lightRatio = Double.NaN; lightInfo = String.format(Locale.US, "sun %.0f°", elev); return; }   // قرب الشروق/الغروب: المغرب والشروق يكفي
+            double clear = 1000 * Math.pow(Math.sin(Math.toRadians(elev)), 1.15);
+            lightRatio = sw / Math.max(50, clear);
+            lightAt = System.currentTimeMillis();
+            lightInfo = String.format(Locale.US, "%.0f/%.0f W/m² (%.0f%%) · cloud %d%% · sun %.0f°", sw, clear, lightRatio * 100, cur.optInt("cloud_cover", -1), elev);
+        } catch (Throwable e) { lightInfo = "x " + e; }
+    }
+
+    /** النهار معتم الآن؟ (أحدث قياس خلال 90 دقيقة، وضوء أقل من 25% من سماء صافية) */
+    static boolean darkDay() {
+        return !Double.isNaN(lightRatio) && System.currentTimeMillis() - lightAt < 90 * 60000L && lightRatio < 0.25;
+    }
+
+    /** ارتفاع الشمس عن الأفق بالدرجات (تقريب NOAA). */
+    static double sunElevation(double lat, double lon, long ms) {
+        double d = ms / 86400000.0 - 10957.5;   // أيام منذ J2000
+        double g = Math.toRadians((357.529 + 0.98560028 * d) % 360);
+        double q = (280.459 + 0.98564736 * d) % 360;
+        double L = Math.toRadians((q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) % 360);
+        double e = Math.toRadians(23.439 - 0.00000036 * d);
+        double dec = Math.asin(Math.sin(e) * Math.sin(L));
+        double ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+        double gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+        double ha = Math.toRadians(gmst * 15 + lon) - ra;
+        double la = Math.toRadians(lat);
+        return Math.toDegrees(Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha)));
     }
 
     /** Sensación, humedad, viento, próximas horas y días. Cualquier dato que falte se deja vacío. */

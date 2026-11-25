@@ -1454,9 +1454,7 @@ public class Main extends Activity {
             else car.setImageBitmap(CarPhoto.cardCrop(photo, (int) (264 * s), (int) ((160 + dy) * s), 16 * s));
             car.setScaleType(ImageView.ScaleType.FIT_CENTER);
             place(card, car, 18, 78, 264, 160 + dy);
-            car.setOnLongClickListener(new View.OnLongClickListener() {
-                public boolean onLongClick(View v) { carLookMenu(); return true; }
-            });
+            Dash.litLong(this, car);   // My Car: لمسة مطوّلة = نهار ⇄ ليل
         } else if (!"none".equals(prefs.getString("car_art", "suv"))) {
             // My Car: رسم السيارة بالنوع واللون المختارين
             ImageView car = new ImageView(this);
