@@ -50,7 +50,8 @@ go mycar-mapfull 10; shot 92_mapfull
 back
 go mycar-mapsrc:2 12; shot 93_dark
 go mycar-mapsrc:0 3
-go mycar-dl:1.3.5 7; shot 94_dl_a; sleep 8; shot 94_dl_b
+adb shell appops set $PKG REQUEST_INSTALL_PACKAGES allow >/dev/null 2>&1 || true
+go mycar-dl:1.3.5 3; shot 94_dl_a; sleep 3; shot 94_dl_b; sleep 12; shot 94_dl_c
 back; back
 go mycar-dash:drive 8; shot 70_drive_a; sleep 1; shot 70_drive_b
 go mycar-dash:garage 6
