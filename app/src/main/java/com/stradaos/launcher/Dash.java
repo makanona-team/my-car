@@ -215,8 +215,8 @@ public class Dash implements Obd.Listener {
     static String litMode(Context c) {
         SharedPreferences sp = c.getSharedPreferences("launcher", 0);
         String md = sp.getString("car_lit", "auto");
-        if ("on".equals(md) || "off".equals(md) || "sun".equals(md) || "car".equals(md)) return md;
-        return "car";   // الافتراضي: حسب أضواء السيارة (سطوع الشاشة)، ويرجع للمغرب والشروق إن لم تتوفر إشارة
+        if ("on".equals(md) || "off".equals(md) || "sun".equals(md)) return md;
+        return "auto";   // تلقائي: المغرب والشروق + عتمة النهار حسب الطقس (+ تبديل يدوي بلمسة مطوّلة)
     }
 
     /** ملفات سطوع الشاشة: شاشات TW تعتّم الشاشة تلقائياً عند تشغيل أضواء السيارة. */
@@ -256,19 +256,36 @@ public class Dash implements Obd.Listener {
         String md = litMode(m);
         if ("on".equals(md)) return true;
         if ("off".equals(md)) return false;
-        if ("sun".equals(md)) return afterSunset(m);
+        boolean sun = afterSunset(m);
+        if ("sun".equals(md)) return sun;
+        // تبديل يدوي: ساعتان أو حتى أول مغرب/شروق
+        String man = sp.getString("lit_manual", "");
+        if (man.length() > 0) {
+            if (System.currentTimeMillis() < sp.getLong("lit_manual_until", 0) && sun == sp.getBoolean("lit_manual_sun", sun)) return "on".equals(man);
+            sp.edit().remove("lit_manual").apply();
+        }
         String src = sp.getString("lit_src", "");
-        if (src.length() > 0 && !src.startsWith("tw:")) {   // إشارة اختارها المستخدم من صفحة التشخيص
+        if (src.length() > 0 && !src.startsWith("tw:")) {   // إشارة اختارها المستخدم من صفحة التشخيص (إن وُجدت يوماً)
             String v = DiagActivity.signal(m, src);
             if (v != null) return v.equals(sp.getString("lit_on", ""));
         }
-        Boolean bl = litByBacklight(m);
-        if (bl != null) return bl;
-        try {
-            if ((m.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                    == android.content.res.Configuration.UI_MODE_NIGHT_YES) return true;
-        } catch (Throwable ignored) { }
-        return afterSunset(m);   // لا إشارة بعد: المغرب والشروق
+        return sun || Weather.darkDay();
+    }
+
+    /** لمسة مطوّلة على صورة السيارة: نهار ⇄ ليل فوراً. */
+    static void toggleLit(Main m) {
+        boolean now = litNow(m);
+        m.getSharedPreferences("launcher", 0).edit().putString("lit_manual", now ? "off" : "on")
+            .putLong("lit_manual_until", System.currentTimeMillis() + 2 * 3600000L).putBoolean("lit_manual_sun", afterSunset(m)).apply();
+        m.toastPublic(now ? I18n.L("صورة النهار ☀ (لساعتين أو حتى المغرب/الشروق)", "Day picture ☀ (2 h or until sunset/sunrise)")
+                          : I18n.L("صورة الليل 🌙 (لساعتين أو حتى المغرب/الشروق)", "Night picture 🌙 (2 h or until sunset/sunrise)"));
+        m.rebuildPublic();
+    }
+
+    static void litLong(final Main m, View v) {
+        if (v == null) return;
+        v.setLongClickable(true);
+        v.setOnLongClickListener(new View.OnLongClickListener() { public boolean onLongClick(View x) { toggleLit(m); return true; } });
     }
 
     private static long sunAt;
@@ -417,6 +434,7 @@ public class Dash implements Obd.Listener {
         speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), small ? 0.2f : 0.36f, true, font, black);
         road = new RoadView(m); road.setup(small ? 0.2f : 0.36f); in(mid, road, 30, 40, 540, 508);
         in(mid, speedo, 30, 40, 540, 508);
+        litLong(m, speedo);
         // اليمين
         buildClock(1090, 72, 170, 140);
         if (small) buildObdMini(1090, 222, 170, 390);
@@ -476,6 +494,7 @@ public class Dash implements Obd.Listener {
         speedo.setup(mph() ? 140 : 220, mph() ? "mph" : I18n.L("كم/س", "km/h"), accent(), CarImg.rear(m, lit()), 0.24f, true, font, black);
         road = new RoadView(m); road.setup(0.24f); in(mid, road, 80, 50, 500, 500);
         in(mid, speedo, 80, 50, 500, 500);
+        litLong(m, speedo);
         buildMiniPlayer(20, 646, 1240, 66, false);
     }
 
@@ -519,6 +538,7 @@ public class Dash implements Obd.Listener {
         car.setImageBitmap(CarImg.side(m, lit()));
         car.setScaleType(ImageView.ScaleType.FIT_CENTER);
         in(rc, car, 40, 70, 530, 310);
+        litLong(m, car);
         car.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { carMenu(); } });
         obdTemp = miniTile(rc, 410, 392, I18n.L("الحرارة", "Temp"), "thermostat");
         obdVolt = miniTile(rc, 215, 392, I18n.L("البطارية", "Battery"), "battery_charging_full");
@@ -561,6 +581,7 @@ public class Dash implements Obd.Listener {
         drive = new DriveView(m);
         drive.setup(mph() ? 130 : 200, mph() ? "mph" : I18n.L("كم/س", "km/h"), GOLD, CarImg.top(m, lit()), font, black);
         view.addView(drive, 0, new FrameLayout.LayoutParams(-1, -1));
+        litLong(m, drive);
         // أزرار علوية
         TextView exit = tv(I18n.L("خروج من وضع القيادة ✕", "Exit drive mode ✕"), 18, 0xFFFFFFFF, true);
         exit.setGravity(Gravity.CENTER);
@@ -1399,26 +1420,19 @@ public class Dash implements Obd.Listener {
 
     static String litName(String md) {
         return "on".equals(md) ? I18n.L("مضاءة دائماً", "Always on") : "off".equals(md) ? I18n.L("مطفأة دائماً", "Always off")
-            : "car".equals(md) ? I18n.L("حسب أضواء السيارة (سطوع الشاشة)", "Follow the car lights (screen dimming)") : I18n.L("حسب المغرب والشروق", "Sunset to sunrise");
+            : "auto".equals(md) ? I18n.L("تلقائي: المغرب والشروق + عتمة النهار (غيم/غبار)", "Auto: sunset/sunrise + dark daytime (clouds/dust)") : I18n.L("حسب المغرب والشروق فقط", "Sunset to sunrise only");
     }
 
     static void chooseLit(final Main m) {
-        final String[] ids = {"car", "sun", "on", "off", "relearn"};
+        final String[] ids = {"auto", "sun", "on", "off"};
         final SharedPreferences p = m.getSharedPreferences("launcher", 0);
         String cur = litMode(m);
         String[] names = new String[ids.length];
         for (int i = 0; i < ids.length; i++) names[i] = (ids[i].equals(cur) ? "●  " : "○  ") + litName(ids[i]);
-        int bv = backlight();
-        names[4] = "↻  " + I18n.L("إعادة تعلّم سطوع النهار والليل", "Re-learn day/night brightness")
-            + (bv >= 0 ? I18n.L(" (السطوع الآن: ", " (now: ") + bv + I18n.L("، نهار ", ", day ") + p.getInt("bl_max", bv) + I18n.L("، ليل ", ", night ") + p.getInt("bl_min", bv) + ")" : I18n.L(" (السطوع غير مقروء)", " (brightness not readable)"));
-        new TB(m, Main.dlg()).raw().setTitle(I18n.L("متى تظهر السيارة بأضواء مضاءة؟", "When to show the car with lights on?"))
+
+        new TB(m, Main.dlg()).raw().setTitle(I18n.L("متى تظهر السيارة بأضواء مضاءة؟", "When to show the car with lights on?") + "\n" + I18n.L("الضوء الآن: ", "Light now: ") + Weather.lightInfo)
             .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                if ("relearn".equals(ids[w])) {
-                    p.edit().remove("bl_max").remove("bl_min").apply();
-                    m.toastPublic(I18n.L("شغّل أضواء السيارة وأطفئها مرة ليتعلّم البرنامج السطوعين", "Switch the car lights on and off once so the app learns both levels"));
-                } else p.edit().putString("car_lit", ids[w]).apply();
-                if ("car".equals(ids[w]) && backlight() < 0)
-                    m.toastPublic(I18n.L("لا يمكن قراءة سطوع الشاشة هنا: سيُعتمد المغرب والشروق", "Screen brightness can't be read here: sunset/sunrise will be used"));
+                p.edit().putString("car_lit", ids[w]).remove("lit_manual").apply();
                 m.rebuildPublic();
                 carMenu(m);
             }}).setNegativeButton(I18n.L("رجوع", "Back"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { carMenu(m); } }).show();
