@@ -42,12 +42,31 @@ public class LiveMapView extends View {
         "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
         ESRI + "World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     };
-    static final String[] LABELS = {null, null, null, null, null, ESRI + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", null};
-    static final boolean[] DARKEN = {true, true, true, true, true, false, true};
-    static final String[] NAMES = {"Personalizada", "OSM Alemania", "OSM Francia", "OSM Humanitario", "OpenTopoMap", "Esri gris oscuro", "OpenStreetMap"};
-    static final int[] MAXZ = {18, 18, 18, 18, 17, 16, 18};
-    static final String[] ERR = new String[7];
+    static final String[] LABELS = {null, null, null, null, null, ESRI + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", null,
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"};
+    static final boolean[] DARKEN = {true, true, true, true, true, false, true, false};
+    static final String[] NAMES = {"Personalizada", "OSM Alemania", "OSM Francia", "OSM Humanitario", "OpenTopoMap", "Esri gris oscuro", "OpenStreetMap", "Esri satélite"};
+    static final int[] MAXZ = {18, 18, 18, 18, 17, 16, 18, 18};
+    static final String[] ERR = new String[8];
+
+    /** My Car · مصدر الخريطة: 0 تلقائي (ملف سوريا أولاً)، 1 شوارع أونلاين، 2 داكنة أونلاين، 3 قمر صناعي. */
+    static int src = 0;
+    static final String[] SRC_AR = {"بلا اتصال (ملف سوريا)", "شوارع أونلاين", "داكنة أونلاين", "قمر صناعي"};
+    static final String[] SRC_EN = {"Offline (Syria file)", "Streets online", "Dark online", "Satellite"};
+
+    static void setSrc(Context c, int s) {
+        src = s;
+        c.getSharedPreferences("launcher", 0).edit().putInt("map_src", s).apply();
+        if (s == 2) provider = 5;
+        else if (s == 3) provider = 7;
+        else if (s == 1 && (provider == 5 || provider == 7)) provider = 1;
+        okCount = 0; rounds = 0;
+        if (mem != null) mem.evictAll();
+    }
+
+    static boolean fileAllowed() { return src == 0; }
     static int rounds;      // vueltas completas sin éxito
     static int provider = 1;             // índice del que funciona
     static String lastError = "—";
@@ -135,11 +154,14 @@ public class LiveMapView extends View {
         sp = c.getSharedPreferences("launcher", 0);
         String custom = sp.getString("map_url", "").trim();
         URLS[0] = custom;
+        src = sp.getInt("map_src", 0);
         if (custom.length() > 0) provider = 0;
+        else if (src == 2) provider = 5;
+        else if (src == 3) provider = 7;
         else if (okCount == 0) {
             // empezar por la fuente que funcionó la última vez: así, sin internet, se encuentra lo que ya está en caché
             int saved = sp.getInt("map_provider", 0);
-            if (saved > 0 && saved < URLS.length) provider = saved;
+            if (saved > 0 && saved < URLS.length && saved != 7) provider = saved;
         }
         loadFile(c);
     }
@@ -182,7 +204,7 @@ public class LiveMapView extends View {
     /** ¿La posición actual se dibuja desde el mapa sin conexión? */
     public boolean usingFile() {
         OfflineMap f = fileMap;
-        return f != null && !Double.isNaN(tLat) && f.contains(tLat, tLon);
+        return fileAllowed() && f != null && !Double.isNaN(tLat) && f.contains(tLat, tLon);
     }
 
     /** Mapa claro → estilo oscuro (invierte y gira el tono 180°, como el "modo noche" de muchos mapas). */
@@ -313,7 +335,7 @@ public class LiveMapView extends View {
         boolean moving = step(SystemClock.uptimeMillis());
 
         if (!Double.isNaN(dLat)) {
-            OfflineMap fm = fileMap;
+            OfflineMap fm = fileAllowed() ? fileMap : null;
             boolean fileHere = fm != null && fm.contains(dLat, dLon);
             if (!fileHere && zoom > MAXZ[provider]) zoom = MAXZ[provider];
             int n = 1 << zoom;
@@ -454,9 +476,9 @@ public class LiveMapView extends View {
                                         continue;
                                     }
                                 }
-                                if (!noNet && provider == pv && okCount == 0 && layer == 0) {
+                                if (!noNet && provider == pv && okCount == 0 && layer == 0 && src < 2) {
                                     int nx = pv;
-                                    do { nx = (nx + 1) % URLS.length; if (nx == 1) rounds++; } while (URLS[nx].length() == 0);
+                                    do { nx = (nx + 1) % URLS.length; if (nx == 1) rounds++; } while (URLS[nx].length() == 0 || nx == 7);
                                     provider = nx;
                                 }
                                 throw ex;

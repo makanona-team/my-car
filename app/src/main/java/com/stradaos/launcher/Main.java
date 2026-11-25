@@ -561,6 +561,9 @@ public class Main extends Activity {
                 else if ("mycar-carmenu".equals(v)) Dash.carMenu(Main.this);
                 else if ("mycar-intro".equals(v)) { prefs.edit().putLong("intro_boot", 0).apply(); CarVideo.intro(Main.this, root); }
                 else if ("mycar-diag".equals(v)) openScreen(DiagActivity.class);
+                else if ("mycar-mapfull".equals(v)) mapFullscreen(true);
+                else if (v.startsWith("mycar-mapsrc:")) { LiveMapView.setSrc(Main.this, Integer.parseInt(v.substring(13))); rebuild(); }
+                else if (v.startsWith("mycar-dl:")) { Updates.Release rr = new Updates.Release(); rr.version = v.substring(9); rr.apkUrl = Updates.APK_PREFIX + rr.version + "/MyCar-" + rr.version + ".apk"; downloadUpdate(rr); }
                 else if ("mycar-diagsend".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autosend", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-diagwatch".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autowatch", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-triplog".equals(v)) Trip.showLog(Main.this);
@@ -777,6 +780,7 @@ public class Main extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (mapFull != null) { mapFullscreen(false); return; }
         if (settingsView != null) { closeSettings(); return; }
         closeDrawer(); // es la pantalla de inicio: atrás no la cierra
     }
@@ -899,10 +903,10 @@ public class Main extends Activity {
             if (bt != null && bt.isConnected() && (++btPoll % 3 == 0 || curTitle == null)) bt.refresh();
             updatePlayIcon();
             updateStatusIcons();
-            if (dash != null && ++litTick % 2 == 0) {   // My Car: تبدّل إشارة الأضواء ← صور السيارة المضاءة
+            if (++litTick % 2 == 0) {   // كل الثيمات (الكلاسيكي أيضاً)   // My Car: تبدّل إشارة الأضواء ← صور السيارة المضاءة
                 boolean lit = Dash.litNow(Main.this);
                 if (lastLit == null) lastLit = lit;
-                else if (lit != lastLit) { lastLit = lit; rebuild(); }
+                else if (lit != lastLit && mapFull == null) { lastLit = lit; rebuild(); }
             }
             if (++themeTick % 30 == 0) {
                 boolean was = LIGHT;
@@ -1260,7 +1264,11 @@ public class Main extends Activity {
         right.addView(greetTv);
         // sin la tarjeta del vehículo, la velocidad y el aceite ocupan la barra de arriba: el saludo se oculta
         if (!showCar || vertical) greetTv.setVisibility(View.GONE);
-        place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 552, 32);
+        place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 502, 32);
+        // My Car: زر الثيمات في الكلاسيكي أيضاً
+        View themesBtn = circleIcon("palette", 40, 22, CIRCLE);
+        place(board, themesBtn, ox + 914 + ex - (noDock ? 50 : 0), 12, 40, 40);
+        themesBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { Dash.chooseLayout(Main.this); } });
         if (noDock) {
             View appsBtn = circleIcon("apps", 40, 22, CIRCLE);
             place(board, appsBtn, ox + 914 + ex, 12, 40, 40);
@@ -2433,6 +2441,80 @@ public class Main extends Activity {
         seedLastLocation();
 
         buildAaCardRest(card);
+        mapButtons(card);
+    }
+
+    // ── My Car: مصدر الخريطة وملء الشاشة ──
+    private FrameLayout mapFull;
+
+    private TextView mapBtn(String t) {
+        TextView b = tv(t, 18, TEXT, true);
+        b.setGravity(Gravity.CENTER);
+        b.setBackground(round((CARD & 0x00FFFFFF) | 0xE0000000, 22));
+        return b;
+    }
+
+    private void mapButtons(FrameLayout card) {
+        if (liveMap == null) return;
+        TextView full = mapBtn("⛶");
+        place(card, full, mapW - 56 - insR, 14, 44, 44);
+        full.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { mapFullscreen(true); } });
+        TextView lay = mapBtn("◧");
+        place(card, lay, mapW - 108 - insR, 14, 44, 44);
+        lay.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { chooseMapSrc(); } });
+    }
+
+    void chooseMapSrc() {
+        String[] names = new String[4];
+        for (int i = 0; i < 4; i++) names[i] = (LiveMapView.src == i ? "●  " : "○  ") + I18n.L(LiveMapView.SRC_AR[i], LiveMapView.SRC_EN[i]);
+        new TB(this, dlg()).raw().setTitle(I18n.L("نوع الخريطة", "Map type"))
+            .setItems(names, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                LiveMapView.setSrc(Main.this, w);
+                if (w > 0) toast(I18n.L("تحتاج إنترنت. بدونه ترجع لخريطة بلا اتصال من القائمة نفسها", "Needs internet. Without it, switch back to offline from this menu"));
+                if (liveMap != null) liveMap.invalidate();
+                updateMapTag();
+            }}).setNegativeButton(I18n.L("إغلاق", "Close"), null).show();
+    }
+
+    /** ينقل الخريطة نفسها لطبقة تغطي الشاشة، ويعيدها لمكانها. */
+    void mapFullscreen(boolean on) {
+        if (liveMap == null) return;
+        try {
+            if (on && mapFull == null) {
+                ViewGroup home = (ViewGroup) liveMap.getParent();
+                liveMap.setTag(home);
+                home.removeView(liveMap);
+                mapFull = new FrameLayout(this);
+                mapFull.setBackgroundColor(0xFF000000);
+                mapFull.setClickable(true);
+                mapFull.addView(liveMap, new FrameLayout.LayoutParams(-1, -1));
+                LinearLayout bar = new LinearLayout(this);
+                TextView close = mapBtn("✕");
+                TextView lay = mapBtn("◧");
+                TextView zin = mapBtn("+");
+                bar.addView(close, new LinearLayout.LayoutParams((int) (52 * s), (int) (52 * s)));
+                for (TextView t : new TextView[]{lay, zin}) {
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (52 * s), (int) (52 * s));
+                    lp.leftMargin = (int) (10 * s);
+                    bar.addView(t, lp);
+                }
+                FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-2, -2);
+                bl.gravity = Gravity.TOP | Gravity.RIGHT;
+                bl.setMargins(0, (int) (16 * s), (int) (16 * s), 0);
+                mapFull.addView(bar, bl);
+                close.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { mapFullscreen(false); } });
+                lay.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { chooseMapSrc(); } });
+                zin.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { liveMap.cycleZoom(); } });
+                root.addView(mapFull, new FrameLayout.LayoutParams(-1, -1));
+                liveMap.setVisibility(View.VISIBLE);
+            } else if (!on && mapFull != null) {
+                mapFull.removeView(liveMap);
+                ((ViewGroup) mapFull.getParent()).removeView(mapFull);
+                mapFull = null;
+                Object home = liveMap.getTag();
+                if (home instanceof ViewGroup) ((ViewGroup) home).addView(liveMap, 1, new FrameLayout.LayoutParams(-1, -1));
+            }
+        } catch (Throwable e) { Guard.log("mapFullscreen: " + e); }
     }
 
     private void buildAaCardRest(FrameLayout card) {
@@ -2902,6 +2984,7 @@ public class Main extends Activity {
         else if (!live && st == 2) mapTagTv.setText(I18n.t("Ubicación apagada · toca aquí"));
         else if (liveMap == null || !liveMap.hasFix())
             mapTagTv.setText(I18n.t(gpsStartAt > 0 && SystemClock.elapsedRealtime() - gpsStartAt > 180000 ? "Sin señal GPS · toca aquí" : "Buscando GPS…"));
+        else if (live && LiveMapView.src > 0) mapTagTv.setText(I18n.L(LiveMapView.SRC_AR[LiveMapView.src], LiveMapView.SRC_EN[LiveMapView.src]));
         else if (liveMap.usingFile()) mapTagTv.setText(I18n.t(live ? "Mapa sin conexión" : "Sin señal GPS · mapa sin conexión"));
         else if (liveMap.offline()) mapTagTv.setText(I18n.t(live ? "En vivo · sin internet" : "Sin señal GPS ni internet"));
         else mapTagTv.setText(I18n.t(live ? "Mapa en vivo" : "Sin señal GPS · última posición"));
@@ -4108,6 +4191,7 @@ public class Main extends Activity {
             "cn.manstep.phonemirrorBox.nomap", "com.suding.speedplay", "com.tlink.carplay", "com.syu.carlink", "com.carlinkit.autokit"};
 
     private void rebuild() {
+        if (mapFull != null) { try { ((ViewGroup) mapFull.getParent()).removeView(mapFull); } catch (Throwable ignored) { } mapFull = null; }
         builtW = 0;
         if (root.getWidth() > 0) build(root.getWidth(), root.getHeight());
     }
@@ -6212,6 +6296,7 @@ public class Main extends Activity {
     private void sleepNow() {
         if (sleeping) return;
         sleeping = true;
+        sleptAt = System.currentTimeMillis();
         try {
             if (dash != null) dash.pause();
             stopGps();
@@ -6223,10 +6308,17 @@ public class Main extends Activity {
 
     private boolean obdWasOn;
 
+    private long sleptAt;
+
     private void wakeNow() {
         if (!sleeping) return;
         sleeping = false;
         try {
+            // شاشات السيارات تنام ولا تطفأ: الترحيب عند الاستيقاظ بعد نوم أطول من دقيقة
+            if (System.currentTimeMillis() - sleptAt > 60000) {
+                prefs.edit().putLong("intro_boot", 0).apply();
+                root.postDelayed(new Runnable() { public void run() { CarVideo.intro(Main.this, root); } }, 800);
+            }
             if (hasWindowFocus()) {
                 if (dash != null) dash.resume();
                 startGps();
@@ -6622,34 +6714,107 @@ public class Main extends Activity {
         b.show();
     }
 
-    /** Descarga el APK y abre el instalador; si esta pantalla no puede conectarse, muestra el código QR. */
+    /**
+     * My Car: تحميل التحديث بعدّاد وإلغاء، ويكمل من حيث توقف، ويجرّب مصادر بديلة إن علق مصدر
+     * (روابط GitHub Releases قد تعلق في بعض الشبكات). إن فشل كل شيء: رمز QR للتحميل من الموبايل.
+     */
     private void downloadUpdate(final Updates.Release r) {
         if (!unknownSourcesOk()) return;
-        final ProgressDialogLite pd = new ProgressDialogLite("Descargando StradaOS " + r.version + "…");
+        if (r.apkUrl == null || !r.apkUrl.startsWith(Updates.APK_PREFIX)) { linkDialog("My Car " + r.version, I18n.L("حمّل الإصدار من:", "Download it from:"), r.pageUrl); return; }
+        final String name = "MyCar-" + r.version + ".apk";
+        final String[] srcs = {
+            r.apkUrl,
+            "https://raw.githubusercontent.com/" + Updates.OWNER + "/" + Updates.REPO + "/apk/" + name,
+            "https://cdn.jsdelivr.net/gh/" + Updates.OWNER + "/" + Updates.REPO + "@apk/" + name,
+        };
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (22 * s);
+        l.setPadding(pad, pad, pad, (int) (8 * s));
+        final TextView status = tv(I18n.L("جارِ الاتصال…", "Connecting…"), 16, TEXT, false);
+        status.setSingleLine(false);
+        l.addView(status);
+        final android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, (int) (18 * s));
+        bl.topMargin = (int) (14 * s);
+        l.addView(bar, bl);
+        final boolean[] cancel = {false};
+        final AlertDialog dlgD = new TB(this, dlg()).setTitle(I18n.L("تحميل My Car ", "Downloading My Car ") + r.version).setView(l)
+            .setNegativeButton(I18n.L("إلغاء", "Cancel"), new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { cancel[0] = true; } })
+            .setCancelable(true).create();
+        dlgD.setCanceledOnTouchOutside(false);
+        dlgD.setOnCancelListener(new DialogInterface.OnCancelListener() { public void onCancel(DialogInterface d) { cancel[0] = true; } });
+        dlgD.show();
         new Thread(new Runnable() { public void run() {
-            File out = null;
-            try {
-                if (r.apkUrl == null || !r.apkUrl.startsWith(Updates.APK_PREFIX)) throw new Exception("origen no permitido");
-                byte[] data = Net.get(r.apkUrl, 60000);
-                File dir = getExternalFilesDir(null);
-                if (dir == null) dir = getFilesDir();
-                dir.mkdirs();
-                out = new File(dir, "MyCar-" + r.version + ".apk");
-                java.io.FileOutputStream os = new java.io.FileOutputStream(out);
-                os.write(data);
-                os.close();
-                out.setReadable(true, false);
-                if (!verifyApk(out)) {
-                    Guard.log("Actualización rechazada: el APK descargado no es StradaOS firmado con la misma llave.");
-                    out.delete();
-                    out = null;
+            File dir = getExternalFilesDir(null);
+            if (dir == null) dir = getFilesDir();
+            dir.mkdirs();
+            final File part = new File(dir, name + ".part");
+            File done = null;
+            String err = "";
+            for (int round = 0; round < 2 && done == null && !cancel[0]; round++) {
+                for (int si = 0; si < srcs.length && done == null && !cancel[0]; si++) {
+                    final int srcNo = si + 1;
+                    java.net.HttpURLConnection c = null;
+                    try {
+                        long have = part.exists() ? part.length() : 0;
+                        c = Net.open(srcs[si], 15000);
+                        c.setInstanceFollowRedirects(true);
+                        if (have > 0) c.setRequestProperty("Range", "bytes=" + have + "-");
+                        int code = c.getResponseCode();
+                        if (code == 416) { part.delete(); throw new Exception("416"); }
+                        if (code != 200 && code != 206) throw new Exception("HTTP " + code);
+                        if (code == 200) have = 0;   // الخادم لا يدعم الإكمال: من البداية
+                        long len = c.getContentLength();
+                        final long total = len > 0 ? len + have : -1;
+                        java.io.InputStream in = c.getInputStream();
+                        java.io.FileOutputStream os = new java.io.FileOutputStream(part, have > 0);
+                        byte[] buf = new byte[16384];
+                        int n;
+                        long got = have, t0 = System.currentTimeMillis(), lastUi = 0, base = have;
+                        while ((n = in.read(buf)) > 0) {
+                            if (cancel[0]) break;
+                            os.write(buf, 0, n);
+                            got += n;
+                            long now = System.currentTimeMillis();
+                            if (now - lastUi > 300) {
+                                lastUi = now;
+                                final long g = got;
+                                final long kbs = (got - base) / Math.max(1, (now - t0) / 1000 + 1) / 1024;
+                                runOnUiThread(new Runnable() { public void run() {
+                                    if (total > 0) bar.setProgress((int) (g * 1000 / total)); else bar.setIndeterminate(true);
+                                    status.setText(String.format(java.util.Locale.US, "%.1f / %s MB · %d KB/s · %s %d",
+                                        g / 1048576.0, total > 0 ? String.format(java.util.Locale.US, "%.1f", total / 1048576.0) : "?",
+                                        kbs, I18n.L("المصدر", "source"), srcNo));
+                                }});
+                            }
+                        }
+                        os.close();
+                        in.close();
+                        if (cancel[0]) break;
+                        if (total > 0 && part.length() != total) throw new Exception("incomplete");
+                        File out = new File(dir, name);
+                        out.delete();
+                        if (!part.renameTo(out)) throw new Exception("rename");
+                        out.setReadable(true, false);
+                        if (!verifyApk(out)) { out.delete(); part.delete(); throw new Exception("bad signature"); }
+                        done = out;
+                    } catch (Throwable e) {
+                        err = "[" + srcNo + "] " + e;
+                        Guard.log("Update download " + err);
+                        final String fe = err;
+                        runOnUiThread(new Runnable() { public void run() { status.setText(I18n.L("تعذّر، جارِ تجربة مصدر آخر…\n", "Failed, trying another source…\n") + fe); }});
+                    } finally { if (c != null) try { c.disconnect(); } catch (Throwable ignored) { } }
                 }
-            } catch (Throwable e) { out = null; }
-            final File f = out;
+            }
+            final File f = done;
+            final boolean cancelled = cancel[0];
             runOnUiThread(new Runnable() { public void run() {
-                pd.dismiss();
-                if (f != null) installFile(f, "StradaOS " + r.version);
-                else linkDialog("Descárgala desde tu celular", "Esta pantalla no pudo descargar el archivo. Escanea el código, descarga el APK y pásalo por USB.", r.pageUrl);
+                try { dlgD.dismiss(); } catch (Throwable ignored) { }
+                if (cancelled) { toast(I18n.L("أُلغي التحميل. سيكمل من حيث توقف في المرة القادمة", "Download cancelled. It will resume next time")); return; }
+                if (f != null) installFile(f, "My Car " + r.version);
+                else linkDialog(I18n.L("حمّله من موبايلك", "Download it from your phone"), I18n.L("الشاشة لم تستطع التحميل. امسح الرمز بالموبايل، حمّل الملف وانقله بالفلاشة.", "The screen could not download it. Scan the code with your phone, download the file and copy it by USB."), r.pageUrl);
             }});
         }}).start();
     }
