@@ -44,6 +44,15 @@ go mycar-pic:top:/sdcard/Download/car_top.png 8
 go mycar-pic:side:/sdcard/Download/car_side.png 8
 go mycar-pic:logo:/sdcard/Download/car_side.png 6
 for L in garage center main modes tesla drive classic; do go mycar-dash:$L 8; shot 6_$L; done
+go mycar-dash:classic 8; gps 30; sleep 4; shot 90_classic_buttons
+go mycar-mapsrc:3 15; shot 91_sat
+go mycar-mapfull 10; shot 92_mapfull
+back
+go mycar-mapsrc:2 12; shot 93_dark
+go mycar-mapsrc:0 3
+adb shell appops set $PKG REQUEST_INSTALL_PACKAGES allow >/dev/null 2>&1 || true
+go mycar-dl:1.3.5 3; shot 94_dl_a; sleep 3; shot 94_dl_b; sleep 12; shot 94_dl_c
+back; back
 go mycar-dash:drive 8; shot 70_drive_a; sleep 1; shot 70_drive_b
 go mycar-dash:garage 6
 go mycar-pic:rear_lit:/sdcard/Download/car_rear_lit.png 6
