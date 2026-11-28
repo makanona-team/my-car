@@ -73,6 +73,7 @@ final class CarSignals {
             while (log.size() > 60) log.removeLast();
         }
         Guard.log("signal: " + d);
+        android.util.Log.i("MyCarSig", d + " -> night=" + nightOf(a, d));
         Boolean nd = nightOf(a, d);
         if (nd != null) {
             dark = nd;

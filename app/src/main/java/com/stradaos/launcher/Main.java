@@ -441,6 +441,7 @@ public class Main extends Activity {
         CarSignals.register(this);
         CarSignals.onLight = new Runnable() { public void run() { root.post(new Runnable() { public void run() {
             boolean l = Dash.litNow(Main.this);
+            android.util.Log.i("MyCarSig", "lit now=" + l + " was=" + lastLit);
             if (lastLit == null || l != lastLit) { lastLit = l; if (mapFull == null) rebuild(); }
         }}); } };
         if (!introTried) { introTried = true; root.postDelayed(new Runnable() { public void run() { CarVideo.intro(Main.this, root); } }, 300); }
