@@ -18,6 +18,7 @@ adb shell am start -n $ACT --es prueba saltar >/dev/null; sleep 25
 gps 35
 shot() { adb shell screencap -p /data/local/tmp/s.png && adb pull /data/local/tmp/s.png $OUT/$1.png >/dev/null; echo "shot $1"; }
 go() { adb shell am start -n $ACT --es prueba "$1" >/dev/null; sleep "${2:-6}"; }
+if [ -n "$QUICK" ]; then eval "$QUICK"; adb logcat -d > $OUT/logcat.txt; exit 0; fi
 back() { adb shell input keyevent 4; sleep 3; }
 go unidad:kmh 6
 # صور اختبار على الذاكرة

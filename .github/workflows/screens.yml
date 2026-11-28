@@ -3,6 +3,11 @@ name: صور من المحاكي (Emulator screenshots)
 # يدوي: يبني نسخة التجربة ويشغّلها على محاكي 1280x720 ويحفظ الصور في الفرع «screens».
 on:
   workflow_dispatch:
+    inputs:
+      quick:
+        description: "اختبار سريع: أوامر بدل السكربت الكامل"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -34,7 +39,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1280x720
           emulator-boot-timeout: 900
-          script: bash .github/scripts/screens.sh
+          script: QUICK="${{ github.event.inputs.quick }}" bash .github/scripts/screens.sh
       - name: Push screenshots
         if: always()
         env:

@@ -475,6 +475,7 @@ public class DiagActivity extends Screen {
                         + (r.filesUrl == null ? I18n.L("\n\n(لم تُرفع ملفات الكود، التقرير وحده)", "\n\n(code files not uploaded, report only)") : ""));
                     t.setTextSize(22);
                 } else t.setText(I18n.L("تعذّر الرفع. تأكد من الإنترنت وحاول مجدداً.\n", "Upload failed. Check the internet and retry.\n") + r.error);
+                android.util.Log.i("MyCarScan", "report=" + r.reportUrl + " files=" + r.filesUrl + " err=" + r.error);
                 events.append("factory scan: report=").append(r.reportUrl).append(" files=").append(r.filesUrl).append('\n');
             }});
         }}).start();
