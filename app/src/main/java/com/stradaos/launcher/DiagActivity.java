@@ -474,10 +474,9 @@ public class DiagActivity extends Screen {
                 public void on(final String s) { runOnUiThread(new Runnable() { public void run() { t.setText(s); } }); }
             });
             runOnUiThread(new Runnable() { public void run() {
-                String link = r.reportUrl != null ? r.reportUrl : r.filesUrl;
+                String link = r.reportUrl;
                 if (link != null) {
-                    t.setText(I18n.L("تم ✓ أرسل هذا الرابط للمطوّر (صوّره أو اكتبه):\n\n", "Done ✓ Send this link to the developer:\n\n") + link.replace("https://", "")
-                        + (r.filesUrl == null ? I18n.L("\n\n(لم تُرفع ملفات الكود، التقرير وحده)", "\n\n(code files not uploaded, report only)") : ""));
+                    t.setText(I18n.L("تم ✓ أرسل هذا الرابط للمطوّر (صوّره أو اكتبه):\n\n", "Done ✓ Send this link to the developer:\n\n") + link.replace("https://", ""));
                     t.setTextSize(22);
                 } else t.setText(I18n.L("تعذّر الرفع. تأكد من الإنترنت وحاول مجدداً.\n", "Upload failed. Check the internet and retry.\n") + r.error);
                 android.util.Log.i("MyCarScan", "report=" + r.reportUrl + " files=" + r.filesUrl + " err=" + r.error);

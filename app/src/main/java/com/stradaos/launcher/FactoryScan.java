@@ -79,7 +79,7 @@ final class FactoryScan {
                     boolean dex = n.matches("classes\\d*\\.dex"), man = n.equals("AndroidManifest.xml");
                     if (!dex && !man) continue;
                     byte[] data = readAll(z.getInputStream(e));
-                    if (total + data.length < 60L * 1024 * 1024) {   // حد الرفع
+                    if (false) {   // لم نعد نرفع الكود الثنائي (مواقع الرفع ترفض)؛ التقرير النصي يكفي
                         zo.putNextEntry(new ZipEntry(a.packageName + "/" + n));
                         zo.write(data);
                         zo.closeEntry();
@@ -89,6 +89,12 @@ final class FactoryScan {
                     for (String s : dex ? dexStrings(data) : axmlStrings(data))
                         if (s.length() >= 3 && s.length() < 160 && KEY.matcher(s).find()) hits.add(s);
                     rep.append("  [").append(n).append("] ").append(hits.size()).append(" hits\n");
+                    if (dex) {
+                        List<String> arrs = shortArrays(data);
+                        rep.append("  short[] arrays (TWUtil ids?): ").append(arrs.size()).append('\n');
+                        int q = 0;
+                        for (String a2 : arrs) { rep.append("    ").append(a2).append('\n'); if (++q >= 150) break; }
+                    }
                     int k = 0;
                     for (String s : hits) { rep.append("    ").append(s).append('\n'); if (++k >= (man ? 400 : 700)) { rep.append("    …\n"); break; } }
                 }
@@ -102,10 +108,27 @@ final class FactoryScan {
             if (dev != null) { rep.append("\n/dev tw*: "); for (File f : dev) if (f.getName().toLowerCase(Locale.US).startsWith("tw")) rep.append(f.getName()).append(f.canRead() ? "(r) " : " "); rep.append('\n'); }
         } catch (Throwable ignored) { }
         res.report = rep.toString();
-        res.filesUrl = uploadFile(zipF, res, p);
+        zipF.delete();
         p.on(I18n.L("أرفع التقرير…", "Uploading the report…"));
-        try { res.reportUrl = DiagActivity.postText(res.report + "\n\nfiles: " + res.filesUrl + "\n" + res.error); } catch (Throwable e) { res.error += "report: " + e + "\n"; }
+        String txt = res.report;
+        if (txt.length() > 230000) txt = txt.substring(0, 230000) + "\n…(cut)";
+        try { res.reportUrl = DiagActivity.postText(txt + "\n" + res.error); } catch (Throwable e) { res.error += "report: " + e + "\n"; }
         return res;
+    }
+
+    /** مصفوفات short ثابتة في الكود (fill-array-data بعرض 2): غالباً قوائم أرقام رسائل TWUtil. */
+    static List<String> shortArrays(byte[] d) {
+        List<String> out = new ArrayList<String>();
+        Set<String> seen = new LinkedHashSet<String>();
+        for (int i = 0x70; i + 8 < d.length; i += 2) {
+            if (d[i] != 0x00 || d[i + 1] != 0x03 || u16(d, i + 2) != 2) continue;
+            int n = u32(d, i + 4);
+            if (n < 1 || n > 128 || i + 8 + n * 2 > d.length) continue;
+            StringBuilder b = new StringBuilder();
+            for (int k = 0; k < n; k++) { if (k > 0) b.append(','); b.append(String.format(Locale.US, "0x%04X", u16(d, i + 8 + k * 2))); }
+            if (seen.add(b.toString())) out.add("[" + n + "] " + b);
+        }
+        return out;
     }
 
     static byte[] readAll(InputStream in) throws Exception {
