@@ -1,0 +1,40 @@
+name: decomp
+# فكّ كود لانشر المصنع الذي يرفعه «كاشف لانشر المصنع» من الشاشة (للبحث عن إشارة الأضواء)
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "رابط ملف factory-code.zip"
+        required: true
+permissions:
+  contents: write
+jobs:
+  decomp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: تنزيل وفكّ
+        run: |
+          set -x
+          mkdir -p w out && cd w
+          curl -fsSL -A "curl/8.0" -o code.zip "${{ github.event.inputs.url }}"
+          unzip -q code.zip -d src
+          curl -fsSL -o jadx.zip https://github.com/skylot/jadx/releases/download/v1.5.1/jadx-1.5.1.zip
+          unzip -q jadx.zip -d jadx
+          for d in src/*/; do
+            p=$(basename "$d")
+            (cd "$d" && zip -q -r "../../$p.apk" .)
+            ./jadx/bin/jadx -q -d "../out/$p" --no-res --show-bad-code "$p.apk" || true
+            [ -f "$d/AndroidManifest.xml" ] && ./jadx/bin/jadx -q -d "../out/$p-res" --no-src "$p.apk" || true
+          done
+          cd ../out && find . -name '*.java' | wc -l
+          grep -rniE "ill|light|lamp|night|TWUtil|sendBroadcast|registerReceiver|bindService" --include=*.java . | grep -viE "highlight|lighter|delight" | head -3000 > ../hits.txt || true
+          mv ../hits.txt .
+      - name: حفظ في فرع decomp
+        run: |
+          cd out
+          git init -q -b decomp
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "decomp" && git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" decomp

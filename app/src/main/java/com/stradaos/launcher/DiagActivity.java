@@ -104,6 +104,8 @@ public class DiagActivity extends Screen {
     protected void build(FrameLayout content) {
         if (getIntent() != null && getIntent().getBooleanExtra("autowatch", false))
             h.postDelayed(new Runnable() { public void run() { if (!watching) startWatch(); } }, 1500);
+        if (getIntent() != null && getIntent().getBooleanExtra("autoscan", false))
+            h.postDelayed(new Runnable() { public void run() { factoryScan(); } }, 3000);
         if (getIntent() != null && getIntent().getBooleanExtra("autosend", false))
             h.postDelayed(new Runnable() { public void run() { send(); } }, 5000);
         LinearLayout col = new LinearLayout(this);
@@ -131,6 +133,14 @@ public class DiagActivity extends Screen {
         marginStart(sl2, px(10));
         bar.addView(send, sl2);
         col.addView(bar, new LinearLayout.LayoutParams(-1, px(52)));
+        LinearLayout bar2 = hbox();
+        bar2.setGravity(Gravity.CENTER_VERTICAL);
+        bar2.addView(pill("search", I18n.L("افحص لانشر المصنع (كيف يعرف الأضواء)", "Scan the factory launcher (how it knows the lights)"), true, new View.OnClickListener() {
+            public void onClick(View v) { factoryScan(); }
+        }), new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams b2 = new LinearLayout.LayoutParams(-1, px(52));
+        b2.topMargin = px(10);
+        col.addView(bar2, b2);
 
         TextView help = multi(I18n.L(
             "١) اضغط «ابدأ المراقبة» ٢) شغّل أضواء السيارة وانتظر ٥ ثوانٍ ٣) أطفئها وانتظر ٥ ثوانٍ ٤) اضغط «أوقف». ستظهر التغييرات بالأسفل؛ اضغط على التغيير الذي تبدّل مع الأضواء لاعتماده إشارةً للأضواء. ثم «حفظ التقرير» وصوّر الشاشة أو أرسل الملف.",
@@ -429,6 +439,43 @@ public class DiagActivity extends Screen {
                 t.setTextColor(0xFFFFFFFF);
                 new TB(DiagActivity.this, Main.dlg()).raw().setTitle(I18n.L("إرسال التقرير", "Send report")).setView(t)
                     .setPositiveButton(I18n.L("تم", "OK"), null).show();
+            }});
+        }}).start();
+    }
+
+    /** يرفع نصاً لموقع لصق ويعيد الرابط (paste.rs ثم dpaste). */
+    static String postText(String text) throws Exception {
+        String url = null;
+        try { url = post("https://paste.rs/", text.getBytes("UTF-8"), "text/plain; charset=utf-8"); } catch (Throwable ignored) { }
+        if (url == null || !url.startsWith("http")) {
+            String body = "content=" + java.net.URLEncoder.encode(text, "UTF-8") + "&syntax=text&expiry_days=30";
+            url = post("https://dpaste.com/api/v2/", body.getBytes("UTF-8"), "application/x-www-form-urlencoded");
+        }
+        return url == null ? null : url.trim();
+    }
+
+    /** كاشف لانشر المصنع: يقرأ كوده ويرفعه، ويعرض رابطين قصيرين. */
+    private void factoryScan() {
+        final TextView t = new TextView(this);
+        t.setTextIsSelectable(true);
+        t.setTextColor(0xFFFFFFFF);
+        t.setTextSize(17);
+        t.setPadding(px(20), px(16), px(20), px(8));
+        t.setText(I18n.L("جارِ القراءة…", "Reading…"));
+        final android.app.AlertDialog dlgS = new TB(this, Main.dlg()).raw().setTitle(I18n.L("كاشف لانشر المصنع", "Factory launcher scan")).setView(t)
+            .setPositiveButton(I18n.L("إغلاق", "Close"), null).show();
+        new Thread(new Runnable() { public void run() {
+            final FactoryScan.Result r = FactoryScan.run(DiagActivity.this, new FactoryScan.Progress() {
+                public void on(final String s) { runOnUiThread(new Runnable() { public void run() { t.setText(s); } }); }
+            });
+            runOnUiThread(new Runnable() { public void run() {
+                String link = r.reportUrl != null ? r.reportUrl : r.filesUrl;
+                if (link != null) {
+                    t.setText(I18n.L("تم ✓ أرسل هذا الرابط للمطوّر (صوّره أو اكتبه):\n\n", "Done ✓ Send this link to the developer:\n\n") + link.replace("https://", "")
+                        + (r.filesUrl == null ? I18n.L("\n\n(لم تُرفع ملفات الكود، التقرير وحده)", "\n\n(code files not uploaded, report only)") : ""));
+                    t.setTextSize(22);
+                } else t.setText(I18n.L("تعذّر الرفع. تأكد من الإنترنت وحاول مجدداً.\n", "Upload failed. Check the internet and retry.\n") + r.error);
+                events.append("factory scan: report=").append(r.reportUrl).append(" files=").append(r.filesUrl).append('\n');
             }});
         }}).start();
     }

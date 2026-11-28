@@ -564,6 +564,7 @@ public class Main extends Activity {
                 else if ("mycar-mapfull".equals(v)) mapFullscreen(true);
                 else if (v.startsWith("mycar-mapsrc:")) { LiveMapView.setSrc(Main.this, Integer.parseInt(v.substring(13))); rebuild(); }
                 else if (v.startsWith("mycar-dl:")) { Updates.Release rr = new Updates.Release(); rr.version = v.substring(9); rr.apkUrl = Updates.APK_PREFIX + rr.version + "/MyCar-" + rr.version + ".apk"; downloadUpdate(rr); }
+                else if ("mycar-scan".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autoscan", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-diagsend".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autosend", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-diagwatch".equals(v)) { try { startActivity(new Intent(Main.this, DiagActivity.class).putExtra("autowatch", true)); } catch (Throwable ignored) { } }
                 else if ("mycar-triplog".equals(v)) Trip.showLog(Main.this);
