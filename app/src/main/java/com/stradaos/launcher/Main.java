@@ -438,6 +438,11 @@ public class Main extends Activity {
     protected void onResume() {
         super.onResume();
         if (dash != null) dash.resume();
+        CarSignals.register(this);
+        CarSignals.onLight = new Runnable() { public void run() { root.post(new Runnable() { public void run() {
+            boolean l = Dash.litNow(Main.this);
+            if (lastLit == null || l != lastLit) { lastLit = l; if (mapFull == null) rebuild(); }
+        }}); } };
         if (!introTried) { introTried = true; root.postDelayed(new Runnable() { public void run() { CarVideo.intro(Main.this, root); } }, 300); }
         if (homeFixing && SDK < 29) h.postDelayed(new Runnable() { public void run() { homeResult(); } }, 700);
         immersive();
@@ -1265,11 +1270,14 @@ public class Main extends Activity {
         right.addView(greetTv);
         // sin la tarjeta del vehículo, la velocidad y el aceite ocupan la barra de arriba: el saludo se oculta
         if (!showCar || vertical) greetTv.setVisibility(View.GONE);
-        place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 502, 32);
+        place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 452, 32);
         // My Car: زر الثيمات في الكلاسيكي أيضاً
         View themesBtn = circleIcon("palette", 40, 22, CIRCLE);
         place(board, themesBtn, ox + 914 + ex - (noDock ? 50 : 0), 12, 40, 40);
         themesBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { Dash.chooseLayout(Main.this); } });
+        View ytBtn = circleIcon("play_arrow", 40, 22, 0xFFE62117);
+        place(board, ytBtn, ox + 864 + ex - (noDock ? 50 : 0), 12, 40, 40);
+        ytBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { openYouTube(); } });
         if (noDock) {
             View appsBtn = circleIcon("apps", 40, 22, CIRCLE);
             place(board, appsBtn, ox + 914 + ex, 12, 40, 40);
@@ -3148,6 +3156,7 @@ public class Main extends Activity {
         {"carplay", "CarPlay", "phone_iphone"}, {"web", "Navegador web", "public"}, {"files", "Archivos", "folder"},
         {"settings", "Ajustes", "settings"},
         {"iradio", "Radio por internet", "radio_tower"}, {"prayer", "Oración", "mosque"}, {"obd", "OBD2", "obd"},
+        {"youtube", "YouTube", "play_arrow"},
         {"add", "Agregar app", "add_circle"},
         {"apps", "Apps", "apps"},
     };
@@ -3333,6 +3342,20 @@ public class Main extends Activity {
         runFn(t.substring(3));
     }
 
+    /** يوتيوب: التطبيق الرسمي، أو أي مشغّل يوتيوب منصّب، أو المتصفح. */
+    void openYouTube() {
+        String[] pk = {"com.google.android.youtube", "app.revanced.android.youtube", "com.vanced.android.youtube",
+            "com.teamsmart.videomanager.tv", "com.liskovsoft.smarttubetv.beta", "org.schabi.newpipe", "free.rm.skytube.oss", "com.google.android.youtube.tv"};
+        for (String p : pk) {
+            try {
+                Intent i = getPackageManager().getLaunchIntentForPackage(p);
+                if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); return; }
+            } catch (Throwable ignored) { }
+        }
+        try { startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://m.youtube.com")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+        catch (Throwable e) { toast(I18n.L("لا يوجد يوتيوب ولا متصفح منصّب", "No YouTube app or browser installed")); }
+    }
+
     private void runFn(String id) {
         if ("radio".equals(id)) openSlot(0);
         else if ("bt".equals(id)) openSlot(1);
@@ -3347,6 +3370,7 @@ public class Main extends Activity {
         else if ("iradio".equals(id)) openScreen(RadioActivity.class);
         else if ("prayer".equals(id)) openScreen(PrayerActivity.class);
         else if ("obd".equals(id)) openScreen(ObdActivity.class);
+        else if ("youtube".equals(id)) openYouTube();
         else openDrawer();
     }
 

@@ -269,6 +269,7 @@ public class Dash implements Obd.Listener {
             String v = DiagActivity.signal(m, src);
             if (v != null) return v.equals(sp.getString("lit_on", ""));
         }
+        if (CarSignals.dark != null) return CarSignals.dark;   // رسالة الليل/النهار من الشاشة (مع أضواء السيارة)
         return sun || Weather.darkDay();
     }
 
@@ -354,6 +355,7 @@ public class Dash implements Obd.Listener {
                         }});
             }
         }
+        x = circleBtn(x + 4, "play_arrow", 0xFFE62117, 0xFFFFFFFF, new Runnable() { public void run() { m.runFnPublic("youtube"); } });
         x = circleBtn(x + 4, "settings", 0xFF5B6B7A, 0xFFFFFFFF, new Runnable() { public void run() { m.showSettingsPublic(Main.C_SYRIA); } });
         x = circleBtn(x + 6, "directions_car", 0xFFF2F4F7, 0xFF20242C, new Runnable() { public void run() { enterDrive(); } });
         float ww = Math.min(230, 910 - (x + 12));
@@ -634,6 +636,7 @@ public class Dash implements Obd.Listener {
         // أزرار سفلية
         roundAt(40, 612, "map", 0xFF2E6FD8, "nav");
         roundAt(120, 612, "music_note", 0xFF8E44AD, "music");
+        roundAt(200, 612, "play_arrow", 0xFFE62117, "youtube");
         roundAt(1176, 612, "directions_car", 0xFFE53935, null);
     }
 
@@ -873,6 +876,7 @@ public class Dash implements Obd.Listener {
 
     String fnIcon(String id) {
         if ("bt".equals(id)) return "call";
+        if ("youtube".equals(id)) return "play_arrow";
         for (String[] f : Main.DOCK_FNS) if (f[0].equals(id)) return f[2];
         return "apps";
     }
@@ -881,6 +885,7 @@ public class Dash implements Obd.Listener {
         if ("bt".equals(id)) return I18n.L("الهاتف", "Phone");
         if ("nav".equals(id)) return I18n.L("الملاحة", "Navigation");
         if ("apps".equals(id)) return I18n.L("التطبيقات", "Apps");
+        if ("youtube".equals(id)) return "YouTube";
         if ("music".equals(id)) return I18n.L("الموسيقى", "Music");
         if ("radio".equals(id)) return I18n.L("الراديو", "Radio");
         if ("iradio".equals(id)) return I18n.L("راديو إنترنت", "Web radio");
@@ -931,7 +936,7 @@ public class Dash implements Obd.Listener {
     void pickTarget(final int idx) {
         final List<String> targets = new ArrayList<String>();
         final List<String> names = new ArrayList<String>();
-        String[] fns = {"bt", "music", "radio", "iradio", "apps", "nav", "prayer", "obd", "settings"};
+        String[] fns = {"bt", "music", "radio", "iradio", "youtube", "apps", "nav", "prayer", "obd", "settings"};
         for (String f : fns) { targets.add("fn:" + f); names.add("★ " + fnName(f)); }
         try {
             PackageManager pm = m.getPackageManager();
@@ -1068,8 +1073,19 @@ public class Dash implements Obd.Listener {
         }
         Obd o = Obd.get(m);
         if (obdState != null) {
-            String s = o.state() == Obd.READY ? I18n.L("OBD متصل ✓", "OBD connected ✓") : o.state() == Obd.CONNECTING ? I18n.L("OBD يتصل…", "OBD connecting…") : I18n.L("OBD غير متصل", "OBD not connected");
-            obdState.setText("drive".equals(layout) ? (gpsOk ? "GPS ✓ · " : "GPS … · ") + s : s);
+            // أيقونات حالة بدل جملة طويلة: نقطة خضراء = يعمل، كهرمانية = يتصل، رمادية = متوقف
+            int oc = o.state() == Obd.READY ? 0xFF4ADE80 : o.state() == Obd.CONNECTING ? 0xFFFBBF24 : 0xFF6B7280;
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+            if ("drive".equals(layout)) {
+                sb.append("● ");
+                sb.setSpan(new android.text.style.ForegroundColorSpan(gpsOk ? 0xFF4ADE80 : 0xFFFBBF24), 0, 1, 0);
+                sb.append("GPS      ");
+            }
+            int st = sb.length();
+            sb.append("● ");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(oc), st, st + 1, 0);
+            sb.append("OBD");
+            obdState.setText(sb);
         }
     }
 
@@ -1186,7 +1202,7 @@ public class Dash implements Obd.Listener {
             else { r.addView(th, new LinearLayout.LayoutParams((int) (112 * s), (int) (63 * s))); r.addView(t, new LinearLayout.LayoutParams(0, -2, 1)); }
             r.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
                 if (dlg[0] != null) dlg[0].dismiss();
-                p.edit().putString("dash_layout", id).apply();
+                p.edit().putString("dash_layout", id).commit();   // حفظ فوري (الشاشة قد تنام مباشرة)
                 m.rebuildPublic();
             }});
             col.addView(r);
@@ -1420,7 +1436,7 @@ public class Dash implements Obd.Listener {
 
     static String litName(String md) {
         return "on".equals(md) ? I18n.L("مضاءة دائماً", "Always on") : "off".equals(md) ? I18n.L("مطفأة دائماً", "Always off")
-            : "auto".equals(md) ? I18n.L("تلقائي: المغرب والشروق + عتمة النهار (غيم/غبار)", "Auto: sunset/sunrise + dark daytime (clouds/dust)") : I18n.L("حسب المغرب والشروق فقط", "Sunset to sunrise only");
+            : "auto".equals(md) ? I18n.L("تلقائي: أضواء السيارة (من الشاشة)، وإلا المغرب والشروق والطقس", "Auto: car lights (from the screen), else sunset/sunrise and weather") : I18n.L("حسب المغرب والشروق فقط", "Sunset to sunrise only");
     }
 
     static void chooseLit(final Main m) {

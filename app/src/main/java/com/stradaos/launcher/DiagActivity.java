@@ -138,6 +138,11 @@ public class DiagActivity extends Screen {
         bar2.addView(pill("search", I18n.L("افحص لانشر المصنع (كيف يعرف الأضواء)", "Scan the factory launcher (how it knows the lights)"), true, new View.OnClickListener() {
             public void onClick(View v) { factoryScan(); }
         }), new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams sg = new LinearLayout.LayoutParams(-2, -2);
+        marginStart(sg, px(10));
+        bar2.addView(pill("explore", I18n.L("رسائل الشاشة (الأضواء والتشغيل)", "Screen messages (lights & ACC)"), false, new View.OnClickListener() {
+            public void onClick(View v) { showSignals(); }
+        }), sg);
         LinearLayout.LayoutParams b2 = new LinearLayout.LayoutParams(-1, px(52));
         b2.topMargin = px(10);
         col.addView(bar2, b2);
@@ -407,7 +412,7 @@ public class DiagActivity extends Screen {
     }
 
     private String reportText() {
-        return "My Car diagnostics · v" + Updates.currentVersion(this) + " · " + new Date() + "\n\n" + (events.length() > 0 ? "── Changes ──\n" + events + "\n" : "") + report;
+        return "My Car diagnostics · v" + Updates.currentVersion(this) + " · " + new Date() + "\n\n" + (events.length() > 0 ? "── Changes ──\n" + events + "\n" : "") + "── Screen messages ──\n" + signalsText() + "\n\n" + report;
     }
 
     /** يرفع التقرير لموقع لصق نصوص ويعرض رابطاً قصيراً يرسله المستخدم للمطوّر (بدل الفلاشة). */
@@ -457,6 +462,27 @@ public class DiagActivity extends Screen {
             url = post("https://dpaste.com/api/v2/", body.getBytes("UTF-8"), "application/x-www-form-urlencoded");
         }
         return url == null ? null : url.trim();
+    }
+
+    private String signalsText() {
+        StringBuilder b = new StringBuilder();
+        b.append(I18n.L("حالة الليل من الشاشة: ", "Night from screen: ")).append(CarSignals.dark == null ? "—" : CarSignals.dark ? I18n.L("ليل", "night") : I18n.L("نهار", "day")).append('\n');
+        synchronized (CarSignals.log) { for (String l : CarSignals.log) b.append(l).append('\n'); }
+        if (CarSignals.log.isEmpty()) b.append(I18n.L("لم تصل رسائل بعد. شغّل أضواء السيارة وأطفئها، أو أطفئ السيارة وشغّلها.", "No messages yet. Switch the car lights on/off, or the car off/on."));
+        return b.toString();
+    }
+
+    private void showSignals() {
+        TextView t = new TextView(this);
+        t.setTextIsSelectable(true);
+        t.setTextColor(0xFFFFFFFF);
+        t.setTextSize(15);
+        t.setPadding(px(20), px(12), px(20), px(8));
+        t.setText(signalsText());
+        ScrollView sv = new ScrollView(this);
+        sv.addView(t);
+        new TB(this, Main.dlg()).raw().setTitle(I18n.L("رسائل الشاشة", "Screen messages")).setView(sv)
+            .setPositiveButton(I18n.L("إغلاق", "Close"), null).show();
     }
 
     /** كاشف لانشر المصنع: يقرأ كوده ويرفعه، ويعرض رابطين قصيرين. */

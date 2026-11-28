@@ -54,6 +54,12 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.unisound.intent.action.ACC_ON"/>
+                <action android:name="com.unisound.intent.action.DO_WAKEUP"/>
+                <action android:name="com.android.action_acc_on"/>
+                <action android:name="com.zjinnova.zlink.action.OUT_DARK_START"/>
+                <action android:name="com.zjinnova.zlink.action.OUT_DARK_STOP"/>
+                <action android:name="notify_theme_change"/>
             </intent-filter>
         </receiver>
         <service android:name="com.stradaos.launcher.TwService" android:process=":tw" android:exported="false"/>

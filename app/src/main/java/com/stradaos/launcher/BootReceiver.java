@@ -7,6 +7,8 @@ import android.content.Intent;
 /** «Abrir StradaOS al encender»: para pantallas que siempre arrancan en su menú de fábrica (funciona en Android 4 a 9). */
 public class BootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context c, Intent i) {
+        String a = i.getAction();
+        if (a != null && !a.contains("BOOT") && !a.contains("QUICKBOOT")) { CarSignals.handle(c, i); return; }   // رسائل ACC/الليل من شاشة TW
         // My Car: إعادة ضبط منبّه الأذان بعد تشغيل الشاشة
         try { Prayer.schedule(c); } catch (Throwable ignored) { }
         if (!c.getSharedPreferences("launcher", 0).getBoolean("boot_open", true)) return;
