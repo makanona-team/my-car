@@ -102,8 +102,7 @@ final class FactoryScan {
             if (dev != null) { rep.append("\n/dev tw*: "); for (File f : dev) if (f.getName().toLowerCase(Locale.US).startsWith("tw")) rep.append(f.getName()).append(f.canRead() ? "(r) " : " "); rep.append('\n'); }
         } catch (Throwable ignored) { }
         res.report = rep.toString();
-        p.on(I18n.L("أرفع ملفات الكود (", "Uploading code (") + (zipF.length() / 1024) + " KB)…");
-        res.filesUrl = uploadFile(zipF, res);
+        res.filesUrl = uploadFile(zipF, res, p);
         p.on(I18n.L("أرفع التقرير…", "Uploading the report…"));
         try { res.reportUrl = DiagActivity.postText(res.report + "\n\nfiles: " + res.filesUrl + "\n" + res.error); } catch (Throwable e) { res.error += "report: " + e + "\n"; }
         return res;
@@ -161,27 +160,28 @@ final class FactoryScan {
         return out;
     }
 
-    /** رفع ملف لخدمة مشاركة ملفات مجانية، مع بدائل. */
-    static String uploadFile(File f, Result res) {
-        String[][] hosts = {
-            {"https://catbox.moe/user/api.php", "fileToUpload", "reqtype=fileupload"},
-            {"https://0x0.st", "file", null},
-            {"https://tmpfiles.org/api/v1/upload", "file", null},
-        };
-        for (String[] h : hosts) {
-            try {
-                String r = multipart(h[0], h[1], h[2], f);
-                if (r == null) continue;
-                r = r.trim();
-                if (r.startsWith("{")) {   // tmpfiles
-                    org.json.JSONObject j = new org.json.JSONObject(r).getJSONObject("data");
-                    r = j.getString("url").replace("tmpfiles.org/", "tmpfiles.org/dl/");
+    /**
+     * رفع الملف على شكل أجزاء نصية (base64) على paste.rs — نفس الخدمة المجرَّبة لإرسال التقرير.
+     * يعيد رابط «فهرس» فيه روابط الأجزاء بالترتيب.
+     */
+    static String uploadFile(File f, Result res, Progress p) {
+        try {
+            byte[] all = readAll(new FileInputStream(f));
+            String b64 = android.util.Base64.encodeToString(all, android.util.Base64.NO_WRAP);
+            int part = 700 * 1024, n = (b64.length() + part - 1) / part;
+            StringBuilder idx = new StringBuilder("MYCAR-PARTS " + n + " " + all.length + "\n");
+            for (int i = 0; i < n; i++) {
+                p.on(I18n.L("أرفع ملفات الكود: الجزء ", "Uploading code: part ") + (i + 1) + " / " + n);
+                String chunk = b64.substring(i * part, Math.min(b64.length(), (i + 1) * part));
+                String u = null;
+                for (int t = 0; t < 3 && (u == null || !u.startsWith("http")); t++) {
+                    try { u = DiagActivity.postPaste(chunk); } catch (Throwable e) { res.error += "part " + i + ": " + e + "\n"; }
                 }
-                if (r.startsWith("http")) return r;
-                res.error += h[0] + ": " + r + "\n";
-            } catch (Throwable e) { res.error += h[0] + ": " + e + "\n"; }
-        }
-        return null;
+                if (u == null || !u.startsWith("http")) return null;
+                idx.append(u.trim()).append('\n');
+            }
+            return DiagActivity.postPaste(idx.toString());
+        } catch (Throwable e) { res.error += "upload: " + e + "\n"; return null; }
     }
 
     static String multipart(String url, String field, String extra, File f) throws Exception {

@@ -443,6 +443,11 @@ public class DiagActivity extends Screen {
         }}).start();
     }
 
+    /** paste.rs فقط (للأجزاء الكبيرة). */
+    static String postPaste(String text) throws Exception {
+        return post("https://paste.rs/", text.getBytes("UTF-8"), "text/plain; charset=utf-8");
+    }
+
     /** يرفع نصاً لموقع لصق ويعيد الرابط (paste.rs ثم dpaste). */
     static String postText(String text) throws Exception {
         String url = null;

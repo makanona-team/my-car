@@ -18,7 +18,13 @@ jobs:
         run: |
           set -x
           mkdir -p w out && cd w
-          curl -fsSL -A "curl/8.0" -o code.zip "${{ github.event.inputs.url }}"
+          U="${{ github.event.inputs.url }}"; case "$U" in http*) ;; *) U="https://$U";; esac
+          curl -fsSL "$U" -o first.txt
+          # رابط التقرير يحوي سطر «files: <فهرس>»؛ الفهرس يبدأ بـ MYCAR-PARTS
+          if ! head -1 first.txt | grep -q MYCAR-PARTS; then IDX=$(grep -o 'files: http[^ ]*' first.txt | head -1 | cut -d' ' -f2); curl -fsSL "$IDX" -o first.txt; cp first.txt ../out/ 2>/dev/null || true; fi
+          tail -n +2 first.txt | while read -r u; do [ -n "$u" ] && curl -fsSL --retry 3 "$u"; done > code.b64
+          base64 -d code.b64 > code.zip
+          curl -fsSL "${{ github.event.inputs.url }}" -o ../out/report.txt || true
           unzip -q code.zip -d src
           curl -fsSL -o jadx.zip https://github.com/skylot/jadx/releases/download/v1.5.1/jadx-1.5.1.zip
           unzip -q jadx.zip -d jadx
