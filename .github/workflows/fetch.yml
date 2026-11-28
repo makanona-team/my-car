@@ -1,0 +1,19 @@
+name: fetch
+# أداة مطوّر: يجلب نصاً من رابط (تقارير الشاشة على مواقع اللصق) ويحفظه في الفرع fetched
+on:
+  workflow_dispatch:
+    inputs:
+      url: { description: "url", required: true }
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir o && cd o
+          U="${{ github.event.inputs.url }}"
+          curl -sL -A "Mozilla/5.0 (X11; Linux x86_64)" "$U.txt" -o rep.txt || true
+          [ -s rep.txt ] || curl -sL -A "Mozilla/5.0" "$U" -o rep.txt
+          git init -q -b fetched; git config user.name bot; git config user.email bot@users.noreply.github.com
+          git add -A; git commit -q -m fetched; git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" fetched
