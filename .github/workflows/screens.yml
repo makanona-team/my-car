@@ -31,6 +31,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Emulator
+        env:
+          QUICK: ${{ github.event.inputs.quick }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -39,7 +41,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1280x720
           emulator-boot-timeout: 900
-          script: QUICK="${{ github.event.inputs.quick }}" bash .github/scripts/screens.sh
+          script: bash .github/scripts/screens.sh
       - name: Push screenshots
         if: always()
         env:
